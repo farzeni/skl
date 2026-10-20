@@ -1,5 +1,7 @@
 # Commands
 
+Wherever a command takes `<repo>` or `<ref>`, any form from [Repo references](./repos) works.
+
 ## Load
 
 | Command | Description |
@@ -32,6 +34,6 @@
 
 | Flag | Effect |
 |---|---|
-| `--scope user\|project` | Where to link skills. `user` (the default) is `~/.claude/skills`; `project` is `./.claude/skills`. |
+| `--scope user\|project` | Where to link skills. `user` is `~/.claude/skills`; `project` is `./.claude/skills`. Defaults to `scope` in the [config](./config), else `user`. |
 | `--dry-run` | Show what would change, and change nothing. |
 | `--yes` | Answer yes to confirmations, such as loading a remote skill for the first time. |

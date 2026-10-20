@@ -9,7 +9,7 @@ Every loading command takes the same selectors. They're applied left to right, a
 | `review` | Every skill in one of your groups |
 | `review/pr-review` | One skill from one of your groups |
 | `@backend` | A saved profile |
-| `owner/repo/skill` | A skill from someone else's repo, used read-only and pinned to a commit |
+| `owner/repo/skill` | A skill from someone else's repo, used read-only and pinned to a commit. Any git host works: see [Repo references](../reference/repos). |
 | `-review/test-gaps` | Removes a skill that an earlier selector added |
 
 ```sh

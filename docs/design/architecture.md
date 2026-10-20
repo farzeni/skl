@@ -2,7 +2,7 @@
 
 ## Principles
 
-- **Git is the backend.** Your vault is a git repo, and other people's skills are read straight from theirs. There's no server.
+- **Git is the backend.** Your vault is a git repo, and other people's skills are read straight from theirs. Any git host works, and there's no server.
 - **Links, not copies.** skl loads a skill by symlinking it into the target folder, and records every link it creates.
 - **The vault is the only thing you edit.** Other repos are read-only. Forks and lessons are written into your vault.
 - **Nothing is lost.** Every change is a generation, and every content change is a commit.
@@ -15,6 +15,16 @@
 4. **Apply.** Create the new links in a staging folder, swap them in, then save a generation.
 
 If a step fails, the previous set stays in place.
+
+## Fetching from remotes
+
+skl runs git and behaves the same on every host.
+
+- A skill folder is fetched with `git clone --depth 1 --filter=blob:none --sparse`, then `git sparse-checkout set <path>`. On a large repo that's a few hundred KB instead of the full history. Servers without filter support send everything: slower, but still correct.
+- Local repos are cloned through `file://`, because git ignores filters for plain paths.
+- Merge bases for `skl upstream` are fetched by commit, only when needed.
+- The cache lives at `~/.skl/cache/<host>/<path>`.
+- Git runs with `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential or an unknown host key fails at once instead of waiting for input.
 
 ## Learn engine
 
