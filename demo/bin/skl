@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Mock of the proposed skl CLI, for the demo video only. Prints scripted output.
+B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'
+A=$'\e[38;5;111m'; W=$'\e[38;5;215m'; G=$'\e[38;5;114m'; X=$'\e[38;5;203m'
+ok()   { printf "${G}✓${R} %s\n" "$*"; }
+step() { printf "${A}◇${R} %s\n" "$*"; }
+ask()  { printf "${W}?${R} ${B}%s${R}\n" "$1"; }
+p()    { sleep "${1:-0.25}"; }
+choose() { # choose "opt1" "opt2" ... -> reads a digit, echoes the pick
+  local i=1; for o in "$@"; do printf "  ${D}%d${R} %s\n" $i "$o"; i=$((i+1)); done
+  printf "  ${D}›${R} "; read -r n; local pick="${!n}"
+  printf "\e[%dA\e[J" $(( $# + 1 )); printf "  ${G}›${R} %s\n" "$pick"
+}
+case "$1" in
+init)
+  step "cloning github.com/$2"; p 0.6
+  ok "vault ready  ${D}3 groups · 14 skills · 2 profiles${R}" ;;
+use)
+  step "resolving @backend writing/changelog anthropics/skills/pdf"; p 0.4
+  step "fetching anthropics/skills/pdf  ${D}(sparse, 1 folder)${R}"; p 0.6
+  printf "\n  ${W}pdf${R} is a remote skill  ${D}anthropics/skills @3f9a1c2${R}\n"
+  printf "  ${D}description:${R} Extract text and tables from PDF files, fill forms\n"
+  printf "  ${D}runs:${R}        scripts/extract.py, scripts/fill_form.py\n\n"
+  ask "Load it?"; choose "yes" "no, skip it"; p 0.2
+  printf "\n  ${A}+${R} review/pr-review     ${A}+${R} review/test-gaps\n"
+  printf "  ${A}+${R} data/sql-explain     ${A}+${R} writing/changelog\n"
+  printf "  ${W}+${R} pdf ${D}remote, pinned @3f9a1c2${R}\n"; p 0.3
+  ok "5 skills linked into ~/.claude/skills · generation 11" ;;
+status)
+  printf "${B}user scope${R}  ~/.claude/skills   ${D}generation 11${R}\n"
+  printf "  pr-review     review/      ${D}vault${R}\n"
+  printf "  test-gaps     review/      ${D}vault${R}\n"
+  printf "  sql-explain   data/        ${D}vault${R}\n"
+  printf "  changelog     writing/     ${D}vault${R}\n"
+  printf "  pdf           ${W}anthropics/skills${R}  ${D}@3f9a1c2${R}\n"
+  printf "  ${D}my-notes      not managed by skl, left alone${R}\n" ;;
+learn)
+  step "reading both skills  ${D}pr-review: 1 file · deep-pr-review: 4 files${R}"; p 0.8
+  step "capability map"; p 0.3
+  printf "    shared       diff walkthrough, test coverage check\n"; p 0.2
+  printf "    donor only   ${W}OWASP checklist, secret scanning${R}  ${D}← your focus${R}\n"; p 0.2
+  printf "    yours only   short summary, links to the ticket\n"; p 0.2
+  printf "    clash        donor comments inline; yours writes one summary\n\n"; p 0.5
+  ask "Inline comments or one summary?"
+  choose "keep my summary, add a Security section" "switch to inline comments" "both"; p 0.2
+  ask "Bring along the donor's secret-scanning script?"
+  choose "yes, as an optional step" "yes, always run it" "no"; p 0.3
+  printf "\n"; step "rewriting review/pr-review"; p 1.0
+  printf "\n  ${D}SKILL.md${R}\n"
+  printf "  ${G}+ ## Security${R}\n"
+  printf "  ${G}+ Check the diff against the OWASP Top 10: injection, auth, secrets…${R}\n"
+  printf "  ${G}+ Optionally run scripts/scan_secrets.sh on changed files.${R}\n"
+  printf "  ${X}- Mention anything that looks unsafe.${R}\n"
+  printf "  ${D}  +38 −5 · scripts/scan_secrets.sh (new)${R}\n\n"; p 0.4
+  ask "Land it"
+  choose "replace review/pr-review" "save as review/pr-review-sec" "discard"; p 0.3
+  ok "committed to vault a91c3e0 · generation 12"
+  printf "  ${D}lesson recorded in review/pr-review/.skl-origin.toml${R}\n" ;;
+history)
+  printf "  ${A}12${R}  now      learn deep-pr-review → review/pr-review\n"
+  printf "  ${A}11${R}  1m ago   use @backend writing/changelog anthropics/skills/pdf\n"
+  printf "  ${A}10${R}  3d ago   use @backend\n" ;;
+rollback)
+  step "going back to generation 11"; p 0.4
+  printf "  ${W}~${R} review/pr-review   content restored ${D}(revert commit 5d0e7aa)${R}\n"; p 0.3
+  ok "generation 13 = generation 11   ${D}undo with: skl rollback 12${R}" ;;
+esac

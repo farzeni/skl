@@ -1,0 +1,13 @@
+:root {
+  --vp-c-brand-1: #3245d1;
+  --vp-c-brand-2: #4a5be0;
+  --vp-c-brand-3: #3245d1;
+  --vp-c-brand-soft: rgba(50, 69, 209, 0.12);
+}
+.dark {
+  --vp-c-brand-1: #8e9cff;
+  --vp-c-brand-2: #a6b1ff;
+  --vp-c-brand-3: #6f7fe6;
+  --vp-c-brand-soft: rgba(142, 156, 255, 0.16);
+}
+.demo { border-radius: 12px; margin: 16px 0; }

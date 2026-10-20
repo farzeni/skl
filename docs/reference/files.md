@@ -1,0 +1,60 @@
+# Files
+
+## Your vault
+
+Plain folders, so the vault stays readable on GitHub and works without skl: as a Claude Code plugin marketplace, and as a source for `npx skills`.
+
+```
+you/skills/
+├── review/
+│   ├── pr-review/
+│   │   ├── SKILL.md
+│   │   └── .skl-origin.toml    # only for forks and skills with lessons
+│   └── test-gaps/SKILL.md
+├── data/
+│   └── sql-explain/SKILL.md
+├── profiles/
+│   └── backend.toml
+├── lessons/                    # saved interview answers
+└── stars.toml
+```
+
+### `profiles/<name>.toml`
+
+```toml
+select = ["@base", "review", "writing/changelog", "anthropics/skills/pdf"]
+```
+
+### `.skl-origin.toml`
+
+```toml
+[fork]
+source = "anthropics/skills/pdf"
+commit = "3f9a1c2"
+
+[[lesson]]
+donor   = "someone/agent-skills/deep-pr-review"
+commit  = "7c21e9f"
+focus   = "security"
+answers = "lessons/7c21e9f.md"
+```
+
+### `stars.toml`
+
+```toml
+[[star]]
+ref  = "someone/agent-skills/deep-pr-review"
+note = "good security checks"
+```
+
+## Local state
+
+Never synced. Safe to delete, apart from losing your rollback history.
+
+```
+~/.skl/
+├── vault/          # clone of your vault
+├── cache/          # sparse clones of other repos
+├── state.json      # every link skl created
+└── generations/    # one snapshot per change
+```
