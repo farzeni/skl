@@ -29,15 +29,17 @@ select = ["@base", "review", "writing/changelog", "anthropics/skills/pdf"]
 
 ```toml
 [fork]
-source = "anthropics/skills/pdf"
+source = "https://github.com/someone/agent-skills.git//pdf"
 commit = "3f9a1c2"
 
 [[lesson]]
-donor   = "someone/agent-skills/deep-pr-review"
+donor   = "https://github.com/someone/agent-skills.git//deep-pr-review"
 commit  = "7c21e9f"
 focus   = "security"
 answers = "lessons/7c21e9f.md"
 ```
+
+Sources and donors are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`.
 
 ### `stars.toml`
 
@@ -53,8 +55,9 @@ Never synced. Safe to delete, apart from losing your rollback history.
 
 ```
 ~/.skl/
+├── config.toml     # this machine's settings, see Configuration
 ├── vault/          # clone of your vault
-├── cache/          # sparse clones of other repos
+├── cache/          # sparse clones of other repos, by host and path
 ├── state.json      # every link skl created
 └── generations/    # one snapshot per change
 ```

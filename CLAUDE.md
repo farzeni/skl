@@ -85,15 +85,20 @@ Don't reopen these without a reason from an experiment.
 - Git is the only backend; no server. One Go binary that shells out to the git CLI.
 - `learn` runs the user's `claude` CLI in a prepared workspace. Claude writes to staging; only skl commits.
 - skl never changes or removes skills it didn't create.
+- Any git remote works for every command that takes a repo. `owner/repo` means the default host (GitHub); `//` separates a repo from a path inside it; `#` pins a ref. See `docs/reference/repos.md`.
+- Per-machine settings live in `~/.skl/config.toml`, edited by hand (no `skl config` command). Precedence: flag, env var, file, default.
 
 ## Unproven assumptions (validate before freezing)
 
 - Claude Code loads skills from symlinked folders in `~/.claude/skills`, and when it notices new ones.
 - The vault layout (`<group>/<skill>/SKILL.md`) works as a Claude Code plugin marketplace and as an `npx skills` source without extra files. `docs/reference/files.md` claims this; it is likely false for the marketplace (that needs `.claude-plugin/` manifests).
-- `git clone --filter=blob:none --sparse` fetches a single skill folder cheaply from a large repo.
 - `git merge-file` gives usable three-way merges for `SKILL.md` edits.
 - The `claude` CLI can be launched non-trivially for `learn`: interview the user, then write files to a given folder and exit.
 - Selector grammar: `-review/test-gaps` collides with flag parsing, and `group/skill` vs `owner/repo/skill` is ambiguous for nested paths.
+
+## Confirmed assumptions
+
+- Fetching one skill folder with `git clone --depth 1 --filter=blob:none --sparse` works on GitHub, GitLab, Bitbucket, Gitea, Forgejo and local `file://` repos, and older commits can be fetched by sha on demand. Issue #1.
 
 ## Writing the docs
 

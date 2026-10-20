@@ -27,6 +27,8 @@ export default defineConfig({
         text: 'Reference',
         items: [
           { text: 'Commands', link: '/reference/commands' },
+          { text: 'Repo references', link: '/reference/repos' },
+          { text: 'Configuration', link: '/reference/config' },
           { text: 'Files', link: '/reference/files' }
         ]
       },
