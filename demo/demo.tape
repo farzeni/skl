@@ -39,7 +39,7 @@ Enter
 Type "# make my pr-review as good at security as someone else's"
 Sleep 500ms
 Enter
-Type "skl learn someone/agent-skills/deep-pr-review --into review/pr-review --focus security"
+Type 'skl learn review/pr-review someone/agent-skills/deep-pr-review "I like its security checks"'
 Enter
 Sleep 4.5s
 Type "1"

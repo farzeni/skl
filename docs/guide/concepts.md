@@ -9,7 +9,7 @@ skl is built on six ideas.
 | **Vault** | `github.com/you/skills` | Your repo of skills, forks, lessons and profiles. The only thing you edit. |
 | **Profile** | `@backend` | A saved mix of groups and skills, loaded in one go. |
 | **Generation** | `#12` | A snapshot taken after every change, so any change can be rolled back. |
-| **Lesson** | donor → yours | A capability your skill learned from another skill, through an interview with Claude. |
+| **Lesson** | peer → yours | A capability your skill learned from another skill, through an interview with Claude. |
 
 ## How they fit together
 
