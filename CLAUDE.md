@@ -15,6 +15,33 @@ The docs are the spec. We design by writing docs, prove every claim they make, a
 
 If an experiment contradicts the docs, change the docs, not the experiment. If you implement something the docs don't describe, document it first.
 
+## Work tracking
+
+All work is tracked on the **SKL Board**, https://github.com/users/farzeni/projects/1. Each card is an issue in `farzeni/skl`. Cards follow the PR lifecycle: **In Progress** from the start of work until the PR is merged, then **Done**.
+
+1. **Investigate.** Exploring in `.workbench/` needs no card.
+2. **Create the card before starting work.** `.workbench/` isn't in git, so the issue must stand on its own: the question, what the investigation found (verdict and key evidence), the plan, and the doc pages it touches.
+   ```sh
+   gh issue create --repo farzeni/skl --title "<what will change>" --body "<findings + plan>"
+   gh project item-add 1 --owner farzeni --url <issue-url>
+   ```
+3. **Work in a worktree named after the card**, one worktree and one branch per card, then set the card to **In Progress**:
+   ```sh
+   git worktree add .claude/worktrees/<issue>-<slug> -b <issue>-<slug>
+   ```
+4. **Open a PR that closes the card**, with `Closes #<issue>` in the body. The card stays In Progress during review.
+5. **After the merge,** make sure the card is **Done**, then `git worktree remove .claude/worktrees/<issue>-<slug>`.
+
+Never commit to `main` directly.
+
+Setting a card's status (`gh` needs the `project` scope):
+```sh
+gh project item-list 1 --owner farzeni --format json      # find the card's item id
+gh project item-edit --project-id PVT_kwHOABQPns4Bn-yc --id <item-id> \
+  --field-id PVTSSF_lAHOABQPns4Bn-yczhmg69s --single-select-option-id <option-id>
+```
+Option ids: Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
+
 ## Repository layout
 
 ```
@@ -22,6 +49,7 @@ docs/          VitePress site, the spec        cd docs && pnpm dev | pnpm build
 demo/          vhs tape + scripted mock         cd demo && vhs demo.tape
 spec/          stub tests (created with the first test; see below)
 .workbench/    experiments and proofs, NOT in git
+.claude/worktrees/  one worktree per card, NOT in git
 ```
 
 ## `.workbench/`
