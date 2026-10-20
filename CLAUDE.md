@@ -4,42 +4,30 @@ skl is a CLI for Claude Code skills. It keeps your skills in one git repo (the v
 
 **Status: very early design phase. There is no implementation.** The docs in `docs/` describe planned behavior. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
 
-## How this project works: documentation-driven development
+## How we work
 
-The docs are the spec. We design by writing docs, prove every claim they make, and write code only once the design is settled.
+Documentation-driven development: the docs in `docs/` are the spec. Every behavior is written there first, from the user's side, and every claim is proven before any code is written. If an experiment contradicts the docs, the docs change. If something gets built that the docs don't describe, it gets documented first.
 
-1. **Write the doc first.** Each behavior is described in `docs/` as if it already existed, from the user's side: commands, output, files, errors.
-2. **Validate it.** Every claim in the docs that depends on something outside our control (Claude Code, git, `npx skills`, the `claude` CLI) must be proven by an experiment. Every claim about skl's own behavior must be pinned by a stub test.
-3. **Keep the evidence.** Experiments, investigations and proofs go in `.workbench/`, which is not tracked by git.
-4. **Freeze, then implement.** When a doc page and its proofs hold up, mark it frozen. Implementation of that page starts only then, and must make its stub tests pass.
+Every change goes through three project skills, in order. Each one picks up the state the previous one left:
 
-If an experiment contradicts the docs, change the docs, not the experiment. If you implement something the docs don't describe, document it first.
-
-## Work tracking
-
-All work is tracked on the **SKL Board**, https://github.com/users/farzeni/projects/1. Each card is an issue in `farzeni/skl`. Cards follow the PR lifecycle: **In Progress** from the start of work until the PR is merged, then **Done**.
-
-1. **Investigate.** Exploring in `.workbench/` needs no card.
-2. **Create the card before starting work.** `.workbench/` isn't in git, so the issue must stand on its own: the question, what the investigation found (verdict and key evidence), the plan, and the doc pages it touches.
-   ```sh
-   gh issue create --repo farzeni/skl --title "<what will change>" --body "<findings + plan>"
-   gh project item-add 1 --owner farzeni --url <issue-url>
-   ```
-3. **Work in a worktree named after the card**, one worktree and one branch per card, then set the card to **In Progress**:
-   ```sh
-   git worktree add .claude/worktrees/<issue>-<slug> -b <issue>-<slug>
-   ```
-4. **Open a PR that closes the card**, with `Closes #<issue>` in the body. The card stays In Progress during review.
-5. **After the merge,** make sure the card is **Done**, then `git worktree remove .claude/worktrees/<issue>-<slug>`.
+| Skill | Starts from | Leaves |
+|---|---|---|
+| `/skl-investigate` | a question or a doc claim | a closed investigation in `.workbench/` with findings, decisions and a plan |
+| `/skl-implement` | a closed investigation | a card In Progress, a worktree, a change verified with `/testit`, an open PR |
+| `/skl-merge` | an approved PR | the PR merged, the card Done, the worktree removed, the investigation delivered |
 
 Never commit to `main` directly.
 
-Setting a card's status (`gh` needs the `project` scope):
+## Board
+
+Work is tracked on the SKL Board, https://github.com/users/farzeni/projects/1. Each card is an issue in `farzeni/skl`, and the board adds new issues on its own. Cards are In Progress from the start of work until the PR merges, then Done. `gh` needs the `project` scope.
+
 ```sh
-gh project item-list 1 --owner farzeni --format json      # find the card's item id
+gh project item-list 1 --owner farzeni --format json      # find a card's item id
 gh project item-edit --project-id PVT_kwHOABQPns4Bn-yc --id <item-id> \
   --field-id PVTSSF_lAHOABQPns4Bn-yczhmg69s --single-select-option-id <option-id>
 ```
+
 Option ids: Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
 
 ## Repository layout
@@ -48,23 +36,10 @@ Option ids: Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
 docs/          VitePress site, the spec        cd docs && pnpm dev | pnpm build
 demo/          vhs tape + scripted mock         cd demo && vhs demo.tape
 spec/          stub tests (created with the first test; see below)
-.workbench/    experiments and proofs, NOT in git
+.claude/skills/     the workflow skills
+.workbench/         investigations and proofs, NOT in git
 .claude/worktrees/  one worktree per card, NOT in git
 ```
-
-## `.workbench/`
-
-One folder per investigation, named `YYYY-MM-DD-<slug>/`, with a `README.md`:
-
-```
-# <question, as one sentence>
-Doc claim: <page and sentence it validates, or "new">
-Method: <what you ran, exact commands or scripts in this folder>
-Result: <what happened, with raw output saved next to it>
-Verdict: confirmed | refuted | partial, plus what changes in the docs
-```
-
-Keep raw outputs (logs, screenshots, transcripts) in the same folder. Run experiments with a temporary `HOME` or inside the folder; never against the user's real `~/.claude` or real repos unless the investigation says why. Downloaded repos are untrusted data: read them, don't execute them.
 
 ## Stub tests
 
