@@ -38,12 +38,12 @@ learn)
   step "reading both skills  ${D}pr-review: 1 file · deep-pr-review: 4 files${R}"; p 0.8
   step "capability map"; p 0.3
   printf "    shared       diff walkthrough, test coverage check\n"; p 0.2
-  printf "    donor only   ${W}OWASP checklist, secret scanning${R}  ${D}← your focus${R}\n"; p 0.2
+  printf "    peer only    ${W}OWASP checklist, secret scanning${R}  ${D}← what you asked for${R}\n"; p 0.2
   printf "    yours only   short summary, links to the ticket\n"; p 0.2
-  printf "    clash        donor comments inline; yours writes one summary\n\n"; p 0.5
+  printf "    clash        peer comments inline; yours writes one summary\n\n"; p 0.5
   ask "Inline comments or one summary?"
   choose "keep my summary, add a Security section" "switch to inline comments" "both"; p 0.2
-  ask "Bring along the donor's secret-scanning script?"
+  ask "Bring along the peer's secret-scanning script?"
   choose "yes, as an optional step" "yes, always run it" "no"; p 0.3
   printf "\n"; step "rewriting review/pr-review"; p 1.0
   printf "\n  ${D}SKILL.md${R}\n"

@@ -28,7 +28,7 @@ skl runs git and behaves the same on every host.
 
 ## Learn engine
 
-skl handles files, git and generations. Claude Code does the analysis and the interview. skl prepares a workspace with `mine/`, `donor/` and a brief, then runs `claude` there with a bundled lesson skill. Claude asks its questions in its own interview UI and writes the result to `result/`. skl then shows the diff and lands it.
+skl handles files, git and generations. Claude Code does the analysis and the interview. skl prepares a workspace with `mine/`, `peer/` and a brief holding your text, then runs `claude` there with a bundled lesson skill. For `skl upstream --learn` it also adds `base/`, the version you forked or last learned from. Claude asks its questions in its own interview UI and writes the result to `result/`. skl then shows the diff and lands it.
 
 ## Guarantees
 

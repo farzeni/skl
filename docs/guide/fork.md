@@ -19,6 +19,20 @@ skl upstream
 docs/pdf     anthropics/skills   4 commits behind   you changed 2 files
 ```
 
+There are two ways to take them.
+
+### Learn: take what you choose
+
+You've usually changed your fork, and want only part of what the author changed. Learning from upstream lets Claude sort the author's changes from yours and ask you about each one:
+
+```sh
+skl upstream docs/pdf --learn "take the faster table extraction, keep my CSV output"
+```
+
+Changes you skip are declined and won't show again unless you add `--all`. See [Learning from upstream](./learn#learning-from-upstream).
+
+### Merge: take everything
+
 ```sh
 skl upstream docs/pdf --merge
 ```
@@ -31,4 +45,4 @@ skl upstream --continue
 
 ## Fork or learn?
 
-Fork when you want the whole skill and plan to keep it close to the original. [Learn](./learn) when you want one thing a skill does well, inside a skill you already have.
+Fork when you want the whole skill and plan to follow its author, taking later changes with `skl upstream`. [Learn](./learn) when you want one thing a skill does well, inside a skill you already have.

@@ -59,6 +59,8 @@ Don't reopen these without a reason from an experiment.
 - Every change creates a **generation**; `skl rollback` never rewrites git history.
 - Git is the only backend; no server. One Go binary that shells out to the git CLI.
 - `learn` runs the user's `claude` CLI in a prepared workspace. Claude writes to staging; only skl commits.
+- `skl learn <skill> <peer> ["<text>"]`: the skill a lesson learns from is its **peer**. No flags for the target or a focus; the optional text goes to Claude as is. One peer per run.
+- `skl upstream <skill> --learn ["<text>"]` takes changes selectively from a fork's source or a lesson's peer. Skipped changes are declined (`--all` shows them again). `--merge` takes everything. There is no `learn --again`.
 - skl never changes or removes skills it didn't create.
 - Any git remote works for every command that takes a repo. `owner/repo` means the default host (GitHub); `//` separates a repo from a path inside it; `#` pins a ref. See `docs/reference/repos.md`.
 - Per-machine settings live in `~/.skl/config.toml`, edited by hand (no `skl config` command). Precedence: flag, env var, file, default.
@@ -79,7 +81,7 @@ Don't reopen these without a reason from an experiment.
 
 - Perfection is reached by removing what isn't essential. Before adding a page, section, flag or command, check whether an existing one already covers it. Say each thing once and link to it elsewhere.
 - Write from the user's side: what they type, what they see, what changes on disk.
-- Use generic examples only: vault `you/skills`, groups like `review`, `data`, `writing`, donor `someone/agent-skills/...`. Never the maintainer's own projects, names or tools.
+- Use generic examples only: vault `you/skills`, groups like `review`, `data`, `writing`, peer `someone/agent-skills/...`. Never the maintainer's own projects, names or tools.
 - Plain, direct sentences. No marketing tone.
 - Every page about planned behavior keeps the "Design preview" warning until the feature ships.
 - When you change commands or output, update `demo/bin/skl` and `demo/demo.tape` so the recording stays true to the docs.

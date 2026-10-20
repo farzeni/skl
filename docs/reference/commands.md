@@ -19,8 +19,8 @@ Wherever a command takes `<repo>` or `<ref>`, any form from [Repo references](./
 | Command | Description |
 |---|---|
 | `skl fork <ref> [group]` | Copy a skill into your vault and record its source. |
-| `skl upstream [skill]` | Show and merge later changes from the sources of your forks and lessons. |
-| `skl learn <ref> --into <skill>` | Improve your skill with what another skill does better. See [Learn](../guide/learn). |
+| `skl upstream [skill]` | Show later changes from the sources of your forks and the peers of your lessons. Take them with `--learn ["<text>"]` (you choose, with Claude) or `--merge` (everything). `--all` includes changes you declined before. |
+| `skl learn <skill> <peer> ["<text>"]` | Improve your skill with what its peer does better. See [Learn](../guide/learn). |
 | `skl star <ref>` | Bookmark a skill without installing it. |
 
 ## Vault

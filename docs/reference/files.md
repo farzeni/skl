@@ -33,13 +33,14 @@ source = "https://github.com/someone/agent-skills.git//pdf"
 commit = "3f9a1c2"
 
 [[lesson]]
-donor   = "https://github.com/someone/agent-skills.git//deep-pr-review"
-commit  = "7c21e9f"
-focus   = "security"
-answers = "lessons/7c21e9f.md"
+peer     = "https://github.com/someone/agent-skills.git//deep-pr-review"
+commit   = "7c21e9f"
+prompt   = "I like its security checks"
+answers  = "lessons/7c21e9f.md"
+declined = ["inline comments"]
 ```
 
-Sources and donors are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`.
+Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After `skl upstream --merge` or `--learn`, `commit` moves to the upstream commit you reviewed.
 
 ### `stars.toml`
 
