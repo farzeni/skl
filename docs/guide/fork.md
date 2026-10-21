@@ -43,4 +43,4 @@ skl upstream --continue
 
 ## Fork or learn?
 
-Fork when you want the whole skill and plan to follow its author, taking later changes with `skl upstream`. [Learn](./learn) when you want one thing a skill does well, inside a skill you already have.
+Fork when you want the whole skill and plan to follow its author, taking their later changes with `skl learn` or `skl upstream --merge`. [Learn](./learn) when you want one thing a skill does well, inside a skill you already have.
