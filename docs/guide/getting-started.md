@@ -31,16 +31,30 @@ skl also writes this machine's settings to `~/.skl/config.toml`. See [Configurat
 ## Load skills
 
 ```sh
-skl use @backend writing/changelog anthropics/skills/pdf
+skl use review writing/changelog anthropics/skills/pdf
 ```
 
-This loads a saved profile, one skill from your own `writing` group and one skill from someone else's repo. skl links them into `~/.claude/skills`, and Claude Code picks them up. The first time you load a skill from another repo, skl shows what it does and which scripts it runs, and asks before loading it.
+This loads every skill in your `review` group, one skill from your `writing` group and one skill from someone else's repo. skl links them into `~/.claude/skills`, and Claude Code picks them up. The first time you load a skill from another repo, skl shows what it does and which scripts it runs, and asks before loading it.
 
 ```sh
 skl status
 ```
 
-shows what's loaded and where each skill comes from.
+shows what's loaded, where each skill comes from, and your profiles.
+
+## Save the mix as a profile
+
+```sh
+skl save backend
+```
+
+saves what you just loaded as the profile `@backend` in your vault. On any other machine, after `skl sync`, the same mix is one command away:
+
+```sh
+skl use @backend
+```
+
+See [Profiles](./loading#profiles) to change or delete one.
 
 ## Keep machines in sync
 
@@ -48,10 +62,10 @@ shows what's loaded and where each skill comes from.
 skl sync
 ```
 
-pulls and pushes your vault. Run it after changing skills on one machine, before switching to another.
+commits your changes to the vault, pulls and pushes it, and reloads what you have loaded so it matches. Run it after changing skills on one machine, before switching to another. If two machines changed the same file, skl helps you merge them: see [Sync](./sync).
 
 ## Next
 
 - [Concepts](./concepts): the six ideas skl is built on.
-- [Loading skills](./loading): selectors, profiles and scopes.
+- [Loading skills](./loading): selectors, profiles, scopes and name clashes.
 - [Learn](./learn): improve your skills from other people's.

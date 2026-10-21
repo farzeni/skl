@@ -33,7 +33,8 @@ status)
   printf "  sql-explain   data/        ${D}vault${R}\n"
   printf "  changelog     writing/     ${D}vault${R}\n"
   printf "  pdf           ${W}anthropics/skills${R}  ${D}@3f9a1c2${R}\n"
-  printf "  ${D}my-notes      not managed by skl, left alone${R}\n" ;;
+  printf "  ${D}my-notes      not managed by skl, left alone${R}\n"
+  printf "${B}profiles${R}    @backend  @base\n" ;;
 learn)
   step "reading both skills  ${D}pr-review: 1 file · deep-pr-review: 4 files${R}"; p 0.8
   step "capability map"; p 0.3

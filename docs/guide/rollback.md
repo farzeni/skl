@@ -1,6 +1,6 @@
 # Rollback
 
-Every command that changes something creates a **generation**: a numbered snapshot of which skills are linked where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `learn`, `fork` and `sync`.
+Every command that changes something creates a **generation**: a numbered snapshot of which skills are linked where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `save`, `import`, `learn`, `fork` and `sync`.
 
 ```sh
 skl history
