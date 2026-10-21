@@ -25,7 +25,7 @@ use)
   printf "\n  ${A}+${R} review/pr-review     ${A}+${R} review/test-gaps\n"
   printf "  ${A}+${R} data/sql-explain     ${A}+${R} writing/changelog\n"
   printf "  ${W}+${R} pdf ${D}remote, pinned @3f9a1c2${R}\n"; p 0.3
-  ok "5 skills linked into ~/.claude/skills · generation 11" ;;
+  ok "5 skills copied into ~/.claude/skills · generation 11" ;;
 status)
   printf "${B}user scope${R}  ~/.claude/skills   ${D}generation 11${R}\n"
   printf "  pr-review     review/      ${D}vault${R}\n"

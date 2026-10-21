@@ -4,7 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Every command that changes something creates a **generation**: a numbered snapshot of which skills are linked where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `save`, `import`, `learn`, `fork` and `sync`.
+Every command that changes something creates a **generation**: a numbered snapshot of which skills are loaded where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `save`, `import`, `learn`, `fork` and `sync`, and saving back changes from a loaded skill.
 
 ```sh
 skl history
@@ -23,6 +23,6 @@ skl rollback       # one generation back
 skl rollback 10    # to generation 10
 ```
 
-A rollback restores the links. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history.
+A rollback restores the loaded copies. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history.
 
 A rollback is itself a new generation, so you can undo it with another `skl rollback`.

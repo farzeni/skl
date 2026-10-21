@@ -17,6 +17,6 @@ skl is built on six ideas.
 
 ## How they fit together
 
-Skills come from your vault or from other people's repos. skl reads them, works out which ones you asked for, and links them into a target folder: `~/.claude/skills` by default. Each change creates a generation. Forks and lessons are written into your vault, so they travel with it to every machine.
+Skills come from your vault or from other people's repos. skl reads them, works out which ones you asked for, and copies them into a target folder: `~/.claude/skills` by default. Changes made to those copies are saved back to your vault. Each change creates a generation. Forks and lessons are written into your vault, so they travel with it to every machine.
 
 skl never edits other people's repos. It doesn't touch skills it didn't create either.

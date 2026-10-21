@@ -7,7 +7,7 @@ skl is not built yet. This page describes the planned behavior.
 ## Principles
 
 - **Git is the backend.** Your vault is a git repo, and other people's skills are read straight from theirs. Any git host works, and there's no server.
-- **Links, not copies.** skl loads a skill by symlinking it into the target folder, and records every link it creates.
+- **Copies, saved back.** skl loads a skill by copying it into the target folder, and records where each copy came from. Changes made to a copy are saved back to the vault, so any tool can edit a loaded skill.
 - **The vault is the only thing you edit.** Other repos are read-only. Forks and lessons are written into your vault.
 - **Nothing is lost.** Every change is a generation, and every content change is a commit.
 
@@ -15,19 +15,28 @@ skl is not built yet. This page describes the planned behavior.
 
 1. **Resolve.** Turn selectors into a flat list of skills, in order.
 2. **Fetch.** Sparse-fetch any remote skill folder that isn't cached yet.
-3. **Plan.** Diff against what's linked now. `--dry-run` stops here.
-4. **Apply.** Create the new links in a staging folder, swap them in, then save a generation.
+3. **Plan.** Diff against what's loaded now. `--dry-run` stops here.
+4. **Apply.** Write the new copies in a staging folder, swap them in, then save a generation.
 
 If a step fails, the previous set stays in place. A skill whose name is taken by a skill skl didn't create is dropped at the plan step, with a warning.
 
+## Saving back
+
+Each copy holds `.skl-copy.toml`: its source, the commit it was copied from, and a hash of its files. At the start of every command that changes something, skl hashes each copy and acts on the ones that changed:
+
+- **A skill from your vault.** skl merges the copy into the vault with `git merge-file`, using the recorded commit as the base, and commits the result as a generation of its own. If both sides changed the same lines, it uses the sync conflict flow.
+- **A skill from another repo.** skl stops and asks: fork it with the changes, discard them, or keep the copy as it is. The cache is never written.
+
+Only files inside a copy's folder are read. Anything next to it, such as skill-creator's `<skill>-workspace/`, is ignored.
+
 ## Sync
 
-1. **Commit** hand edits in `~/.skl/vault`.
+1. **Save back** changed copies, then **commit** hand edits in `~/.skl/vault`.
 2. **Merge** the remote with `git fetch` and `git merge`. Never rebase.
 3. **Push.**
 4. **Reload** by running the loading pipeline on the selectors already loaded.
 
-On a conflict, step 2 waits for the user: the learn engine resolves it, the user edits the markers and runs `skl sync --continue`, or `git merge --abort` undoes it.
+Loaded copies change only after the merge lands, so a conflict never reaches Claude Code. On a conflict, step 2 waits for the user: the learn engine resolves it, the user edits the markers and runs `skl sync --continue`, or `git merge --abort` undoes it.
 
 ## Fetching from remotes
 
@@ -47,6 +56,7 @@ skl handles files, git and generations. Claude Code does the analysis and the in
 
 - Skills skl didn't create are never changed or removed. If one holds a name skl needs, skl skips its own skill.
 - Every change can be rolled back, lessons included.
+- A change made to a loaded copy is never discarded without asking.
 - A remote skill is shown before its first use, and pinned to a commit and a content hash.
 - Without skl, the vault is still an ordinary git repo of skills.
 
@@ -62,7 +72,7 @@ skl/
     ├── resolve/    # selectors → skill list  (pure)
     ├── vault/      # groups, profiles, stars
     ├── source/     # remote repos, cache
-    ├── link/       # plan, apply, generations
+    ├── load/       # plan, copy, save back, generations
     ├── fork/       # origin, upstream merge
     └── learn/      # workspace, claude engine, land
 ```
