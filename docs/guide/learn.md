@@ -6,7 +6,7 @@ You like how another skill handles something yours doesn't. `skl learn` lets you
 skl learn review/pr-review someone/agent-skills/deep-pr-review "I like its security checks"
 ```
 
-The first argument is your skill. The second is its peer, given as any [repo reference](../reference/repos). The text at the end is optional and goes to Claude as is, so say what you want in your own words. Without it, Claude asks.
+The first argument is your skill. The second is its peer, given as any [repo reference](../reference/repos). You can leave the peer out to [learn from it again](#when-the-peer-changes). The text at the end is optional and goes to Claude as is, so say what you want in your own words. Without it, Claude asks.
 
 ## How it works
 
@@ -32,19 +32,15 @@ Landing creates a vault commit and a generation, so `skl rollback` undoes it. Ru
 
 To learn from more than one peer, run `skl learn` once for each. Every run is its own lesson, and you can roll each one back separately.
 
-## Learning from upstream
+## When the peer changes
 
-A fork can learn from its own source. Use this to take only some of the author's changes and keep your own:
+Peers keep improving. `skl upstream` lists your skills whose peer has new commits. Run `learn` again without a peer to pick up what's new:
 
 ```sh
-skl upstream review/pr-review --learn "only the new security checks; keep my project rules"
+skl learn review/pr-review "only the new security checks"
 ```
 
-Claude sees three versions: the one you forked, yours, and the author's latest. So it knows which changes are the author's, which are yours, and where you both changed the same thing. Changes you don't take are recorded as declined, and the next `skl upstream` shows only newer ones. Add `--all` to review the declined changes again.
-
-The same command works on a lesson whose peer has changed since you learned from it. It reuses your saved answers and asks only about what's new.
-
-To take everything the author changed without an interview, use `--merge`. See [Fork](./fork).
+skl uses the peer you learned from last. For a [fork](./fork), the peer is its source. Claude sees three versions: the peer as you last learned from it, the peer now, and your skill. So it can tell the peer's changes from yours, and asks only about what's new. It reuses your saved answers, and changes you skip aren't asked about again.
 
 ## Lessons
 
@@ -65,6 +61,7 @@ declined = ["inline comments"]
 |---|---|
 | `"<text>"` | What you want, in your own words. Optional. |
 | `--as <name>` | Skip the landing question and save under a new name. |
+| `--all` | When learning again, also ask about changes you skipped before. |
 
 ## Who does the thinking
 

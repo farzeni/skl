@@ -42,7 +42,7 @@ answers  = "lessons/7c21e9f.md"
 declined = ["inline comments"]
 ```
 
-Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After `skl upstream --merge` or `--learn`, `commit` moves to the upstream commit you reviewed.
+Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After `skl upstream --merge` or `skl learn`, `commit` moves to the upstream commit you reviewed.
 
 ### `stars.toml`
 

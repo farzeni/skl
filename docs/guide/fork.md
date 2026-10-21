@@ -23,13 +23,11 @@ There are two ways to take them.
 
 ### Learn: take what you choose
 
-You've usually changed your fork, and want only part of what the author changed. Learning from upstream lets Claude sort the author's changes from yours and ask you about each one:
+You've usually changed your fork, and want only part of what the author changed. A fork's source is its peer, so [learn](./learn#when-the-peer-changes) from it: Claude sorts the author's changes from yours and asks you about each one.
 
 ```sh
-skl upstream docs/pdf --learn "take the faster table extraction, keep my CSV output"
+skl learn docs/pdf "take the faster table extraction, keep my CSV output"
 ```
-
-Changes you skip are declined and won't show again unless you add `--all`. See [Learning from upstream](./learn#learning-from-upstream).
 
 ### Merge: take everything
 

@@ -59,8 +59,8 @@ Don't reopen these without a reason from an experiment.
 - Every change creates a **generation**; `skl rollback` never rewrites git history.
 - Git is the only backend; no server. One Go binary that shells out to the git CLI.
 - `learn` runs the user's `claude` CLI in a prepared workspace. Claude writes to staging; only skl commits.
-- `skl learn <skill> <peer> ["<text>"]`: the skill a lesson learns from is its **peer**. No flags for the target or a focus; the optional text goes to Claude as is. One peer per run.
-- `skl upstream <skill> --learn ["<text>"]` takes changes selectively from a fork's source or a lesson's peer. Skipped changes are declined (`--all` shows them again). `--merge` takes everything. There is no `learn --again`.
+- `skl learn <skill> [peer] ["<text>"]`: the skill a lesson learns from is its **peer**. No flags for the target or a focus; the optional text goes to Claude as is. One peer per run.
+- `skl learn <skill> ["<text>"]` without a peer learns again from the last lesson's peer, or a fork's source, taking changes selectively. Skipped changes are declined (`--all` asks again). `skl upstream` only lists changes; `--merge` takes everything. There is no `upstream --learn` and no `learn --again`.
 - skl never changes or removes skills it didn't create.
 - Any git remote works for every command that takes a repo. `owner/repo` means the default host (GitHub); `//` separates a repo from a path inside it; `#` pins a ref. See `docs/reference/repos.md`.
 - Per-machine settings live in `~/.skl/config.toml`, edited by hand (no `skl config` command). Precedence: flag, env var, file, default.
