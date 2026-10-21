@@ -70,7 +70,7 @@ skl/
 └── internal/
     ├── selector/   # parse selectors         (pure)
     ├── resolve/    # selectors → skill list  (pure)
-    ├── vault/      # groups, profiles, stars
+    ├── vault/      # groups, skill sets, stars
     ├── source/     # remote repos, cache
     ├── load/       # plan, copy, save back, generations
     ├── fork/       # origin, upstream merge

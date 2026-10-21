@@ -33,6 +33,13 @@ skl fork gitlab.com/team/sub/skills//review/pr-review
 skl fork git@git.example.com:team/skills.git//review/pr-review
 ```
 
+A [skill set](../guide/skill-sets) in a repo is its name after `@`, as the last part of the path:
+
+```sh
+skl use someone/agent-skills/@backend
+skl use gitlab.com/team/sub/skills//@backend
+```
+
 ## Pinning a version
 
 Add `#` and a tag, branch or commit:

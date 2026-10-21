@@ -15,7 +15,7 @@ hero:
 
 features:
   - title: Load any mix
-    details: Whole groups, single skills, saved profiles and skills from other repos, in one command and in any order.
+    details: Whole groups, single skills, named skill sets and skills from other repos, in one command and in any order.
   - title: Roll back anything
     details: Every change is a numbered generation. skl rollback takes you back, and can itself be undone.
   - title: Fork one skill

@@ -13,22 +13,29 @@ you/skills/
 ├── review/
 │   ├── pr-review/
 │   │   ├── SKILL.md
-│   │   └── .skl-origin.toml    # only for forks and skills with lessons
+│   │   └── .skl-origin.toml    # forks and lessons only
 │   └── test-gaps/SKILL.md
 ├── data/
 │   └── sql-explain/SKILL.md
-├── profiles/
+├── sets/
 │   └── backend.toml
 ├── lessons/                    # saved interview answers
 └── stars.toml
 ```
 
-### `profiles/<name>.toml`
+Every other top-level folder is a group. So `sets` and `lessons` can't be group names.
 
-A profile holds selectors, applied left to right like on the command line. Edit it by hand; `skl sync` commits the change.
+### `sets/<name>.toml`
+
+A named skill set holds selectors, applied left to right like on the command line. skl writes one selector per line, so when two machines change different selectors, [sync](../guide/sync) usually merges them without a conflict. Edit it by hand; `skl sync` commits the change.
 
 ```toml
-select = ["@base", "review", "writing/changelog", "anthropics/skills/pdf"]
+select = [
+  "@base",
+  "review",
+  "writing/changelog",
+  "anthropics/skills/pdf",
+]
 ```
 
 ### `.skl-origin.toml`
@@ -39,10 +46,10 @@ source = "https://github.com/someone/agent-skills.git//pdf"
 commit = "3f9a1c2"
 
 [[lesson]]
-peer     = "https://github.com/someone/agent-skills.git//deep-pr-review"
-commit   = "7c21e9f"
-prompt   = "I like its security checks"
-answers  = "lessons/7c21e9f.md"
+peer = "https://github.com/someone/agent-skills.git//deep-pr-review"
+commit = "7c21e9f"
+prompt = "I like its security checks"
+answers = "lessons/7c21e9f.md"
 declined = ["inline comments"]
 ```
 

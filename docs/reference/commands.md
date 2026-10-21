@@ -10,11 +10,11 @@ Wherever a command takes `<repo>` or `<ref>`, any form from [Repo references](./
 
 | Command | Description |
 |---|---|
-| `skl use <selectors>` | Replace the loaded set. See [selectors](../guide/loading#selectors). |
-| `skl add <selectors>` | Add to the loaded set. |
-| `skl drop <selectors>` | Remove from the loaded set. |
-| `skl status` | Show what's loaded, where each skill came from, your profiles, changes not saved back yet, and selectors that match nothing. |
-| `skl save <name>` | Save the selectors behind the loaded set as a profile. Asks before overwriting one. See [Profiles](../guide/loading#profiles). |
+| `skl use <selectors>` | Replace the active skill set. See [selectors](../guide/skill-sets#selectors). |
+| `skl add <selectors>` | Add to the active skill set. |
+| `skl drop <selectors>` | Remove from the active skill set. |
+| `skl status` | Show what's loaded, where each skill came from, your named skill sets, changes not saved back yet, and selectors that match nothing. |
+| `skl save <name>` | Save the selectors behind the active skill set as a named skill set. Asks before overwriting one. See [Named skill sets](../guide/skill-sets#named-skill-sets). |
 | `skl import <name> [group]` | Copy a skill skl didn't create into your vault; the original becomes skl's copy. See [Make a skill](../guide/skills#make-a-skill). |
 | `skl history` | List generations. |
 | `skl rollback [N]` | Go back one generation, or to generation `N`. |

@@ -1,8 +1,12 @@
-# Loading skills
+# Skill sets
 
 ::: warning Design preview
 skl is not built yet. This page describes the planned behavior.
 :::
+
+A skill set is a list of selectors: the groups and skills you load together. The one you have loaded now is your **active skill set**. Save it with a name and it becomes a **named skill set**, which you load anywhere with `@name`.
+
+A group is a folder in your vault, where a skill lives. A skill set is a list of selectors, what you load.
 
 ## Selectors
 
@@ -12,41 +16,52 @@ Every loading command takes the same selectors. They're applied left to right, a
 |---|---|
 | `review` | Every skill in one of your groups |
 | `review/pr-review` | One skill from one of your groups |
-| `@backend` | A saved profile |
+| `@backend` | A named skill set from your vault |
 | `owner/repo/skill` | A skill from someone else's repo, used read-only and pinned to a commit. Any git host works: see [Repo references](../reference/repos). |
+| `owner/repo/@backend` | A skill set from someone else's repo, used read-only. Its selectors are read inside that repo, so `review` there means their `review` group. |
 | `-review/test-gaps` | Removes a skill that an earlier selector added |
 
 ```sh
 skl use @backend -review/test-gaps anthropics/skills/pdf
 ```
 
-## Changing the loaded set
+skl's flags start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
+
+## Changing the active skill set
 
 | Command | Effect |
 |---|---|
-| `skl use <selectors>` | Replace the loaded set |
+| `skl use <selectors>` | Replace the active skill set |
 | `skl add <selectors>` | Add to it |
 | `skl drop <selectors>` | Remove from it |
-| `skl status` | Show what's loaded, where it came from, and your profiles |
+| `skl status` | Show what's loaded, where it came from, and your named skill sets |
 
 Add `--dry-run` to any of them to see the changes without applying them.
 
 Loaded skills are plain copies. Changes you make to them are saved back to your vault: see [Your skills](./skills).
 
-## Profiles
-
-A profile is a saved list of selectors, loaded with `@name`.
+## Named skill sets
 
 ```sh
 skl use @base review -review/test-gaps
 skl save backend
 ```
 
-saves the selectors behind what's loaded now as `profiles/backend.toml` in your vault, here `["@base", "review", "-review/test-gaps"]`. Selectors from later `add` and `drop` commands are appended. Because a profile keeps selectors, not a list of skills, a skill you add to the `review` group later is part of `@backend` too. A profile can include other profiles.
+saves the selectors behind your active skill set as `sets/backend.toml` in your vault, one selector per line:
+
+```toml
+select = [
+  "@base",
+  "review",
+  "-review/test-gaps",
+]
+```
+
+Selectors from later `add` and `drop` commands are appended. Because a skill set keeps selectors, not a list of skills, a skill you add to the `review` group later is part of `@backend` too. A skill set can include other skill sets.
 
 If `backend` already exists, skl shows how its selectors change and asks before overwriting it.
 
-To change a profile, edit its file in `~/.skl/vault/profiles/`. To delete one, delete the file. `skl status` lists your profiles. Run `skl sync` to commit these edits and take them to your other machines: see [Sync](./sync).
+To change a named skill set, edit its file in `~/.skl/vault/sets/`. To delete one, delete the file. `skl status` lists your named skill sets. Run `skl sync` to commit these edits and take them to your other machines: see [Sync](./sync).
 
 ## Scope
 
@@ -86,7 +101,7 @@ If a hand-made skill already has a name that a loaded skill needs, skl skips its
 
 `skl status` keeps listing it as skipped until the name is free.
 
-`skl save` leaves these skills out of the profile, and says which ones it left out. To keep one in your vault, import it:
+`skl save` leaves these skills out of the skill set, and says which ones it left out. To keep one in your vault, import it:
 
 ```sh
 skl import my-notes writing

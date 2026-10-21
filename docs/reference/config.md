@@ -4,7 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Each machine has its own config file, `~/.skl/config.toml`. `skl init` creates it; after that, edit it by hand. It's never synced, so settings that differ between machines go here. Settings that should follow you everywhere, like profiles, live in your vault.
+Each machine has its own config file, `~/.skl/config.toml`. `skl init` creates it; after that, edit it by hand. It's never synced, so settings that differ between machines go here. Settings that should follow you everywhere, like skill sets, live in your vault.
 
 ```toml
 vault        = "git@github.com:you/skills.git"

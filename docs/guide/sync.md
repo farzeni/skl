@@ -12,7 +12,7 @@ Commands that change the vault, such as `save`, `fork`, `learn`, `import` and `r
 
 Changes you make to loaded skills in `~/.claude/skills` are saved back to the vault: see [Your skills](./skills).
 
-You can also edit the vault by hand: change a `SKILL.md`, or edit or delete a file in `profiles/`. Those edits stay uncommitted until the next command that changes the vault, sync included.
+You can also edit the vault by hand: change a `SKILL.md`, or edit or delete a file in `sets/`. Those edits stay uncommitted until the next command that changes the vault, sync included.
 
 ## What sync does
 
@@ -23,11 +23,11 @@ skl sync
 1. **Commit.** Changes to your loaded skills are saved back, your hand edits become one commit, and skl lists the files.
 2. **Pull.** skl fetches the vault and merges. It never rebases, so no commit is rewritten.
 3. **Push.**
-4. **Reload.** skl resolves what you have loaded again, for example `@backend writing/changelog`, and applies the difference. A profile changed on another machine, or a skill deleted there, takes effect here.
+4. **Reload.** skl resolves what you have loaded again, for example `@backend writing/changelog`, and applies the difference. A skill set changed on another machine, or a skill deleted there, takes effect here.
 
 ```
 ◇ saved back pr-review → review/pr-review
-◇ committed  profiles/backend.toml
+◇ committed  sets/backend.toml
 ◇ pulled     3 commits from laptop
 ◇ pushed
   + data/sql-explain   − review/test-gaps
@@ -41,7 +41,7 @@ Sync creates a generation, so `skl rollback` undoes it like any other change.
 If the merge in step 2 conflicts, skl shows which files clash and what each side did, then asks how to resolve them. Your loaded skills don't change until the merge lands, so Claude Code never sees a half-merged skill.
 
 ```
-✗ conflict   profiles/backend.toml
+✗ conflict   sets/backend.toml
   this machine   drop review/test-gaps
   laptop         add data/sql-explain
                  use someone/agent-skills/test-gaps
@@ -55,13 +55,13 @@ skl runs the `claude` CLI on the conflict, the same way [`skl learn`](./learn#wh
 1. **Merge.** Claude combines the changes that don't contradict each other, and tells you what it did.
 2. **Interview.** One question for each real conflict, about what you meant rather than which lines to keep.
 3. **Review.** skl shows the merged result. You can ask for changes in plain words.
-4. **Land.** skl checks the result (profiles must hold valid selectors, `SKILL.md` frontmatter must parse), commits the merge with your answers in its message, and carries on with the push.
+4. **Land.** skl checks the result (skill sets must hold valid selectors, `SKILL.md` frontmatter must parse), commits the merge with your answers in its message, and carries on with the push.
 
 ```
 ◇ merged     data/sql-explain added (laptop only)
 ? test-gaps: drop it (this machine) or use someone's (laptop)?
   › use someone's
-◇ profiles/backend.toml
+◇ sets/backend.toml
     + data/sql-explain   + someone/agent-skills/test-gaps
 ? Land it   › yes   change it   abort
 ✓ merged · pushed · generation 14

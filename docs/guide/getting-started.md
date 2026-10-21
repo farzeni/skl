@@ -40,21 +40,21 @@ This loads every skill in your `review` group, one skill from your `writing` gro
 skl status
 ```
 
-shows what's loaded, where each skill comes from, and your profiles.
+shows what's loaded, where each skill comes from, and your named skill sets.
 
-## Save the mix as a profile
+## Save it as a skill set
 
 ```sh
 skl save backend
 ```
 
-saves what you just loaded as the profile `@backend` in your vault. On any other machine, after `skl sync`, the same mix is one command away:
+saves what you just loaded as the skill set `@backend` in your vault. On any other machine, after `skl sync`, the same mix is one command away:
 
 ```sh
 skl use @backend
 ```
 
-See [Profiles](./loading#profiles) to change or delete one.
+See [Named skill sets](./skill-sets#named-skill-sets) to change or delete one.
 
 ## Keep machines in sync
 
@@ -67,6 +67,6 @@ commits your changes to the vault, pulls and pushes it, and reloads what you hav
 ## Next
 
 - [Concepts](./concepts): the six ideas skl is built on.
-- [Loading skills](./loading): selectors, profiles, scopes and name clashes.
 - [Your skills](./skills): make and improve skills in Claude Code, and keep them in your vault.
+- [Skill sets](./skill-sets): selectors, named skill sets, scopes and name clashes.
 - [Learn](./learn): improve your skills from other people's.
