@@ -6,11 +6,7 @@ skl is not built yet. This page describes the planned behavior.
 
 You like how another skill handles something. `skl learn` takes it from that skill, its **peer**. If you don't have the skill yet, skl copies it into your vault. If you have one, Claude reads both, asks you what to take and how, and rewrites yours. You review the diff before anything lands.
 
-<!-- anthropics/skills/pdf examples depend on the skills.sh name lookup -->
-
 ```sh
-skl learn anthropics/skills/pdf                    # no pdf skill: copy it
-skl learn anthropics/skills/pdf anthropics-pdf     # copy it as anthropics-pdf
 skl learn someone/agent-skills/deep-pr-review review/pr-review "I like its security checks"
 ```
 
@@ -43,7 +39,14 @@ It doesn't ask for confirmation. If it isn't what you meant, `skl rollback` undo
 
 Without text, skl copies the peer as it is and records where it came from in `.skl-origin.toml`. The copy is yours to edit. This needs no Claude.
 
-A copy under a new name also gets that name in its `SKILL.md`, so it doesn't clash with the original.
+<!-- anthropics/skills/pdf examples depend on the skills.sh name lookup -->
+
+```sh
+skl learn anthropics/skills/pdf
+skl learn anthropics/skills/pdf anthropics-pdf
+```
+
+The first copies `pdf` into `anthropics/pdf`, if you have no `pdf` skill. The second copies it as `anthropics-pdf`. A copy under a new name also gets that name in its `SKILL.md`, so it doesn't clash with the original. If you already have the skill, the same commands run a lesson instead.
 
 With text, Claude builds a new skill from the peer with only what you asked for. It runs like a [lesson](#how-a-lesson-works), starting from an empty skill: Claude asks what to bring along with that part, and which scripts to take.
 
@@ -81,8 +84,8 @@ To learn from more than one peer, run `skl learn` once for each. Every run is it
 Peers keep improving. `skl upstream` lists your skills whose peer or source has new commits:
 
 ```
-anthropics/pdf     anthropics/skills       4 commits behind   you changed 2 files
-review/pr-review   someone/agent-skills    1 commit behind
+anthropics/pdf    anthropics/skills     4 behind  you changed 2 files
+review/pr-review  someone/agent-skills  1 behind
 ```
 
 To pick up what's new, give `learn` only your skill:
