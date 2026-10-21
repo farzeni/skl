@@ -1,5 +1,9 @@
 # Commands
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 Wherever a command takes `<repo>` or `<ref>`, any form from [Repo references](./repos) works.
 
 ## Load

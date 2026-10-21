@@ -1,5 +1,9 @@
 # Fork
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 A fork copies one skill from someone else's repo into your vault, and remembers where it came from.
 
 ```sh

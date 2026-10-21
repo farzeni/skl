@@ -1,5 +1,9 @@
 # Concepts
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 skl is built on six ideas.
 
 | Concept | Example | What it is |

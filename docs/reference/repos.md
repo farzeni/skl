@@ -1,5 +1,9 @@
 # Repo references
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 skl works with any git remote. Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `fork`, `learn`, `star`) accepts the same forms.
 
 ## Repos
