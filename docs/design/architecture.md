@@ -74,7 +74,26 @@ skl/
     ├── source/     # remote repos, cache
     ├── load/       # plan, copy, save back, generations
     ├── upstream/   # source record, upstream merge
-    └── learn/      # workspace, claude engine, land
+    ├── learn/      # workspace, claude engine, land
+    └── ext/        # hooks for third-party parts
+thirdparty/
+├── skillssh/       # skl search, skills.sh links
+└── npxskills/      # import source from the npx skills lock
 ```
+
+## Third-party parts
+
+Code that depends on someone else's service or file format lives in `thirdparty/<name>/`, never in `internal/`. Core offers three hooks in `internal/ext` and knows nothing about what plugs into them:
+
+```go
+// a new subcommand
+func RegisterCommand(c Command)
+// runs before a repo reference is parsed
+func RegisterRefRewriter(f func(ref string) (string, bool))
+// where a skill being imported came from
+func RegisterImportSource(f func(name string) (ImportSource, bool))
+```
+
+Each part registers itself in `init()`, and `cmd/skl/thirdparty.go` imports it with one line. Deleting the package and that line removes the part: everything else builds and passes its tests. Its settings are a table in `config.toml` that only the part reads; core ignores tables it doesn't own. A part's failure stays inside its own command: the skills.sh part is the only code in skl that makes network requests other than git.
 
 `selector` and `resolve` never touch the disk, so they're tested with plain tables. Integration tests use a temporary `HOME` and local bare repos standing in for GitHub, so every flow runs offline.

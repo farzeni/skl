@@ -9,6 +9,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Reference', link: '/reference/commands' },
+      { text: 'Third party', link: '/thirdparty/' },
       { text: 'Design', link: '/design/architecture' }
     ],
     sidebar: [
@@ -31,6 +32,14 @@ export default defineConfig({
           { text: 'Repo references', link: '/reference/repos' },
           { text: 'Configuration', link: '/reference/config' },
           { text: 'Files', link: '/reference/files' }
+        ]
+      },
+      {
+        text: 'Third party',
+        items: [
+          { text: 'Overview', link: '/thirdparty/' },
+          { text: 'skills.sh', link: '/thirdparty/skills-sh' },
+          { text: 'npx skills', link: '/thirdparty/npx-skills' }
         ]
       },
       {

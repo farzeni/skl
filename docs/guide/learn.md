@@ -39,8 +39,6 @@ It doesn't ask for confirmation. If it isn't what you meant, `skl rollback` undo
 
 Without text, skl copies the peer as it is and records where it came from in `.skl-origin.toml`. The copy is yours to edit. This needs no Claude.
 
-<!-- anthropics/skills/pdf examples depend on the skills.sh name lookup -->
-
 ```sh
 skl learn anthropics/skills/pdf
 skl learn anthropics/skills/pdf anthropics-pdf
