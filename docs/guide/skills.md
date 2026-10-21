@@ -25,7 +25,8 @@ copies it into your `writing` group and commits it. The folder in `~/.claude/ski
 Every skill skl loads is a plain folder in `~/.claude/skills`, a copy of the skill in your vault. Change it there, by hand or by asking Claude Code. skl saves your changes back to the vault at the next command that changes something, `skl sync` included:
 
 ```
-◇ saved back   pr-review → review/pr-review   SKILL.md, evals/evals.json
+◇ saved back   pr-review → review/pr-review
+               SKILL.md, evals/evals.json
 ✓ generation 15
 ```
 
