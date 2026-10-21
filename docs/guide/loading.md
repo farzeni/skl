@@ -31,6 +31,8 @@ skl use @backend -review/test-gaps anthropics/skills/pdf
 
 Add `--dry-run` to any of them to see the changes without applying them.
 
+Loaded skills are plain copies. Changes you make to them are saved back to your vault: see [Your skills](./skills).
+
 ## Profiles
 
 A profile is a saved list of selectors, loaded with `@name`.
@@ -54,11 +56,11 @@ skl loads skills into your user folder, `~/.claude/skills`, by default. To load 
 skl use review --scope project
 ```
 
-This links them into `./.claude/skills` in the current repo.
+This copies them into `./.claude/skills` in the current repo.
 
 ## Names and clashes
 
-Claude Code reads skills from one flat folder, so skl links each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`. Two skills clash when they have the same folder name or the same `name` in their `SKILL.md` frontmatter.
+Claude Code reads skills from one flat folder, so skl copies each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`. Two skills clash when they have the same folder name or the same `name` in their `SKILL.md` frontmatter.
 
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
@@ -90,4 +92,4 @@ If a hand-made skill already has a name that a loaded skill needs, skl skips its
 skl import my-notes writing
 ```
 
-This copies `~/.claude/skills/my-notes` into your `writing` group and commits it. The original stays where it is, so the copy clashes with it. Delete the original yourself, then load `writing/my-notes`.
+This copies `~/.claude/skills/my-notes` into your `writing` group and commits it. The original becomes skl's copy of `writing/my-notes`: see [Make a skill](./skills#make-a-skill).

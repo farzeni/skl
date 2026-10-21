@@ -18,6 +18,7 @@ export default defineConfig({
           { text: 'Getting started', link: '/guide/getting-started' },
           { text: 'Concepts', link: '/guide/concepts' },
           { text: 'Loading skills', link: '/guide/loading' },
+          { text: 'Your skills', link: '/guide/skills' },
           { text: 'Sync', link: '/guide/sync' },
           { text: 'Rollback', link: '/guide/rollback' },
           { text: 'Fork', link: '/guide/fork' },

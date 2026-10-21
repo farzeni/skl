@@ -34,7 +34,7 @@ skl also writes this machine's settings to `~/.skl/config.toml`. See [Configurat
 skl use review writing/changelog anthropics/skills/pdf
 ```
 
-This loads every skill in your `review` group, one skill from your `writing` group and one skill from someone else's repo. skl links them into `~/.claude/skills`, and Claude Code picks them up. The first time you load a skill from another repo, skl shows what it does and which scripts it runs, and asks before loading it.
+This loads every skill in your `review` group, one skill from your `writing` group and one skill from someone else's repo. skl copies them into `~/.claude/skills`, and Claude Code picks them up. The first time you load a skill from another repo, skl shows what it does and which scripts it runs, and asks before loading it.
 
 ```sh
 skl status
@@ -68,4 +68,5 @@ commits your changes to the vault, pulls and pushes it, and reloads what you hav
 
 - [Concepts](./concepts): the six ideas skl is built on.
 - [Loading skills](./loading): selectors, profiles, scopes and name clashes.
+- [Your skills](./skills): make and improve skills in Claude Code, and keep them in your vault.
 - [Learn](./learn): improve your skills from other people's.

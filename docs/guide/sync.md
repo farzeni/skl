@@ -10,7 +10,9 @@ Your vault is a plain git clone at `~/.skl/vault`. `skl sync` keeps it the same 
 
 Commands that change the vault, such as `save`, `fork`, `learn`, `import` and `rollback`, commit right away on this machine. They never push.
 
-You can also edit the vault by hand: change a `SKILL.md`, or edit or delete a file in `profiles/`. Those edits stay uncommitted until the next sync.
+Changes you make to loaded skills in `~/.claude/skills` are saved back to the vault: see [Your skills](./skills).
+
+You can also edit the vault by hand: change a `SKILL.md`, or edit or delete a file in `profiles/`. Those edits stay uncommitted until the next command that changes the vault, sync included.
 
 ## What sync does
 
@@ -18,13 +20,14 @@ You can also edit the vault by hand: change a `SKILL.md`, or edit or delete a fi
 skl sync
 ```
 
-1. **Commit.** Your hand edits become one commit, and skl lists the files in it.
+1. **Commit.** Changes to your loaded skills are saved back, your hand edits become one commit, and skl lists the files.
 2. **Pull.** skl fetches the vault and merges. It never rebases, so no commit is rewritten.
 3. **Push.**
 4. **Reload.** skl resolves what you have loaded again, for example `@backend writing/changelog`, and applies the difference. A profile changed on another machine, or a skill deleted there, takes effect here.
 
 ```
-◇ committed  profiles/backend.toml, review/pr-review/SKILL.md
+◇ saved back pr-review → review/pr-review
+◇ committed  profiles/backend.toml
 ◇ pulled     3 commits from laptop
 ◇ pushed
   + data/sql-explain   − review/test-gaps
@@ -35,7 +38,7 @@ Sync creates a generation, so `skl rollback` undoes it like any other change.
 
 ## When both machines changed the same file
 
-If the merge in step 2 conflicts, skl shows which files clash and what each side did, then asks how to resolve them:
+If the merge in step 2 conflicts, skl shows which files clash and what each side did, then asks how to resolve them. Your loaded skills don't change until the merge lands, so Claude Code never sees a half-merged skill.
 
 ```
 ✗ conflict   profiles/backend.toml

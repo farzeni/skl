@@ -56,6 +56,24 @@ ref  = "someone/agent-skills/deep-pr-review"
 note = "good security checks"
 ```
 
+## Loaded skills
+
+Each skill skl loads is a copy, with one extra file:
+
+```
+~/.claude/skills/pr-review/
+├── SKILL.md
+└── .skl-copy.toml
+```
+
+```toml
+source = "review/pr-review"   # or a remote skill's full URL
+commit = "a91c3e0"            # what it was copied from
+hash   = "sha256:9f2c41…"      # its files as copied
+```
+
+skl uses it to find changes to [save back](../guide/skills#improve-a-skill). A folder without it is a skill skl didn't create.
+
 ## Local state
 
 Never synced. Safe to delete, apart from losing your rollback history.
@@ -65,6 +83,6 @@ Never synced. Safe to delete, apart from losing your rollback history.
 ├── config.toml     # this machine's settings, see Configuration
 ├── vault/          # clone of your vault: a plain git repo you can edit
 ├── cache/          # sparse clones of other repos, by host and path
-├── state.json      # every link skl created
+├── state.json      # every copy skl made, and where
 └── generations/    # one snapshot per change
 ```
