@@ -34,6 +34,7 @@ Option ids: Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
 
 ```
 docs/          VitePress site, the spec        cd docs && pnpm dev | pnpm build
+docs/thirdparty/  optional parts that depend on other people's services or tools
 demo/          vhs tape + scripted mock         cd demo && vhs demo.tape
 spec/          stub tests (created with the first test; see below)
 .claude/skills/     the workflow skills
@@ -72,11 +73,13 @@ Don't reopen these without a reason from an experiment.
 - Loaded skills are copies, not links. Each holds `.skl-copy.toml` (source, commit, hash). Changes to a copy are saved back to the vault (three-way, base = the recorded commit) at the start of every command that changes something, as their own generation. People make and improve skills in Claude Code; there is no `skl new`, and `skl import` adopts the folder as skl's copy.
 - A changed copy of someone else's skill is never discarded silently: skl asks fork / discard / keep. The cache is never written.
 - Hand edits in the vault are committed as their own generation before any vault-changing command. A selector that matches nothing warns and is listed in `skl status`.
+- A remote reference whose path has no `SKILL.md` and is one word names a skill: skl looks it up in the repo by folder or frontmatter `name` and records the path it found. Two matches stop and list the paths. So `anthropics/skills/pdf` works although the folder is `skills/pdf`.
+- Anything that depends on a third-party service or file format is a removable part: code in `thirdparty/<name>/` behind `internal/ext` (commands, reference rewriters, import sources), docs in `docs/thirdparty/`. Core code and core docs never assume a part exists; core pages only link to it. The parts are skills.sh (`skl search` on its undocumented `/api/search`, skills.sh links as references) and npx skills (`skl import` reads `~/.agents/.skill-lock.json` v3 for the source). skl sends no telemetry.
 
 ## Unproven assumptions (validate before freezing)
 
 - Claude Code notices new or changed skill folders in `~/.claude/skills` during a running session.
-- The vault layout (`<group>/<skill>/SKILL.md`) works as a Claude Code plugin marketplace and as an `npx skills` source without extra files. `docs/reference/files.md` claims this; it is likely false for the marketplace (that needs `.claude-plugin/` manifests).
+- The vault layout (`<group>/<skill>/SKILL.md`) works as a Claude Code plugin marketplace without extra files. Likely false (that needs `.claude-plugin/` manifests); the docs no longer claim it.
 - `git merge-file` gives usable three-way merges for `SKILL.md` edits.
 - The `claude` CLI can be launched non-trivially for `learn`: interview the user, then write files to a given folder and exit.
 - Selector grammar: `group/skill` vs `owner/repo/skill` is ambiguous for nested paths.
@@ -85,6 +88,7 @@ Don't reopen these without a reason from an experiment.
 
 - Claude Code loads skills from symlinked folders in `~/.claude/skills` and `.claude/skills`, and reads `SKILL.md` from the target (Claude Code skills docs, 2026-10-21). Issue #7. skl now loads copies, not links (issue #15), so this no longer matters.
 - Fetching one skill folder with `git clone --depth 1 --filter=blob:none --sparse` works on GitHub, GitLab, Bitbucket, Gitea, Forgejo and local `file://` repos, and older commits can be fetched by sha on demand. Issue #1.
+- The vault layout works as an `npx skills` source without extra files (skills@1.7.4, through its recursive fallback; `sets/`, `lessons/` and `stars.toml` are ignored). Issue #20.
 
 ## Writing the docs
 

@@ -35,6 +35,8 @@ Wherever a command takes `<repo>` or `<ref>`, any form from [Repo references](./
 | `skl init <repo>` | Clone your vault, or set up a new one. |
 | `skl sync` | Commit hand edits, pull, push, and reload what's loaded. On a conflict, resolve with Claude, by hand or abort; `--continue` and `--abort` finish or undo a merge. See [Sync](../guide/sync). |
 
+Optional [third-party parts](../thirdparty/) add more, such as `skl search`.
+
 ## Global flags
 
 | Flag | Effect |
