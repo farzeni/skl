@@ -1,5 +1,9 @@
 # Architecture
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 ## Principles
 
 - **Git is the backend.** Your vault is a git repo, and other people's skills are read straight from theirs. Any git host works, and there's no server.

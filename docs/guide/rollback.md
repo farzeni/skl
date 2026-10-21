@@ -1,5 +1,9 @@
 # Rollback
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 Every command that changes something creates a **generation**: a numbered snapshot of which skills are linked where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `save`, `import`, `learn`, `fork` and `sync`.
 
 ```sh

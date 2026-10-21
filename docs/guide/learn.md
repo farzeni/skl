@@ -1,5 +1,9 @@
 # Learn
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 You like how another skill handles something yours doesn't. `skl learn` lets your skill pick it up from that skill, its **peer**: Claude reads both, asks you what to take and how, and rewrites your skill. You review the diff before anything lands.
 
 ```sh

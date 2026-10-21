@@ -1,5 +1,9 @@
 # Loading skills
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 ## Selectors
 
 Every loading command takes the same selectors. They're applied left to right, and on a [name clash](#names-and-clashes) the later one wins.

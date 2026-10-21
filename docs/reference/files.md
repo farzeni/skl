@@ -1,5 +1,9 @@
 # Files
 
+::: warning Design preview
+skl is not built yet. This page describes the planned behavior.
+:::
+
 ## Your vault
 
 Plain folders, so the vault stays readable on GitHub and works without skl: as a Claude Code plugin marketplace, and as a source for `npx skills`.
