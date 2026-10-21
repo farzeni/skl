@@ -44,7 +44,7 @@ Before any command that changes the vault, skl commits your hand edits there as 
 
 ## Rename or delete a skill
 
-Rename or delete its folder in `~/.skl/vault`. The next command that loads skills copies the renamed skill in, or removes the deleted one. A selector that no longer matches anything, in a command or in a profile, is a warning, not an error. `skl status` lists it:
+Rename or delete its folder in `~/.skl/vault`. The next command that loads skills copies the renamed skill in, or removes the deleted one. A selector that no longer matches anything, in a command or in a skill set, is a warning, not an error. `skl status` lists it:
 
 ```
 ! review/old-name   matches no skill   (in @backend)

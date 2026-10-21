@@ -45,7 +45,7 @@ spec/          stub tests (created with the first test; see below)
 
 Stub tests turn doc statements into executable checks before the code exists. They are black-box: they run the `skl` binary against a temporary `HOME` with local bare git repos standing in for GitHub, and assert on exit codes, output and files on disk.
 
-- Go, in `spec/`, one file per doc page (`spec/loading_test.go` ↔ `docs/guide/loading.md`).
+- Go, in `spec/`, one file per doc page (`spec/skill_sets_test.go` ↔ `docs/guide/skill-sets.md`).
 - Each test names the doc sentence it checks in a comment.
 - Until the feature exists the test calls `t.Skip("pending: <page>")`. Remove the skip when implementing.
 - Pure logic with a clear contract (selector parsing, resolution order) gets table tests as soon as the grammar is frozen.
@@ -64,7 +64,9 @@ Don't reopen these without a reason from an experiment.
 - skl never changes or removes skills it didn't create.
 - Any git remote works for every command that takes a repo. `owner/repo` means the default host (GitHub); `//` separates a repo from a path inside it; `#` pins a ref. See `docs/reference/repos.md`.
 - Per-machine settings live in `~/.skl/config.toml`, edited by hand (no `skl config` command). Precedence: flag, env var, file, default.
-- A profile stores selectors, not a resolved list. `skl save` creates or overwrites (asks first); edit or delete `profiles/<name>.toml` by hand. No profile subcommands.
+- A **skill set** is a list of selectors (no "profile", no "loaded set"). The loaded one is the **active skill set**; `skl save <name>` stores it as a **named skill set** in `sets/<name>.toml`, one selector per line, loaded with `@name`. It stores selectors, not a resolved list. `save` creates or overwrites (asks first); edit or delete the file by hand. No set subcommands. `sets` and `lessons` can't be group names. "skill set" in prose, "Skill sets" in titles.
+- A skill set in someone else's repo is `<repo>/@name` (an `@` at the start of the last path part; `<repo>@name` collides with SSH URLs). Rollback stays global: a generation is a snapshot of the active skill set; there is no `skl rollback @set`.
+- skl's flags are `--long` only and can go anywhere. Every other word is a selector, so `-review/test-gaps` is a removal (Go's stdlib `flag` can't parse this; skl parses its own args).
 - Vault-changing commands commit locally and never push. `skl sync` commits hand edits, merges (never rebases), pushes, and reloads the loaded selectors. A conflict is resolved with Claude (learn engine), by hand (`--continue`), or aborted.
 - A skill whose name (folder or frontmatter `name`) is taken by a skill skl didn't create is skipped with a warning. `skl import <name> [group]` copies such a skill into the vault.
 - Loaded skills are copies, not links. Each holds `.skl-copy.toml` (source, commit, hash). Changes to a copy are saved back to the vault (three-way, base = the recorded commit) at the start of every command that changes something, as their own generation. People make and improve skills in Claude Code; there is no `skl new`, and `skl import` adopts the folder as skl's copy.
@@ -77,7 +79,7 @@ Don't reopen these without a reason from an experiment.
 - The vault layout (`<group>/<skill>/SKILL.md`) works as a Claude Code plugin marketplace and as an `npx skills` source without extra files. `docs/reference/files.md` claims this; it is likely false for the marketplace (that needs `.claude-plugin/` manifests).
 - `git merge-file` gives usable three-way merges for `SKILL.md` edits.
 - The `claude` CLI can be launched non-trivially for `learn`: interview the user, then write files to a given folder and exit.
-- Selector grammar: `-review/test-gaps` collides with flag parsing, and `group/skill` vs `owner/repo/skill` is ambiguous for nested paths.
+- Selector grammar: `group/skill` vs `owner/repo/skill` is ambiguous for nested paths.
 
 ## Confirmed assumptions
 

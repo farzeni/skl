@@ -14,7 +14,7 @@ choose() { # choose "opt1" "opt2" ... -> reads a digit, echoes the pick
 case "$1" in
 init)
   step "cloning github.com/$2"; p 0.6
-  ok "vault ready  ${D}3 groups · 14 skills · 2 profiles${R}" ;;
+  ok "vault ready  ${D}3 groups · 14 skills · 2 skill sets${R}" ;;
 use)
   step "resolving @backend writing/changelog anthropics/skills/pdf"; p 0.4
   step "fetching anthropics/skills/pdf  ${D}(sparse, 1 folder)${R}"; p 0.6
@@ -34,7 +34,7 @@ status)
   printf "  changelog     writing/     ${D}vault${R}\n"
   printf "  pdf           ${W}anthropics/skills${R}  ${D}@3f9a1c2${R}\n"
   printf "  ${D}my-notes      not managed by skl, left alone${R}\n"
-  printf "${B}profiles${R}    @backend  @base\n" ;;
+  printf "${B}skill sets${R}  @backend  @base\n" ;;
 learn)
   step "reading both skills  ${D}pr-review: 1 file · deep-pr-review: 4 files${R}"; p 0.8
   step "capability map"; p 0.3
