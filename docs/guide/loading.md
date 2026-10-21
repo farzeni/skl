@@ -23,7 +23,7 @@ skl use @backend -review/test-gaps anthropics/skills/pdf
 | `skl use <selectors>` | Replace the loaded set |
 | `skl add <selectors>` | Add to it |
 | `skl drop <selectors>` | Remove from it |
-| `skl status` | Show what's loaded and where it came from |
+| `skl status` | Show what's loaded, where it came from, and your profiles |
 
 Add `--dry-run` to any of them to see the changes without applying them.
 

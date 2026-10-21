@@ -40,7 +40,8 @@ If the merge in step 2 conflicts, skl shows which files clash and what each side
 ```
 ✗ conflict   profiles/backend.toml
   this machine   drop review/test-gaps
-  laptop         add data/sql-explain, use someone/agent-skills/test-gaps
+  laptop         add data/sql-explain
+                 use someone/agent-skills/test-gaps
 ? Resolve   › with Claude   by hand   abort
 ```
 
@@ -55,9 +56,10 @@ skl runs the `claude` CLI on the conflict, the same way [`skl learn`](./learn#wh
 
 ```
 ◇ merged     data/sql-explain added (laptop only)
-? This machine dropped test-gaps; laptop switched to someone/agent-skills/test-gaps. Which?
-  › laptop's
-◇ profiles/backend.toml   select = ["@base", "review", "data/sql-explain", "someone/agent-skills/test-gaps"]
+? test-gaps: drop it (this machine) or use someone's (laptop)?
+  › use someone's
+◇ profiles/backend.toml
+    + data/sql-explain   + someone/agent-skills/test-gaps
 ? Land it   › yes   change it   abort
 ✓ merged · pushed · generation 14
 ```
