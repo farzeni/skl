@@ -64,10 +64,13 @@ Don't reopen these without a reason from an experiment.
 - skl never changes or removes skills it didn't create.
 - Any git remote works for every command that takes a repo. `owner/repo` means the default host (GitHub); `//` separates a repo from a path inside it; `#` pins a ref. See `docs/reference/repos.md`.
 - Per-machine settings live in `~/.skl/config.toml`, edited by hand (no `skl config` command). Precedence: flag, env var, file, default.
+- A profile stores selectors, not a resolved list. `skl save` creates or overwrites (asks first); edit or delete `profiles/<name>.toml` by hand. No profile subcommands.
+- Vault-changing commands commit locally and never push. `skl sync` commits hand edits, merges (never rebases), pushes, and reloads the loaded selectors. A conflict is resolved with Claude (learn engine), by hand (`--continue`), or aborted.
+- A skill whose name (folder or frontmatter `name`) is taken by a skill skl didn't create is skipped with a warning. `skl import <name> [group]` copies such a skill into the vault.
 
 ## Unproven assumptions (validate before freezing)
 
-- Claude Code loads skills from symlinked folders in `~/.claude/skills`, and when it notices new ones.
+- Claude Code notices new skill links in `~/.claude/skills` during a running session.
 - The vault layout (`<group>/<skill>/SKILL.md`) works as a Claude Code plugin marketplace and as an `npx skills` source without extra files. `docs/reference/files.md` claims this; it is likely false for the marketplace (that needs `.claude-plugin/` manifests).
 - `git merge-file` gives usable three-way merges for `SKILL.md` edits.
 - The `claude` CLI can be launched non-trivially for `learn`: interview the user, then write files to a given folder and exit.
@@ -75,6 +78,7 @@ Don't reopen these without a reason from an experiment.
 
 ## Confirmed assumptions
 
+- Claude Code loads skills from symlinked folders in `~/.claude/skills` and `.claude/skills`, and reads `SKILL.md` from the target (Claude Code skills docs, 2026-10-21). Issue #7.
 - Fetching one skill folder with `git clone --depth 1 --filter=blob:none --sparse` works on GitHub, GitLab, Bitbucket, Gitea, Forgejo and local `file://` repos, and older commits can be fetched by sha on demand. Issue #1.
 
 ## Writing the docs

@@ -21,6 +21,8 @@ you/skills/
 
 ### `profiles/<name>.toml`
 
+A profile holds selectors, applied left to right like on the command line. Edit it by hand; `skl sync` commits the change.
+
 ```toml
 select = ["@base", "review", "writing/changelog", "anthropics/skills/pdf"]
 ```
@@ -57,7 +59,7 @@ Never synced. Safe to delete, apart from losing your rollback history.
 ```
 ~/.skl/
 ├── config.toml     # this machine's settings, see Configuration
-├── vault/          # clone of your vault
+├── vault/          # clone of your vault: a plain git repo you can edit
 ├── cache/          # sparse clones of other repos, by host and path
 ├── state.json      # every link skl created
 └── generations/    # one snapshot per change

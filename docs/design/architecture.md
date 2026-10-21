@@ -14,7 +14,16 @@
 3. **Plan.** Diff against what's linked now. `--dry-run` stops here.
 4. **Apply.** Create the new links in a staging folder, swap them in, then save a generation.
 
-If a step fails, the previous set stays in place.
+If a step fails, the previous set stays in place. A skill whose name is taken by a skill skl didn't create is dropped at the plan step, with a warning.
+
+## Sync
+
+1. **Commit** hand edits in `~/.skl/vault`.
+2. **Merge** the remote with `git fetch` and `git merge`. Never rebase.
+3. **Push.**
+4. **Reload** by running the loading pipeline on the selectors already loaded.
+
+On a conflict, step 2 waits for the user: the learn engine resolves it, the user edits the markers and runs `skl sync --continue`, or `git merge --abort` undoes it.
 
 ## Fetching from remotes
 
@@ -28,11 +37,11 @@ skl runs git and behaves the same on every host.
 
 ## Learn engine
 
-skl handles files, git and generations. Claude Code does the analysis and the interview. skl prepares a workspace with `mine/`, `peer/` and a brief holding your text, then runs `claude` there with a bundled lesson skill. For `skl upstream --learn` it also adds `base/`, the version you forked or last learned from. Claude asks its questions in its own interview UI and writes the result to `result/`. skl then shows the diff and lands it.
+skl handles files, git and generations. Claude Code does the analysis and the interview. skl prepares a workspace with `mine/`, `peer/` and a brief holding your text, then runs `claude` there with a bundled lesson skill. For `skl upstream --learn` it also adds `base/`, the version you forked or last learned from. A sync conflict uses the same engine with a bundled merge skill, and `base/`, `mine/` and `theirs/` for each conflicted file. Claude asks its questions in its own interview UI and writes the result to `result/`. skl then shows the diff and lands it.
 
 ## Guarantees
 
-- Skills skl didn't create are never changed or removed.
+- Skills skl didn't create are never changed or removed. If one holds a name skl needs, skl skips its own skill.
 - Every change can be rolled back, lessons included.
 - A remote skill is shown before its first use, and pinned to a commit and a content hash.
 - Without skl, the vault is still an ordinary git repo of skills.

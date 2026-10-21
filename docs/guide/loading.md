@@ -2,7 +2,7 @@
 
 ## Selectors
 
-Every loading command takes the same selectors. They're applied left to right, and on a name clash the later one wins.
+Every loading command takes the same selectors. They're applied left to right, and on a [name clash](#names-and-clashes) the later one wins.
 
 | Selector | Loads |
 |---|---|
@@ -29,11 +29,18 @@ Add `--dry-run` to any of them to see the changes without applying them.
 
 ## Profiles
 
+A profile is a saved list of selectors, loaded with `@name`.
+
 ```sh
+skl use @base review -review/test-gaps
 skl save backend
 ```
 
-saves the loaded set as `profiles/backend.toml` in your vault. Load it anywhere with `skl use @backend`. A profile can include other profiles.
+saves the selectors behind what's loaded now as `profiles/backend.toml` in your vault, here `["@base", "review", "-review/test-gaps"]`. Selectors from later `add` and `drop` commands are appended. Because a profile keeps selectors, not a list of skills, a skill you add to the `review` group later is part of `@backend` too. A profile can include other profiles.
+
+If `backend` already exists, skl shows how its selectors change and asks before overwriting it.
+
+To change a profile, edit its file in `~/.skl/vault/profiles/`. To delete one, delete the file. `skl status` lists your profiles. Run `skl sync` to commit these edits and take them to your other machines: see [Sync](./sync).
 
 ## Scope
 
@@ -45,6 +52,38 @@ skl use review --scope project
 
 This links them into `./.claude/skills` in the current repo.
 
+## Names and clashes
+
+Claude Code reads skills from one flat folder, so skl links each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`. Two skills clash when they have the same folder name or the same `name` in their `SKILL.md` frontmatter.
+
+Between the skills you select, the later selector wins, and skl says which skill replaced which:
+
+```sh
+skl use review someone/agent-skills/pr-review
+```
+
+```
+  ~ pr-review   someone/agent-skills replaces review/pr-review
+```
+
+Claude Code prefers a user skill to a project skill with the same name. When a skill you loaded with `--scope project` is hidden that way, `skl status` warns about it.
+
 ## Skills skl didn't create
 
-Skills you added by hand, or installed through Claude Code plugins, show up in `skl status` as not managed. skl never changes or removes them.
+Skills you added by hand, or installed through Claude Code plugins, show up in `skl status` as not managed. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
+
+If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and exits with an error:
+
+```
+! pr-review   skipped: ~/.claude/skills/pr-review is not managed by skl
+```
+
+`skl status` keeps listing it as skipped until the name is free.
+
+`skl save` leaves these skills out of the profile, and says which ones it left out. To keep one in your vault, import it:
+
+```sh
+skl import my-notes writing
+```
+
+This copies `~/.claude/skills/my-notes` into your `writing` group and commits it. The original stays where it is, so the copy clashes with it. Delete the original yourself, then load `writing/my-notes`.
