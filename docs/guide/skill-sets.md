@@ -91,7 +91,7 @@ Claude Code prefers a user skill to a project skill with the same name. When a s
 
 ## Skills skl didn't create
 
-Skills you added by hand, or installed through Claude Code plugins, show up in `skl status` as not managed. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
+Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not managed. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
 
 If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and exits with an error:
 

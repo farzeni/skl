@@ -33,6 +33,21 @@ skl fork gitlab.com/team/sub/skills//review/pr-review
 skl fork git@git.example.com:team/skills.git//review/pr-review
 ```
 
+You can also name the skill instead of giving its path. If there's no `SKILL.md` at the path and the path is one word, skl looks for the skill in the repo whose folder or frontmatter `name` is that word, wherever it is:
+
+```sh
+skl use anthropics/skills/pdf     # the skill lives in skills/pdf/
+```
+
+If two skills in the repo have that name, skl stops and lists both paths, so you can pick one:
+
+```
+anthropics/skills has two skills named pdf: skills/pdf, legacy/pdf
+  use the path, e.g. anthropics/skills/skills/pdf
+```
+
+skl records the path it found, so a renamed or added skill elsewhere in the repo doesn't change what you loaded.
+
 A [skill set](../guide/skill-sets) in a repo is its name after `@`, as the last part of the path:
 
 ```sh
@@ -58,4 +73,4 @@ When access fails, the command stops with git's error instead of waiting for a p
 
 ## Host-specific features
 
-Everything works on any host except search, which uses skills.sh and GitHub. Creating a missing vault repo during `skl init` needs the `gh` CLI, so it works only on GitHub. On other hosts, create the repo yourself first.
+Everything works on any host. The optional [skills.sh part](../thirdparty/skills-sh) searches GitHub only. Creating a missing vault repo during `skl init` needs the `gh` CLI, so it works only on GitHub. On other hosts, create the repo yourself first.
