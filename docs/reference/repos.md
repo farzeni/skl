@@ -4,7 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-skl works with any git remote. Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `fork`, `learn`, `star`) accepts the same forms.
+skl works with any git remote. Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `learn`, `star`) accepts the same forms.
 
 ## Repos
 
@@ -23,14 +23,14 @@ For `owner/repo` and `host/path` forms, skl picks SSH or HTTPS from the [`protoc
 Add the path to the skill folder. In GitHub shorthand, the first two parts are the repo and the rest is the path:
 
 ```sh
-skl fork someone/agent-skills/pdf
+skl learn someone/agent-skills/pdf
 ```
 
 For every other form, separate the repo from the path with `//`, since a URL alone doesn't say where the repo ends:
 
 ```sh
-skl fork gitlab.com/team/sub/skills//review/pr-review
-skl fork git@git.example.com:team/skills.git//review/pr-review
+skl learn gitlab.com/team/sub/skills//review/pr-review
+skl learn git@git.example.com:team/skills.git//review/pr-review
 ```
 
 A [skill set](../guide/skill-sets) in a repo is its name after `@`, as the last part of the path:

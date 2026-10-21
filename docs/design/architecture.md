@@ -8,7 +8,7 @@ skl is not built yet. This page describes the planned behavior.
 
 - **Git is the backend.** Your vault is a git repo, and other people's skills are read straight from theirs. Any git host works, and there's no server.
 - **Copies, saved back.** skl loads a skill by copying it into the target folder, and records where each copy came from. Changes made to a copy are saved back to the vault, so any tool can edit a loaded skill.
-- **The vault is the only thing you edit.** Other repos are read-only. Forks and lessons are written into your vault.
+- **The vault is the only thing you edit.** Other repos are read-only. Copies and lessons are written into your vault.
 - **Nothing is lost.** Every change is a generation, and every content change is a commit.
 
 ## Loading pipeline
@@ -25,7 +25,7 @@ If a step fails, the previous set stays in place. A skill whose name is taken by
 Each copy holds `.skl-copy.toml`: its source, the commit it was copied from, and a hash of its files. At the start of every command that changes something, skl hashes each copy and acts on the ones that changed:
 
 - **A skill from your vault.** skl merges the copy into the vault with `git merge-file`, using the recorded commit as the base, and commits the result as a generation of its own. If both sides changed the same lines, it uses the sync conflict flow.
-- **A skill from another repo.** skl stops and asks: fork it with the changes, discard them, or keep the copy as it is. The cache is never written.
+- **A skill from another repo.** skl stops and asks: save it to your vault as a copy with the changes, discard them, or keep the copy as it is. The cache is never written.
 
 Only files inside a copy's folder are read. Anything next to it, such as skill-creator's `<skill>-workspace/`, is ignored.
 
@@ -50,7 +50,7 @@ skl runs git and behaves the same on every host.
 
 ## Learn engine
 
-skl handles files, git and generations. Claude Code does the analysis and the interview. skl prepares a workspace with `mine/`, `peer/` and a brief holding your text, then runs `claude` there with a bundled lesson skill. When you learn again from the same peer or a fork's source, it also adds `base/`, the version you forked or last learned from. A sync conflict uses the same engine with a bundled merge skill, and `base/`, `mine/` and `theirs/` for each conflicted file. Claude asks its questions in its own interview UI and writes the result to `result/`. skl then shows the diff and lands it.
+skl handles files, git and generations, and copies a skill you don't have without Claude. For a lesson, Claude Code does the analysis and the interview. skl prepares a workspace with `mine/`, `peer/` and a brief holding your text, then runs `claude` there with a bundled lesson skill. For a new skill built from text, `mine/` is empty. When you learn again from the same peer or a copy's source, it also adds `base/`, the version you copied or last learned from. A sync conflict uses the same engine with a bundled merge skill, and `base/`, `mine/` and `theirs/` for each conflicted file. Claude asks its questions in its own interview UI and writes the result to `result/`. skl then shows the diff and lands it.
 
 ## Guarantees
 
@@ -73,7 +73,7 @@ skl/
     ├── vault/      # groups, skill sets, stars
     ├── source/     # remote repos, cache
     ├── load/       # plan, copy, save back, generations
-    ├── fork/       # origin, upstream merge
+    ├── upstream/   # source record, upstream merge
     └── learn/      # workspace, claude engine, land
 ```
 

@@ -56,9 +56,9 @@ Skills from other people's repos are loaded as copies too, and skl never writes 
 
 ```
 ? pdf changed since it was copied from anthropics/skills @3f9a1c2
-  › fork it with my changes   discard my changes   keep for now
+  › save it to my vault   discard my changes   keep for now
 ```
 
-- **Fork it** copies the skill as of the pinned commit into your vault, adds your changes, and records its source as [`skl fork`](./fork) does, so `skl upstream` keeps working.
+- **Save it to my vault** copies the skill as of the pinned commit into your vault, the way [`skl learn`](./learn#a-skill-you-don-t-have) copies a skill you don't have, then adds your changes. Its source is recorded, so `skl upstream` keeps working. If your vault already has a skill with that name, skl asks for another one.
 - **Discard** puts the pinned version back.
 - **Keep for now** leaves your copy as it is. skl doesn't refresh it, and `skl status` flags it. Outside a terminal, this is what happens.

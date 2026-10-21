@@ -8,7 +8,7 @@ Your vault is a plain git clone at `~/.skl/vault`. `skl sync` keeps it the same 
 
 ## What changes the vault
 
-Commands that change the vault, such as `save`, `fork`, `learn`, `import` and `rollback`, commit right away on this machine. They never push.
+Commands that change the vault, such as `save`, `learn`, `import` and `rollback`, commit right away on this machine. They never push.
 
 Changes you make to loaded skills in `~/.claude/skills` are saved back to the vault: see [Your skills](./skills).
 

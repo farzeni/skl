@@ -18,10 +18,8 @@ features:
     details: Whole groups, single skills, named skill sets and skills from other repos, in one command and in any order.
   - title: Roll back anything
     details: Every change is a numbered generation. skl rollback takes you back, and can itself be undone.
-  - title: Fork one skill
-    details: Copy a single skill from any repo and merge its author's later changes into your copy.
   - title: Learn from others
-    details: Your skill picks up what another skill does better, through an analysis and a short interview with Claude.
+    details: Copy a skill from any repo, or let yours pick up what another skill does better through a short interview with Claude. Take the author's later changes either way.
 ---
 
 <img class="demo" src="/demo.gif" alt="Terminal recording: skl init, skl use, skl status, skl learn, skl history, skl rollback">

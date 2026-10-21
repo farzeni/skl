@@ -36,6 +36,7 @@ status)
   printf "  ${D}my-notes      not managed by skl, left alone${R}\n"
   printf "${B}skill sets${R}  @backend  @base\n" ;;
 learn)
+  printf "${A}→${R} lesson into ${B}review/pr-review${R}\n"; p 0.4
   step "reading both skills  ${D}pr-review: 1 file · deep-pr-review: 4 files${R}"; p 0.8
   step "capability map"; p 0.3
   printf "    shared       diff walkthrough, test coverage check\n"; p 0.2

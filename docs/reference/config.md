@@ -20,7 +20,7 @@ claude       = "claude"
 | `default_host` | `github.com` | The host that `owner/repo` refers to. Set it to your company's GitLab, for example. |
 | `protocol` | from `gh`, else `https` | `ssh` or `https`, for repos written as `owner/repo` or `host/path`. Without a setting, skl uses the protocol the `gh` CLI is configured with for that host, or `https` if `gh` isn't installed. |
 | `scope` | `user` | The default for `--scope`. |
-| `claude` | `claude` | The Claude Code binary that [`skl learn`](../guide/learn) runs. |
+| `claude` | `claude` | The Claude Code binary that a [lesson](../guide/learn#how-a-lesson-works) runs. |
 
 ## Environment variables
 

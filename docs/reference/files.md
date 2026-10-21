@@ -13,7 +13,7 @@ you/skills/
 ├── review/
 │   ├── pr-review/
 │   │   ├── SKILL.md
-│   │   └── .skl-origin.toml    # forks and lessons only
+│   │   └── .skl-origin.toml    # copies and lessons only
 │   └── test-gaps/SKILL.md
 ├── data/
 │   └── sql-explain/SKILL.md
@@ -41,8 +41,8 @@ select = [
 ### `.skl-origin.toml`
 
 ```toml
-[fork]
-source = "https://github.com/someone/agent-skills.git//pdf"
+[source]
+url = "https://github.com/someone/agent-skills.git//pdf"
 commit = "3f9a1c2"
 
 [[lesson]]
@@ -52,6 +52,8 @@ prompt = "I like its security checks"
 answers = "lessons/7c21e9f.md"
 declined = ["inline comments"]
 ```
+
+`[source]` is written when [`skl learn`](../guide/learn#a-skill-you-don-t-have) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
 
 Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After `skl upstream --merge` or `skl learn`, `commit` moves to the upstream commit you reviewed.
 
