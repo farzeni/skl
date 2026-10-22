@@ -21,7 +21,7 @@ Every command that loads skills takes the same selectors, and every command that
 skl use @backend -review/test-gaps someone/pdf
 ```
 
-skl's flags start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
+skl's [flags](./commands#flags) start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
 
 A selector has one or two parts. A word with three or more parts, a host, a URL or a path is a [reference](#repos) to someone else's repo: `use`, `add` and `drop` stop and tell you to [learn it](../guide/learn#get-a-skill) first.
 
@@ -39,7 +39,7 @@ name      = letters, digits, "-" and "_", starting with a
 - **Anything else is a reference:** three or more parts, a dot in the first part, a URL (`https://…`, `git@host:…`), or a word that starts with `~`, `/` or `.`. Every name is free of dots, so a group can't be mistaken for a host.
 - **Reserved names.** A group can't be named `sets`, `lessons` or `h`. When a new skill's group would be the owner's name and that name is reserved or isn't a valid name, skl uses `<owner>-skills` instead.
 - **A word that names a skill but no group** matches nothing, and the warning names the skill: `! pdf   matches no group · skl use someone/pdf`.
-- **Flags** are described in [Commands](./commands). For selectors, two rules matter: `-h` always means help, so it's never a removal, and after `--` every word is a selector, a reference or text, even if it starts with `-`.
+- **`-h` and `--`** follow the [flag rules](./commands#flags): `-h` is help, never a removal, and every word after `--` is an argument.
 
 ## Repos
 
