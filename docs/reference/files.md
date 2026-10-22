@@ -39,7 +39,7 @@ A named skill set holds selectors, applied left to right like on the command lin
 select = [
   "@base",
   "review",
-  "writing/changelog",
+  "-review/test-gaps",
   "someone/pdf",
 ]
 ```
