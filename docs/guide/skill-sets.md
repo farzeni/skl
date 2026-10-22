@@ -15,7 +15,7 @@ Claude Code lists every skill in `~/.claude/skills` to Claude on each turn, with
 ## Load, add and drop
 
 ```sh
-skl use @backend -review/test-gaps anthropics/skills/pdf
+skl use @backend -review/test-gaps someone/pdf
 ```
 
 | Command | Effect |
@@ -63,7 +63,12 @@ Selectors are applied left to right, and on a [name clash](#names-and-clashes) t
 | `@backend` | A named skill set from your vault |
 | `-review/test-gaps` | Removes a skill that an earlier selector added |
 
-Skills and skill sets from other people's repos, and pinning them to a version, are in [Selectors and references](../reference/repos).
+Every selector names something in your vault. To use a skill or a skill set from someone else's repo, [learn it](./other-skills#get-one) first: it becomes a copy in your vault. Given a reference to someone else's repo, `use`, `add` and `drop` stop and say so:
+
+```
+✗ someone/agent-skills/pdf is someone else's skill
+  · skl learn someone/agent-skills/pdf
+```
 
 ## For one repo only
 
@@ -82,11 +87,11 @@ Claude Code reads skills from one flat folder, so skl copies each skill under it
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
 ```sh
-skl use review someone/agent-skills/pr-review
+skl use review someone/pr-review
 ```
 
 ```
-  ~ pr-review   someone/agent-skills replaces review/pr-review
+  ~ pr-review   someone/pr-review replaces review/pr-review
 ```
 
 Claude Code prefers a user skill to a project skill with the same name. When a skill you loaded with `--scope project` is hidden that way, `skl status` warns about it.

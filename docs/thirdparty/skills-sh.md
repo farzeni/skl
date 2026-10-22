@@ -13,15 +13,15 @@ skl search pdf
 ```
 
 ```
-anthropics/skills/pdf             214.6K installs
-anthropics/skills/docx            204.8K installs
-anthropics/skills/canvas-design   120.2K installs
+someone/agent-skills/pdf          2.1K installs
+other/skills/pdf-tools             880 installs
+someone/agent-skills/pdf-forms     310 installs
 ```
 
-Each result is a [repo reference](../reference/repos), most installed first, up to 20. Paste one into any command:
+Each result is a [repo reference](../reference/repos), most installed first, up to 20. Paste one into `skl learn`:
 
 ```sh
-skl add anthropics/skills/pdf
+skl learn someone/agent-skills/pdf
 ```
 
 One word matches names loosely. Several words search by meaning:
@@ -44,7 +44,7 @@ Search needs skills.sh. When it can't be reached, the command stops:
 skl search: skills.sh unreachable (no such host)
 ```
 
-No other command contacts skills.sh. skl sends it nothing besides your search words, so loading a skill with skl doesn't count as an install there.
+No other command contacts skills.sh. skl sends it nothing besides your search words, so learning a skill with skl doesn't count as an install there.
 
 skl uses the same search address as `npx skills find`. skills.sh doesn't document that address, so it may change; if it does, only `skl search` stops working.
 
@@ -53,7 +53,7 @@ skl uses the same search address as `npx skills find`. skills.sh doesn't documen
 A link copied from the skills.sh website works wherever a repo reference does:
 
 ```sh
-skl add https://skills.sh/anthropics/skills/pdf
+skl learn https://skills.sh/someone/agent-skills/pdf
 ```
 
 skl reads `https://skills.sh/<owner>/<repo>/<skill>` and `https://www.skills.sh/...` as `<owner>/<repo>/<skill>`.

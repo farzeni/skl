@@ -17,9 +17,15 @@ you/skills/
 │   └── test-gaps/SKILL.md
 ├── data/
 │   └── sql-explain/SKILL.md
+├── someone/
+│   └── pdf/
+│       ├── SKILL.md
+│       ├── LICENSE             # their license, kept with the copy
+│       └── .skl-origin.toml
 ├── sets/
 │   └── backend.toml
-└── lessons/                    # saved interview answers
+├── lessons/                    # saved interview answers
+└── LICENSE                     # your vault's license
 ```
 
 Every other top-level folder is a group. So `sets` and `lessons` can't be group names.
@@ -33,7 +39,7 @@ select = [
   "@base",
   "review",
   "writing/changelog",
-  "anthropics/skills/pdf",
+  "someone/pdf",
 ]
 ```
 
@@ -43,6 +49,9 @@ select = [
 [source]
 url = "https://github.com/someone/agent-skills.git//pdf"
 commit = "3f9a1c2"
+tree = "5dabfb3444c1"   # the author's folder at that commit, as skl landed it
+ref = "v1.2"            # only if you pinned one with #
+license = "Apache-2.0"
 
 [[lesson]]
 peer = "https://github.com/someone/agent-skills.git//deep-pr-review"
@@ -52,9 +61,11 @@ answers = "lessons/7c21e9f.md"
 declined = ["inline comments"]
 ```
 
-`[source]` is written when [`skl learn`](../guide/other-skills#make-it-yours) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
+`[source]` is written when [`skl learn`](../guide/other-skills#get-one) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
 
-Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After `skl upstream --merge` or `skl learn`, `commit` moves to the upstream commit you reviewed.
+`tree` is the git tree hash of the author's folder at `commit`, with skl's own changes applied (a new `name`, a license file). If your folder still has that hash, you never changed the skill, so its next update is taken as it is, without Claude. `license` is the license skl found, or `unknown` or `none`, plus your answer if skl asked.
+
+Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After every update, `commit` and `tree` move to the author's version you took or reviewed.
 
 ## Loaded skills
 
@@ -67,7 +78,7 @@ Each skill skl loads is a copy, with one extra file:
 ```
 
 ```toml
-source = "review/pr-review"   # or a remote skill's full URL
+source = "review/pr-review"   # always a skill in your vault
 commit = "a91c3e0"            # what it was copied from
 hash   = "sha256:9f2c41"      # its files as copied
 ```
@@ -82,7 +93,7 @@ Never synced. Safe to delete, apart from losing your rollback history.
 ~/.skl/
 ├── config.toml     # this machine's settings, see Configuration
 ├── vault/          # your vault: a git clone you can edit
-├── cache/          # sparse clones of other repos, by host and path
+├── cache/          # sparse clones skl learn reads, by host and path
 ├── state.json      # every copy skl made, and where
 └── generations/    # one snapshot per change
 ```

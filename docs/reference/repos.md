@@ -4,7 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Every command that loads skills takes the same selectors, and every command that takes a repo accepts the same reference forms. skl works with any git remote.
+Every command that loads skills takes the same selectors, and every command that takes a repo accepts the same reference forms. Selectors name things in your vault; references name things in any git remote.
 
 ## Selectors
 
@@ -15,19 +15,19 @@ Every command that loads skills takes the same selectors, and every command that
 | `review` | Every skill in one of your groups |
 | `review/pr-review` | One skill from one of your groups |
 | `@backend` | A named skill set from your vault |
-| `owner/repo/skill` | A skill from someone else's repo, used read-only and pinned to a commit. Any reference form below works. |
-| `owner/repo/@backend` | A skill set from someone else's repo, used read-only. Its selectors are read inside that repo, so `review` there means their `review` group. |
 | `-review/test-gaps` | Removes a skill that an earlier selector added |
 
 ```sh
-skl use @backend -review/test-gaps anthropics/skills/pdf
+skl use @backend -review/test-gaps someone/pdf
 ```
 
 skl's flags start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
 
+A selector has one or two parts. A word with three or more parts, a host, a URL or a path is a [reference](#repos) to someone else's repo: `use`, `add` and `drop` stop and tell you to [learn it](../guide/other-skills#get-one) first.
+
 ## Repos
 
-Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `learn`, `open`) accepts the same forms.
+Every command that takes a repo (`init`, `learn`, `open`) accepts the same forms.
 
 | Form | Means |
 |---|---|
@@ -57,23 +57,25 @@ skl learn git@git.example.com:team/skills.git//review/pr-review
 You can also name the skill instead of giving its path. If there's no `SKILL.md` at the path and the path is one word, skl looks for the skill in the repo whose folder or frontmatter `name` is that word, wherever it is:
 
 ```sh
-skl use anthropics/skills/pdf     # the skill lives in skills/pdf/
+skl learn someone/agent-skills/pdf    # the folder is skills/pdf/
 ```
 
 If two skills in the repo have that name, skl stops and lists both paths, so you can pick one:
 
 ```
-anthropics/skills has two skills named pdf: skills/pdf, legacy/pdf
-  use the path, e.g. anthropics/skills/skills/pdf
+✗ two skills named pdf: skills/pdf, legacy/pdf
+  · skl learn someone/agent-skills/skills/pdf
 ```
 
-skl records the path it found, so a renamed or added skill elsewhere in the repo doesn't change what you loaded.
+skl records the path it found, so a renamed or added skill elsewhere in the repo doesn't change what you learned.
+
+If the whole repo is one skill, end the reference with `//`: `skl learn someone/pdf-skill//`. The copy takes the `name` in its `SKILL.md`, else the repo's name.
 
 A [skill set](../guide/skill-sets) in a repo is its name after `@`, as the last part of the path:
 
 ```sh
-skl use someone/agent-skills/@backend
-skl use gitlab.com/team/sub/skills//@backend
+skl learn someone/agent-skills/@backend
+skl learn gitlab.com/team/sub/skills//@backend
 ```
 
 ## Pinning a version
@@ -81,10 +83,10 @@ skl use gitlab.com/team/sub/skills//@backend
 Add `#` and a tag, branch or commit:
 
 ```sh
-skl use someone/agent-skills/pdf#v1.2
+skl learn someone/agent-skills/pdf#v1.2
 ```
 
-Without a pin, skl uses the default branch, records the commit it fetched, and keeps using that commit until you run `skl upstream`.
+skl copies that version and records the pin with the copy. A tag or a commit stays where it is: the skill never shows an update, and you move it by learning a newer one (`…/pdf#v1.3`). A branch, or no pin at all, follows that branch: [`skl sync`](../guide/sync) finds its new commits and [`skl learn`](../guide/other-skills#keep-up-with-its-author) takes them.
 
 ## Web pages
 
@@ -106,7 +108,7 @@ $ skl open review/pr-review
 https://github.com/you/skills/tree/HEAD/review/pr-review
 ```
 
-A page in someone else's repo shows the version you pinned with `#`, else the commit you have loaded, else the default branch. A page in your vault shows its default branch, as you last pushed it: if the skill has commits you haven't pushed yet, skl says so, and [`skl sync`](../guide/sync) pushes them.
+A page in someone else's repo shows the version you pinned with `#`, else the default branch. A page in your vault shows its default branch, as you last pushed it: if the skill has commits you haven't pushed yet, skl says so, and [`skl sync`](../guide/sync) pushes them.
 
 For a skill you copied from someone else, skl opens your copy and prints where it came from on a second line:
 
