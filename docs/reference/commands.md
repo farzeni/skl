@@ -21,20 +21,27 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 | `skl add <selectors>` | Add to the active skill set. |
 | `skl drop <selectors>` | Remove from the active skill set. |
 | `skl save <name>` | Save the selectors behind the active skill set as a named skill set. Asks before overwriting one. See [Named skill sets](../guide/skill-sets#named-skill-sets). |
-| `skl status` | Show what's loaded, where each skill came from, your named skill sets, and everything that needs you: changes not saved back yet, skills not in your vault, selectors that match nothing, updates that `skl sync` found, and changes not pushed. Each such line ends with the command to run. |
+
+## See where you stand
+
+| Command | Description |
+|---|---|
+| `skl status` | Show what's loaded, where each skill came from, your named skill sets, and everything that needs you: changes not saved back yet, skills not in your vault, selectors that match nothing, updates that `skl sync` found, and changes not pushed. Each such line ends with the command to run. Works offline. |
+| `skl history` | List generations, newest first. |
+
+Both take `--json` for [scripts](#json).
 
 ## From others
 
 | Command | Description |
 |---|---|
-| `skl learn <peer> [skill] ["<text>"]` | Copy a skill or skill set you don't have, or with text build a new skill from it. Improve a skill you have with what its peer does better. With only your skill, take its author's changes: as they are if you never changed it, else by a lesson. With no arguments, take every available update; `--dry-run` lists them. See [Learn](../guide/learn). |
+| `skl learn <peer> [skill] ["<text>"]` | Copy a skill or skill set you don't have, or with text build a new skill from it. Improve a skill you have with what its peer does better. With only your skill, take its author's changes: as they are if you never changed it, else by a lesson. With no arguments, take every available update. See [Learn](../guide/learn). |
 | `skl open [ref]` | Open a skill, skill set or repo in your browser, or your vault without `ref`. Always prints the URL. See [Web pages](./repos#web-pages). |
 
 ## Undo
 
 | Command | Description |
 |---|---|
-| `skl history` | List generations. |
 | `skl rollback [N]` | Go back one generation, or to generation `N`. See [Rollback](../guide/rollback). |
 
 ## Sync
@@ -45,13 +52,89 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 
 Optional [third-party parts](../thirdparty/) add more, such as `skl search`.
 
-## Global flags
+## Help
 
-| Flag | Effect |
+| Command | Description |
 |---|---|
-| `--scope user\|project` | Where to load skills. `user` is `~/.claude/skills`; `project` is `./.claude/skills`. Defaults to `scope` in the [config](./config), else `user`. |
-| `--dry-run` | Show what would change, and change nothing. |
-| `--yes` | Answer yes to confirmations, such as `Add it?` before someone else's skill lands. |
+| `skl help [command]` | List the commands, or show one command's arguments, flags and an example. `skl <command> --help` and `-h` do the same. `skl` alone lists the commands. |
+| `skl --version` | Print skl's version and the commit it was built from: `skl 0.1.0 (b0a0fb2)`. |
+| `skl completion <shell>` | Print a completion script for `bash`, `zsh` or `fish`. It completes commands, flags, and the groups, skills and `@sets` in your vault, offline. |
+
+To turn completion on, add one line to your shell's startup file:
+
+```sh
+source <(skl completion bash)   # ~/.bashrc
+source <(skl completion zsh)    # ~/.zshrc
+skl completion fish | source    # ~/.config/fish/config.fish
+```
+
+A mistyped command gets a suggestion and exits with code 2:
+
+```
+✗ unknown command stauts · skl status
+```
+
+## Flags
+
+Flags start with `--` and can go anywhere on the line, as `--group writing` or `--group=writing`. Every other word is an argument, so `-review/test-gaps` is a selector, not a flag. `--` ends the flags: every word after it is an argument.
+
+The one exception is `-h`, which always means `--help`. So a group can't be named `h`.
+
+| Flag | Commands | Effect |
+|---|---|---|
+| `--help`, `-h` | all | Show the command's help, and change nothing. |
+| `--scope user\|project` | `init` `use` `add` `drop` `save` `learn` `rollback` | Where to load skills. `user` is `~/.claude/skills`; `project` is `.claude/skills` at the root of the git repo you're in. Outside a git repo, `project` is an error. Defaults to `scope` in the [config](./config), else `user`. |
+| `--dry-run` | every command that changes something | Print what would change, and change nothing. See [below](#dry-run). |
+| `--yes` | every command that asks | Take the first answer to every question. See [Questions](#questions). |
+| `--json` | `status` `history` | Print [JSON](#json) instead of text. |
+| `--group <group>` | `import` | The group to import into. |
+| `--continue`, `--abort` | `sync` | Finish or undo a merge you resolved by hand. |
+
+`skl status` shows your user scope and, inside a git repo, that repo's project scope.
+
+### Dry run
+
+With `--dry-run`, a command prints its plan, the `→` line and the `+ ~ −` lines, then stops with exit code 0. Nothing is written, cloned, created or committed, and no question is asked.
+
+| Command | What `--dry-run` shows |
+|---|---|
+| `init` | Whether it would clone or create the repo, what it would import, and what it would load. |
+| `import`, `use`, `add`, `drop`, `save`, `rollback` | The skills it would load, replace or unload, and the files it would write. |
+| `learn <peer> …` | Whether it would copy, update or run a lesson, and into which skill. Claude doesn't run. |
+| `learn` | Every available update, and how each would be taken. |
+| `sync` | What it would commit, pull, push and reload. It fetches the remote but doesn't merge or push. |
+| `open` | The URL, without starting a browser. |
+
+`status`, `history` and `help` change nothing, so `--dry-run` makes no difference to them. With `sync --continue` or `--abort`, it's a usage error.
+
+## Questions
+
+A question shows its answers; the first one is the default, taken with Enter. skl asks only when its input is a terminal.
+
+`--yes` takes the first answer to every question without showing it. Each first answer is the one you'd usually pick, and every change it makes can be [rolled back](../guide/rollback):
+
+| Question | First answer |
+|---|---|
+| `skl init`: create the missing repo? | yes, private |
+| `skl init`: import the skills in `~/.claude/skills`? | yes, all of them |
+| `skl learn`: add someone else's skill or scripts? | yes |
+| `skl learn`: a license that may not fit your vault | yes, keep their license and notice |
+| `skl save`: overwrite a named skill set? | yes |
+| `skl learn`: land the lesson? | replace |
+
+Without a terminal and without `--yes`, a question stops the command before it changes anything:
+
+```
+✗ Add it? needs an answer
+  · skl learn someone/agent-skills/pdf --yes
+```
+
+Two things always need a terminal, because Claude asks you questions in them: a [lesson](../guide/learn#how-a-lesson-works) and a [sync conflict resolved with Claude](../guide/sync#with-claude). `--yes` doesn't answer them. Without a terminal, `skl learn` stops before Claude runs. `skl sync` undoes the merge, keeps your local commits, and stops:
+
+```
+✗ conflict in sets/backend.toml needs you
+  · skl sync, in a terminal
+```
 
 ## Output
 
@@ -68,3 +151,107 @@ Every command uses the same marks:
 | `✓` | The result, last; for a change, its generation | `✓ generation 14 · skl rollback to undo` |
 
 A command that doesn't fit on the line moves to the next one, after `·`.
+
+A command that changes nothing makes no generation and ends with `✓ nothing to change`. Running it again is always safe.
+
+**Where output goes.** What you asked for goes to standard output: the report of `skl status`, the list of `skl history`, the URL of `skl open`, a `--dry-run` plan, and `--json`. Everything else, the marks of a running command and its questions, goes to standard error. So `skl open review/pr-review | pbcopy` copies only the URL, and `skl status > status.txt` saves the report.
+
+**Color.** skl colors its marks only when the output is a terminal. Setting `NO_COLOR` (to any value) or `TERM=dumb` turns color off. The marks themselves stay the same.
+
+### JSON
+
+`skl status --json` and `skl history --json` print one JSON object to standard output, with no marks, no color and no questions. The format may change until skl 1.0.
+
+```json
+{
+  "generation": 14,
+  "scopes": [
+    {
+      "scope": "user",
+      "path": "/home/you/.claude/skills",
+      "selectors": ["@backend"],
+      "skills": [
+        { "name": "pr-review", "skill": "you/pr-review" },
+        { "name": "pdf", "skill": "someone/pdf" }
+      ]
+    }
+  ],
+  "sets": ["backend", "base"],
+  "needs": [
+    {
+      "skill": "you/pr-review",
+      "state": "changed",
+      "command": "skl sync"
+    },
+    {
+      "skill": "someone/pdf",
+      "state": "update available",
+      "command": "skl learn someone/pdf"
+    },
+    {
+      "name": "my-new-skill",
+      "state": "not in your vault",
+      "command": "skl import my-new-skill"
+    },
+    { "state": "2 changes not pushed", "command": "skl sync" }
+  ]
+}
+```
+
+`needs` holds the lines of `skl status` that need you, each with the command that deals with it.
+
+```json
+{
+  "generations": [
+    {
+      "generation": 12,
+      "time": "2026-10-22T14:03:00Z",
+      "command": "learn deep-pr-review → review/pr-review",
+      "commit": "9b1d4e0c2f7a8e35d6b1c0f4a9e2d7b3c5f8a1e6"
+    }
+  ]
+}
+```
+
+To see the git and `claude` commands skl runs, set `SKL_DEBUG=1`: each one is printed to standard error before it runs.
+
+## Exit codes
+
+| Code | Means |
+|---|---|
+| `0` | Done. Also when there were warnings (`!`), when there was nothing to change, and after `--dry-run`. |
+| `1` | An error. The `✗` line says what went wrong and what to run. This includes a question that couldn't be asked and a sync that stopped at a conflict. |
+| `2` | A usage error: an unknown command or flag, a missing argument, or a selector or reference that can't be parsed. Nothing changed. |
+| `130` | Interrupted with Ctrl-C. |
+
+Ctrl-C at a question takes its last answer (no, discard or abort). Ctrl-C while skl is changing things lets it finish or undo the step it's in, so your loaded skills and your vault are never left half changed. A second Ctrl-C stops at once.
+
+## Errors
+
+The errors any command can meet:
+
+```
+✗ no vault on this machine · skl init <repo>
+```
+
+Every command except `init`, `help`, `completion` and `open` with someone else's repo needs your vault.
+
+```
+✗ another skl is running (pid 4182)
+  · skl sync, once it's done
+```
+
+One skl runs at a time on a machine, so two commands never change your vault or your loaded skills at once.
+
+```
+✗ a sync is in progress · skl sync --continue
+```
+
+While a merge you resolve [by hand](../guide/sync#by-hand) is open, only `status`, `history`, `open`, `help` and `sync --continue` or `--abort` run.
+
+```
+✗ can't reach github.com (Could not resolve host)
+  · skl sync
+```
+
+When the network or the remote fails, skl shows git's error and stops. `skl sync` keeps what it did locally first: your changes are saved and committed, and `skl status` lists them as not pushed. `skl learn` and `skl init` change nothing. Access problems fail the same way, without asking for a password: see [Authentication](./repos#authentication).
