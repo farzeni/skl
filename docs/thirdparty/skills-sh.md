@@ -41,7 +41,7 @@ Results come from GitHub only, because skills.sh indexes nothing else. Skills th
 Search needs skills.sh. When it can't be reached, the command stops:
 
 ```
-skl search: skills.sh unreachable (no such host)
+✗ skills.sh unreachable (no such host) · skl search pdf
 ```
 
 No other command contacts skills.sh. skl sends it nothing besides your search words, so learning a skill with skl doesn't count as an install there.

@@ -93,7 +93,8 @@ skl learn someone/agent-skills/docx "only the tables part"
 
 ```
   someone/pdf   update available · skl learn someone/pdf
-  data/csv      update available · you changed it · skl learn data/csv
+  data/csv      update available · you changed it
+                · skl learn data/csv
 ```
 
 To take an update, give `learn` only your skill:
@@ -162,7 +163,8 @@ skl learn someone/agent-skills/@backend
 ```
 
 ```
-→ copy @backend from someone/agent-skills (+ 4 skills into someone/)
+→ copy @backend from someone/agent-skills
+  4 skills into someone/
 ```
 
 skl reads their set and the sets it includes, copies each skill it names into the `someone` group, and saves `sets/backend.toml` listing those copies. Add a second argument such as `@their-backend` to save the set under another name.
@@ -170,7 +172,7 @@ skl reads their set and the sets it includes, copies each skill it names into th
 Their groups all land in one group, so two of their skills can have the same name. The later one is copied under its group's name too, with that name in its `SKILL.md`. A skill already in your vault at that place, which isn't a copy of theirs, is left alone and skipped:
 
 ```
-~ someone/data-lint   renamed: someone/lint is their review/lint
+◇ renamed    someone/data-lint: someone/lint is their review/lint
 ! someone/deploy skipped: yours, not from someone/agent-skills
   · rename yours, then skl learn someone/agent-skills/@backend
 ```
@@ -198,7 +200,8 @@ When the license may not fit your vault, skl asks what to do. That's when no lic
 ```
 → copy into someone/report
   license    CC-BY-NC-4.0, non-commercial · your vault is MIT
-? Add it?   › yes, keep their license and notice   no   yes, as it is
+? Add it?
+  › yes, keep their license and notice   no   yes, as it is
 ```
 
 - **Yes, keep their license and notice** copies their license file into the skill's folder.

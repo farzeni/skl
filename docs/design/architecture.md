@@ -85,7 +85,8 @@ skl/
     ├── source/     # remote repos, cache
     ├── web/        # ref → web page URL     (pure)
     ├── load/       # plan, copy, save back, generations
-    ├── learn/      # copy, update paths, workspace, claude engine, land
+    ├── learn/      # copy, update paths, workspace,
+    │               # claude engine, land
     ├── license/    # find and recognize a license (pure)
     └── ext/        # hooks for third-party parts
 thirdparty/
@@ -103,7 +104,7 @@ func RegisterCommand(c Command)
 // runs before a repo reference is parsed
 func RegisterRefRewriter(f func(ref string) (string, bool))
 // where a skill being imported came from
-func RegisterImportSource(f func(name string) (ImportSource, bool))
+func RegisterImportSource(f func(string) (ImportSource, bool))
 ```
 
 Each part registers itself in `init()`, and `cmd/skl/thirdparty.go` imports it with one line. Deleting the package and that line removes the part: everything else builds and passes its tests. Its settings are a table in `config.toml` that only the part reads; core ignores tables it doesn't own. A part's failure stays inside its own command: the skills.sh part is the only code in skl that makes network requests other than git.

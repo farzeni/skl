@@ -24,8 +24,8 @@ skl sync
 ◇ pulled     3 commits from laptop
 ◇ pushed
   + data/sql-explain   − review/test-gaps
-◇ checked    2 sources · update available: someone/pdf
-  · skl learn someone/pdf
+◇ checked    2 sources
+! update available: someone/pdf · skl learn someone/pdf
 ✓ generation 14 · skl rollback to undo
 ```
 
@@ -63,12 +63,14 @@ skl runs the `claude` CLI on the conflict, the same way [`skl learn`](./learn#wh
 
 ```
 ◇ merged     data/sql-explain added (laptop only)
-? test-gaps: drop it (this machine) or use someone/test-gaps (laptop)?
+? test-gaps: drop it (this machine)
+  or use someone/test-gaps (laptop)?
   › use someone/test-gaps
 ◇ sets/backend.toml
     + data/sql-explain   + someone/test-gaps
 ? Land it   › yes   change it   abort
-✓ merged · pushed · generation 14
+◇ pushed
+✓ generation 14 · skl rollback to undo
 ```
 
 This option shows only when the `claude` CLI is installed and skl runs in a terminal.
