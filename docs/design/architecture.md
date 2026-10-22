@@ -70,8 +70,9 @@ skl/
 └── internal/
     ├── selector/   # parse selectors         (pure)
     ├── resolve/    # selectors → skill list  (pure)
-    ├── vault/      # groups, skill sets, stars
+    ├── vault/      # groups, skill sets
     ├── source/     # remote repos, cache
+    ├── web/        # ref → web page URL     (pure)
     ├── load/       # plan, copy, save back, generations
     ├── upstream/   # source record, upstream merge
     ├── learn/      # workspace, claude engine, land

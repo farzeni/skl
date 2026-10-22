@@ -19,8 +19,7 @@ you/skills/
 │   └── sql-explain/SKILL.md
 ├── sets/
 │   └── backend.toml
-├── lessons/                    # saved interview answers
-└── stars.toml
+└── lessons/                    # saved interview answers
 ```
 
 Every other top-level folder is a group. So `sets` and `lessons` can't be group names.
@@ -56,14 +55,6 @@ declined = ["inline comments"]
 `[source]` is written when [`skl learn`](../guide/other-skills#make-it-yours) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
 
 Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After `skl upstream --merge` or `skl learn`, `commit` moves to the upstream commit you reviewed.
-
-### `stars.toml`
-
-```toml
-[[star]]
-ref  = "someone/agent-skills/deep-pr-review"
-note = "good security checks"
-```
 
 ## Loaded skills
 

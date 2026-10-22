@@ -22,9 +22,20 @@ claude       = "claude"
 | `scope` | `user` | The default for `--scope`. |
 | `claude` | `claude` | The Claude Code binary that a [lesson](../guide/learn#how-a-lesson-works) runs. |
 
+## Your own git servers
+
+[`skl open`](./repos#web-pages) knows the web pages of GitHub, GitLab, Bitbucket, Codeberg, sourcehut and Azure Repos. For a server of your own, say what it runs:
+
+```toml
+[web]
+"git.example.com" = "gitlab"
+```
+
+The value is one of `github`, `gitlab`, `bitbucket`, `gitea` (also Forgejo), `sourcehut` or `azure`. A server without an entry gets its repo's front page.
+
 ## Environment variables
 
-Every key can be set with an environment variable: `SKL_VAULT`, `SKL_DEFAULT_HOST`, `SKL_PROTOCOL`, `SKL_SCOPE`, `SKL_CLAUDE`.
+Every key above the `[web]` table can be set with an environment variable: `SKL_VAULT`, `SKL_DEFAULT_HOST`, `SKL_PROTOCOL`, `SKL_SCOPE`, `SKL_CLAUDE`.
 
 `SKL_HOME` moves the whole `~/.skl` folder, which is useful in CI or for keeping separate setups.
 
