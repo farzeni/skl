@@ -23,7 +23,7 @@ skl use @backend -review/test-gaps someone/pdf
 
 skl's flags start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
 
-A selector has one or two parts. A word with three or more parts, a host, a URL or a path is a [reference](#repos) to someone else's repo: `use`, `add` and `drop` stop and tell you to [learn it](../guide/other-skills#get-one) first.
+A selector has one or two parts. A word with three or more parts, a host, a URL or a path is a [reference](#repos) to someone else's repo: `use`, `add` and `drop` stop and tell you to [learn it](../guide/get-skills#get-one) first.
 
 ## Repos
 
@@ -86,7 +86,7 @@ Add `#` and a tag, branch or commit:
 skl learn someone/agent-skills/pdf#v1.2
 ```
 
-skl copies that version and records the pin with the copy. A tag or a commit stays where it is: the skill never shows an update, and you move it by learning a newer one (`…/pdf#v1.3`). A branch, or no pin at all, follows that branch: [`skl sync`](../guide/sync) finds its new commits and [`skl learn`](../guide/other-skills#keep-up-with-its-author) takes them.
+skl copies that version and records the pin with the copy. A tag or a commit stays where it is: the skill never shows an update, and you move it by learning a newer one (`…/pdf#v1.3`). A branch, or no pin at all, follows that branch: [`skl sync`](../guide/sync) finds its new commits and [`skl learn`](../guide/get-skills#keep-up-with-its-author) takes them.
 
 ## Web pages
 

@@ -16,7 +16,7 @@ skl sync
 2. **Pull.** skl fetches the vault and merges. It never rebases, so no commit is rewritten.
 3. **Push.**
 4. **Reload.** skl resolves what you have loaded again, for example `@backend writing/changelog`, and applies the difference. A skill set changed on another machine, or a skill deleted there, takes effect here.
-5. **Check for updates.** skl checks where the skills you learned came from. It changes nothing: `skl status` shows `update available`, and [`skl learn`](./other-skills#keep-up-with-its-author) takes it.
+5. **Check for updates.** skl checks where the skills you learned came from. It changes nothing: `skl status` shows `update available`, and [`skl learn`](./get-skills#keep-up-with-its-author) takes it.
 
 ```
 ◇ saved      pr-review → review/pr-review

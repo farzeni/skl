@@ -63,7 +63,7 @@ Selectors are applied left to right, and on a [name clash](#names-and-clashes) t
 | `@backend` | A named skill set from your vault |
 | `-review/test-gaps` | Removes a skill that an earlier selector added |
 
-Every selector names something in your vault. To use a skill or a skill set from someone else's repo, [learn it](./other-skills#get-one) first: it becomes a skill in your vault. Given a reference to someone else's repo, `use`, `add` and `drop` stop and say so:
+Every selector names something in your vault. To use a skill or a skill set from someone else's repo, [learn it](./get-skills#get-one) first: it becomes a skill in your vault. Given a reference to someone else's repo, `use`, `add` and `drop` stop and say so:
 
 ```
 ✗ someone/agent-skills/pdf is someone else's skill

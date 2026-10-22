@@ -13,7 +13,7 @@ skl learn someone/agent-skills/deep-pr-review review/pr-review \
 
 The first argument is the peer, given as any [repo reference](../reference/repos) or as one of your own skills. The second is your skill. Leave it out to use your skill with the peer's name. The text at the end is optional and goes to Claude as is, so say what you want in your own words. Without it, Claude asks.
 
-If you don't have the skill yet, the same command copies it: see [Get one](./other-skills#get-one).
+If you don't have the skill yet, the same command copies it: see [Get one](./get-skills#get-one).
 
 ## How a lesson works
 
@@ -61,7 +61,7 @@ skl prints what it's about to do before it does it:
 → new skill someone/docx, learned from someone/agent-skills/docx
 ```
 
-It asks only before someone else's new skill or scripts land (see [Get one](./other-skills#get-one)), and when a lesson is ready to land. If it isn't what you meant, `skl rollback` undoes it.
+It asks only before someone else's new skill or scripts land (see [Get one](./get-skills#get-one)), and when a lesson is ready to land. If it isn't what you meant, `skl rollback` undoes it.
 
 ## A new skill from part of another
 
@@ -73,7 +73,7 @@ skl learn someone/agent-skills/docx "only the tables part"
 
 ## When the peer changes
 
-Peers keep improving. `skl sync` checks them and `skl status` shows `update available`: see [Keep up with its author](./other-skills#keep-up-with-its-author). To pick up what's new, give `learn` only your skill:
+Peers keep improving. `skl sync` checks them and `skl status` shows `update available`: see [Keep up with its author](./get-skills#keep-up-with-its-author). To pick up what's new, give `learn` only your skill:
 
 ```sh
 skl learn review/pr-review "only the new security checks"

@@ -12,7 +12,7 @@ skl is not built yet. This page describes the planned behavior.
 | **Selector** | `review`, `@backend` | One word on the command line that picks skills to load or remove. See [Selectors and references](./repos#selectors). |
 | **Skill set** | `@backend` | A list of selectors you load together. What's loaded now is your active skill set; save it with a name to load it anywhere. See [Skill sets](../guide/skill-sets). |
 | **Generation** | `#12` | A numbered snapshot taken after every change, so any change can be rolled back. See [Rollback](../guide/rollback). |
-| **Source** | `someone/agent-skills/pdf` | Where a skill you learned without Claude came from, as recorded when it was copied. `skl sync` checks it for updates. See [Get one](../guide/other-skills#get-one). |
-| **Update** | `update available` | A later version of a skill's source or peer, found by `skl sync` and taken with `skl learn <skill>`. See [Keep up with its author](../guide/other-skills#keep-up-with-its-author). |
+| **Source** | `someone/agent-skills/pdf` | Where a skill you learned without Claude came from, as recorded when it was copied. `skl sync` checks it for updates. See [Get one](../guide/get-skills#get-one). |
+| **Update** | `update available` | A later version of a skill's source or peer, found by `skl sync` and taken with `skl learn <skill>`. See [Keep up with its author](../guide/get-skills#keep-up-with-its-author). |
 | **Peer** | `someone/agent-skills/deep-pr-review` | The skill a lesson learns from. |
 | **Lesson** | peer → yours | A capability your skill learned from its peer, through an interview with Claude. See [Learn](../guide/learn). |

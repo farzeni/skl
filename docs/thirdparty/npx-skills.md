@@ -16,7 +16,7 @@ To keep such a skill in your vault, [import](../guide/skills#add-a-skill-you-mad
 skl import pdf --group docs
 ```
 
-`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/other-skills#get-one) does, so [`skl status`](../guide/other-skills#keep-up-with-its-author) shows the author's later changes:
+`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/get-skills#get-one) does, so [`skl status`](../guide/get-skills#keep-up-with-its-author) shows the author's later changes:
 
 ```
 ✓ imported   pdf → docs/pdf
