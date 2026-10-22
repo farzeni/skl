@@ -39,7 +39,7 @@ name      = letters, digits, "-" and "_", starting with a
 - **Anything else is a reference:** three or more parts, a dot in the first part, a URL (`https://…`, `git@host:…`), or a word that starts with `~`, `/` or `.`. Every name is free of dots, so a group can't be mistaken for a host.
 - **Reserved names.** A group can't be named `sets`, `lessons` or `h`. When a new skill's group would be the owner's name and that name is reserved or isn't a valid name, skl uses `<owner>-skills` instead.
 - **A word that names a skill but no group** matches nothing, and the warning names the skill: `! pdf   matches no group · skl use someone/pdf`.
-- **Flags** start with `--` and take a value as `--name value` or `--name=value`. The one short flag is `-h`, for help, so `-h` is never a removal. `--` ends the flags: every word after it is a selector, a reference or text, even if it starts with `-`.
+- **Flags** are described in [Commands](./commands). For selectors, two rules matter: `-h` always means help, so it's never a removal, and after `--` every word is a selector, a reference or text, even if it starts with `-`.
 
 ## Repos
 

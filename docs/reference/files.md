@@ -29,7 +29,7 @@ you/skills/
 └── LICENSE                     # your vault's license
 ```
 
-Every other top-level folder is a group, and every folder in a group that holds a `SKILL.md` is a skill. A `SKILL.md` at any other depth is ignored. The rules for group names are in [Selectors and references](./repos#grammar).
+Every other top-level folder is a group, and every folder in a group that holds a `SKILL.md` is a skill. A `SKILL.md` at any other depth is ignored. `sets`, `lessons` and `h` can't be group names (`-h` always means help). The other rules for names are in [Selectors and references](./repos#grammar).
 
 ### `sets/<name>.toml`
 
