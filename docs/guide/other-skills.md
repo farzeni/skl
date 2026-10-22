@@ -102,8 +102,8 @@ skl reads their set and the sets it includes, copies each skill it names into th
 Their groups all land in one group, so two of their skills can have the same name. The later one is copied under its group's name too, with that name in its `SKILL.md`. A skill already in your vault at that place, which isn't a copy of theirs, is left alone and skipped:
 
 ```
-~ someone/data-lint (renamed: someone/lint is taken by their review/lint)
-! someone/deploy skipped: already in your vault, not from someone/agent-skills
+~ someone/data-lint   renamed: someone/lint is their review/lint
+! someone/deploy skipped: yours, not from someone/agent-skills
   · rename yours, then skl learn someone/agent-skills/@backend
 ```
 
