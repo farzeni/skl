@@ -41,14 +41,13 @@ What's loaded in a repo's project scope (`./.claude/skills`) is kept in `state.j
 
 ## Safety
 
-One skl runs at a time on a machine, and Ctrl-C finishes or undoes the current step. The exit codes are in [Commands](../reference/commands).
+What the user sees is in [Errors](../reference/commands#errors) and [Exit codes](../reference/commands#exit-codes). Underneath:
 
-- **The lock.** Every command that changes something takes `~/.skl/lock`. A second run stops with `✗ another skl is running (pid N)`. `status`, `history`, `open` and `help` don't need the lock.
-- **Ctrl-C at a question** is the last answer: no, abort or discard.
-- **Ctrl-C while applying** finishes or reverts the staging swap, so a scope is never half loaded, then exits with 130.
+- **The lock.** Every command that changes something holds `~/.skl/lock`, which records its pid. `status`, `history`, `open` and `help` don't take it.
+- **Ctrl-C while applying** finishes or reverts the staging swap, so a scope is never half loaded.
 - **Ctrl-C during a lesson** discards the staging folder. Nothing lands.
 - **Ctrl-C during a sync merge** aborts the merge.
-- **A merge in progress.** While a sync or save-back conflict waits to be resolved by hand, only `status`, `history`, `open`, `help` and `skl sync --continue` or `--abort` run. Every other command stops with `✗ a sync is in progress · skl sync --continue`. A save-back conflict resolved by hand also finishes with `skl sync --continue`.
+- **A merge in progress** is a vault with an unfinished `git merge`. Commands that would change the vault refuse to run until `skl sync --continue` or `--abort`. A save-back conflict resolved by hand is the same state, so it also finishes with `skl sync --continue`.
 
 ## Sync
 
@@ -70,7 +69,7 @@ skl runs git and behaves the same on every host.
 - The cache lives at `~/.skl/cache/<host>/<path>`. Only `learn` and the update check read it; nothing loaded points into it, so deleting it costs one fetch.
 - Git runs with `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential or an unknown host key fails at once instead of waiting for input.
 - The update check reads at most 8 repos at once, and each git call times out after 30 seconds. A source that can't be reached is a `!` line, and the check goes on with the others.
-- `SKL_DEBUG=1` prints each git and `claude` command on stderr before it runs.
+- [`SKL_DEBUG=1`](../reference/config#environment-variables) prints each git and `claude` command before it runs.
 
 ## Learn engine
 
