@@ -12,7 +12,7 @@ skl is not built yet. This page describes the planned behavior.
 | **Selector** | `review`, `@backend` | One word on the command line that picks skills to load or remove. See [Selectors and references](./repos#selectors). |
 | **Skill set** | `@backend` | A list of selectors you load together. What's loaded now is your active skill set; save it with a name to load it anywhere. See [Skill sets](../guide/skill-sets). |
 | **Generation** | `#12` | A numbered snapshot taken after every change, so any change can be rolled back. See [Rollback](../guide/rollback). |
-| **Copy** | `anthropics/pdf` | Someone else's skill copied into your vault, with its source recorded. See [Make it yours](../guide/other-skills#make-it-yours). |
-| **Source** | `anthropics/skills/pdf` | The skill a copy was made from. `skl upstream` follows it. |
+| **Copy** | `someone/pdf` | Someone else's skill copied into your vault, with its source recorded. See [Get one](../guide/other-skills#get-one). |
+| **Source** | `someone/agent-skills/pdf` | The skill a copy was made from. `skl sync` checks it for updates. |
 | **Peer** | `someone/agent-skills/deep-pr-review` | The skill a lesson learns from. |
 | **Lesson** | peer → yours | A capability your skill learned from its peer, through an interview with Claude. See [Learn](../guide/learn). |

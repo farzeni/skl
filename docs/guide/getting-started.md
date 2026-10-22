@@ -25,7 +25,7 @@ skl init you/skills
 `you/skills` is a GitHub repo, but any git remote works: see [Selectors and references](../reference/repos).
 
 - If the repo has content, skl clones it to `~/.skl/vault`.
-- If it's empty, skl sets up a new vault there and pushes it.
+- If it's empty, skl sets up a new vault there and pushes it. A new vault gets a `LICENSE` file: MIT, unless the [`license`](../reference/config) setting says otherwise.
 - If it doesn't exist and is on GitHub, skl offers to create it as a private repo with the `gh` CLI. On other hosts, create it first.
 
 skl also writes this machine's settings to `~/.skl/config.toml`. See [Configuration](../reference/config).
@@ -49,10 +49,10 @@ A **group** is a folder of skills in your vault, such as `review` or `writing`. 
 ## Load only what you need
 
 ```sh
-skl use review writing anthropics/skills/pdf
+skl use review writing
 ```
 
-This loads every skill in your `review` and `writing` groups, and one skill from someone else's repo. skl copies them into `~/.claude/skills`, and Claude Code picks them up. The first time you load a skill from another repo, skl shows what it does and which scripts it runs, and asks before loading it.
+This loads every skill in your `review` and `writing` groups. skl copies them into `~/.claude/skills`, and Claude Code picks them up. To get a skill from someone else's repo, [learn it](./other-skills#get-one): `skl learn someone/agent-skills/pdf` copies it into your vault and loads it.
 
 ```sh
 skl status
@@ -88,7 +88,7 @@ skl use @backend
 - [Your skills](./skills): keep improving skills in Claude Code; skl saves every change.
 - [Rollback](./rollback): undo any change.
 - [Skill sets](./skill-sets): load only what a task needs.
-- [Other people's skills](./other-skills): use, copy and follow skills from any git repo.
+- [Other people's skills](./other-skills): get skills from any git repo and keep up with their authors.
 - [Learn](./learn): improve a skill with what another one does better.
 - [Sync](./sync): merge changes made on two machines.
 

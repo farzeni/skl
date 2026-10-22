@@ -16,6 +16,7 @@ skl sync
 2. **Pull.** skl fetches the vault and merges. It never rebases, so no commit is rewritten.
 3. **Push.**
 4. **Reload.** skl resolves what you have loaded again, for example `@backend writing/changelog`, and applies the difference. A skill set changed on another machine, or a skill deleted there, takes effect here.
+5. **Check for updates.** skl checks where the skills you learned came from. It changes nothing: `skl status` shows `update available`, and [`skl learn`](./other-skills#keep-up-with-its-author) takes it.
 
 ```
 ◇ saved back pr-review → review/pr-review
@@ -23,6 +24,7 @@ skl sync
 ◇ pulled     3 commits from laptop
 ◇ pushed
   + data/sql-explain   − review/test-gaps
+◇ checked    2 sources · update available: someone/pdf
 ✓ generation 14
 ```
 
@@ -40,7 +42,7 @@ If the merge in step 2 conflicts, skl shows which files clash and what each side
 ✗ conflict   sets/backend.toml
   this machine   drop review/test-gaps
   laptop         add data/sql-explain
-                 use someone/agent-skills/test-gaps
+                 use someone/test-gaps
 ? Resolve   › with Claude   by hand   abort
 ```
 
@@ -55,10 +57,10 @@ skl runs the `claude` CLI on the conflict, the same way [`skl learn`](./learn#wh
 
 ```
 ◇ merged     data/sql-explain added (laptop only)
-? test-gaps: drop it (this machine) or use someone's (laptop)?
-  › use someone's
+? test-gaps: drop it (this machine) or use someone/test-gaps (laptop)?
+  › use someone/test-gaps
 ◇ sets/backend.toml
-    + data/sql-explain   + someone/agent-skills/test-gaps
+    + data/sql-explain   + someone/test-gaps
 ? Land it   › yes   change it   abort
 ✓ merged · pushed · generation 14
 ```

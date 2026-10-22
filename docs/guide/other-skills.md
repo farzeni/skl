@@ -4,91 +4,127 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Use skills from any git repo after seeing what they do, make one your own, and keep up with its author.
+Get a skill from any git repo into your vault, see what it runs before it lands, and keep up with its author.
 
 ## Find one
 
 Any git repo with skill folders in it works, on any host. To look skills up by name, the optional [skills.sh part](../thirdparty/skills-sh) adds `skl search`.
 
-## Try one
+## Get one
 
 ```sh
-skl add someone/agent-skills/deep-pr-review
+skl learn someone/agent-skills/pdf
 ```
 
-loads the skill next to the ones you have. skl fetches only that folder and pins it to the commit it fetched. The first time, it shows what the skill does and which scripts it runs, and asks before loading it.
+```
+→ copy into someone/pdf
+  Extract text, tables and forms from PDF files.
+  license    Apache-2.0 · notice kept in someone/pdf/LICENSE
+  scripts    scripts/extract.py
+? Add it?   › yes   no
++ pdf
+✓ generation 2 · skl rollback to undo
+```
 
-The skill stays in its author's repo, not in your vault. skl keeps using the pinned commit until you run [`skl upstream`](#get-the-author-s-changes). To pin a tag or a commit yourself, or to load from another host, see [Selectors and references](../reference/repos).
+skl fetches only that folder and copies it into your vault as it is, in a group named after the repo's owner. It records where the skill came from in `.skl-origin.toml`, and loads it. No Claude is involved. Before someone else's skill lands, skl shows what it does, its [license](#licenses) and the scripts it runs, and asks once; `--yes` skips the question.
 
-## Use, copy or learn?
+The copy is now one of your skills: [edit it](./skills) as you like. To pin a tag or a commit, or to get a skill from another host, see [Selectors and references](../reference/repos#pinning-a-version).
 
-| You want | Run | What you get |
+```sh
+skl learn someone/agent-skills/pdf pdf-tools
+```
+
+copies it as `pdf-tools` instead. A copy under a new name also gets that name in its `SKILL.md`, so it doesn't clash with the original. If you already have a skill with that name, the same command runs a [lesson](./learn) instead: see [Which skill it changes](./learn#which-skill-it-changes).
+
+## Copy, part or update
+
+| You want | Run | What happens |
 |---|---|---|
-| The skill as its author keeps it | `skl add someone/agent-skills/deep-pr-review` | A read-only skill, pinned to a commit |
-| The whole skill, to change it | `skl learn someone/agent-skills/deep-pr-review` | A copy in your vault that records its source |
+| The whole skill | `skl learn someone/agent-skills/pdf` | A copy in your vault, no Claude |
 | One thing it does well, in a skill you have | `skl learn someone/agent-skills/deep-pr-review review/pr-review "its security checks"` | A [lesson](./learn): Claude adds it to your skill |
+| Its author's later changes | `skl learn someone/pdf` | Taken as is if you never changed it, or by a lesson if you did |
 
-## Make it yours
+## Keep up with its author
 
-`skl learn` with a skill you don't have, and no text, copies it into your vault as it is and records where it came from in `.skl-origin.toml`. The copy is yours to edit. This needs no Claude.
+`skl sync` checks where each skill you learned came from, and `skl status` shows what it found, without going online:
 
-```sh
-skl learn anthropics/skills/pdf
-skl learn anthropics/skills/pdf anthropics-pdf
+```
+  someone/pdf   update available · skl learn someone/pdf
+  data/csv      update available · you changed it · skl learn data/csv
 ```
 
-The first copies `pdf` into `anthropics/pdf`, a group named after the repo's owner, if you have no `pdf` skill. The second copies it as `anthropics-pdf`. A copy under a new name also gets that name in its `SKILL.md`, so it doesn't clash with the original. If you already have the skill, the same commands run a lesson instead: see [Which skill it changes](./learn#which-skill-it-changes).
+To take an update, give `learn` your skill:
+
+```sh
+skl learn someone/pdf
+```
+
+skl picks how:
+
+```
+✓ someone/pdf up to date
+→ update someone/pdf (unchanged since copied)
+→ lesson into someone/pdf (you changed 2 files)
+```
+
+- **Up to date.** The author changed nothing in the skill's folder.
+- **Update.** You never changed the skill, so skl replaces it with the author's version. No Claude.
+- **Lesson.** You changed it, so Claude merges the author's changes into yours: see [When the peer changes](./learn#when-the-peer-changes). Without the `claude` CLI, skl stops and says so.
+
+`skl learn` with no arguments takes every available update, and `skl learn --dry-run` lists them. An update that changes the author's scripts shows them and asks first, like a new skill.
+
+A skill pinned to a tag or a commit never shows an update. To move it, learn the newer one: `skl learn someone/agent-skills/pdf#v1.3`. A skill that follows a branch updates like any other.
+
+### Drop your changes
+
+To go back to the author's version, say so:
+
+```sh
+skl learn someone/pdf "drop my changes, take theirs"
+```
+
+This runs a lesson. Claude can restore the author's version as it is, and you see the diff before it lands. `skl rollback` also takes back a change you regret.
 
 ## Copy a skill set
 
-`skl learn` also copies a [skill set](./skill-sets) you don't have:
+`skl learn` also copies a [skill set](./skill-sets) you don't have, with the skills it names:
 
 ```sh
-skl learn someone/skills/@backend
+skl learn someone/agent-skills/@backend
 ```
 
-saves it as `sets/backend.toml`, with each selector rewritten to point at their repo, so `review` becomes `someone/skills/review`. Their skills stay in their repo. Add a second argument such as `@their-backend` to save it under another name. A skill set is never rewritten by Claude: if you already have `@backend`, take their changes with `skl upstream @backend --merge`.
-
-## Get the author's changes
-
-`skl upstream` lists your skills whose source or peer has new commits:
-
 ```
-anthropics/pdf    anthropics/skills     4 behind  you changed 2 files
-review/pr-review  someone/agent-skills  1 behind
+→ copy @backend from someone/agent-skills (+ 4 skills into someone/)
 ```
 
-To take only some of the changes, with Claude telling the author's changes from yours, [learn again](./learn#when-the-peer-changes):
+skl reads their set and the sets it includes, copies each skill it names into the `someone` group, and saves `sets/backend.toml` listing those copies. Add a second argument such as `@their-backend` to save the set under another name. If two of their skills have the same name, or one would take the place of a skill you already have, skl stops and asks you to give that skill a name.
 
-```sh
-skl learn anthropics/pdf "only the faster table extraction"
-```
+Run the same command again to take their changes. New skills in their set are copied, each skill updates the way a single one does, and skills they removed leave the set file but stay in your vault. Lines you added to the set file yourself stay too. A skill set is never rewritten by Claude.
 
-### Take everything
+## Licenses
 
-For a copy, you can also take all of the author's changes without Claude:
+*This describes what skl does; it isn't legal advice.*
 
-```sh
-skl upstream anthropics/pdf --merge
-```
+Your vault has its own license. `skl init` writes a `LICENSE` file when it creates a vault: MIT, unless the [`license`](../reference/config) setting says otherwise. An existing vault's `LICENSE` is never touched.
 
-skl merges three versions of each file: the commit you copied, your copy, and the author's latest. If both sides changed the same lines, the file gets standard conflict markers. Edit it, then finish with:
-
-```sh
-skl upstream --continue
-```
-
-A skill that Claude built from text isn't a copy, so `--merge` stops and tells you to run `skl learn` on it instead.
-
-## You changed someone's skill
-
-A skill you loaded from someone else's repo is a copy too, and skl never writes your changes into their repo or its cache. If you change one, skl stops before it refreshes or reloads that skill, and asks what to do:
+Each skill you learn keeps its author's license. skl looks for it in the skill's folder, then at the root of the author's repo, then in the `license` field of its `SKILL.md`, and prints what it found:
 
 ```
-? pdf changed since it was copied from anthropics/skills @3f9a1c2
-  › save it to my vault   discard my changes   keep for now
+  license    Apache-2.0 · notice kept in someone/pdf/LICENSE
 ```
 
-- **Save it to my vault** copies the skill as of the pinned commit into your vault, the way [Make it yours](#make-it-yours) does, then adds your changes. Its source is recorded, so `skl upstream` keeps working. If your vault already has a skill with that name, skl asks for another one.
-- **Discard** puts the pinned version back.
-- **Keep for now** leaves your copy as it is. skl doesn't refresh it, and `skl status` flags it. Outside a terminal, this is what happens.
+A license at the root of their repo is copied into the skill's folder, so the notice travels with the copy.
+
+When the license may not fit your vault, skl asks what to do. That's when no license is found, when skl doesn't recognize it, or when it isn't a permissive one (such as MIT, BSD, Apache-2.0 or ISC) and isn't your vault's own:
+
+```
+→ copy into someone/report
+  license    CC-BY-NC-4.0, non-commercial · your vault is MIT
+? Add it?   › yes, keep their license and notice   no   yes, as it is
+```
+
+- **Yes, keep their license and notice** copies their license file into the skill's folder.
+- **No** lands nothing.
+- **Yes, as it is** lands the folder exactly as the author has it.
+
+skl remembers your answer and asks again only if a later update changes the license into one that may not fit. In a lesson, Claude asks the same question in its interview.

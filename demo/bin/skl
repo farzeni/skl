@@ -16,26 +16,29 @@ init)
   step "cloning github.com/$2"; p 0.6
   ok "vault ready  ${D}3 groups · 14 skills · 2 skill sets${R}" ;;
 use)
-  step "resolving @backend writing/changelog anthropics/skills/pdf"; p 0.4
-  step "fetching anthropics/skills/pdf  ${D}(sparse, 1 folder)${R}"; p 0.6
-  printf "\n  ${W}pdf${R} is a remote skill  ${D}anthropics/skills @3f9a1c2${R}\n"
-  printf "  ${D}description:${R} Extract text and tables from PDF files, fill forms\n"
-  printf "  ${D}runs:${R}        scripts/extract.py, scripts/fill_form.py\n\n"
-  ask "Load it?"; choose "yes" "no, skip it"; p 0.2
-  printf "\n  ${A}+${R} review/pr-review     ${A}+${R} review/test-gaps\n"
-  printf "  ${A}+${R} data/sql-explain     ${A}+${R} writing/changelog\n"
-  printf "  ${W}+${R} pdf ${D}remote, pinned @3f9a1c2${R}\n"; p 0.3
-  ok "5 skills copied into ~/.claude/skills · generation 11" ;;
+  step "resolving @backend writing/changelog"; p 0.4
+  printf "  ${A}+${R} pr-review     ${A}+${R} test-gaps\n"
+  printf "  ${A}+${R} sql-explain   ${A}+${R} changelog\n"; p 0.3
+  ok "generation 10 · skl rollback to undo" ;;
 status)
   printf "${B}user scope${R}  ~/.claude/skills   ${D}generation 11${R}\n"
   printf "  pr-review     review/      ${D}vault${R}\n"
   printf "  test-gaps     review/      ${D}vault${R}\n"
   printf "  sql-explain   data/        ${D}vault${R}\n"
   printf "  changelog     writing/     ${D}vault${R}\n"
-  printf "  pdf           ${W}anthropics/skills${R}  ${D}@3f9a1c2${R}\n"
+  printf "  pdf           someone/     ${D}copy · someone/agent-skills @3f9a1c2${R}\n"
   printf "  ${D}my-notes      not in your vault · skl import my-notes <group>${R}\n"
   printf "${B}skill sets${R}  @backend  @base\n" ;;
 learn)
+  if [ $# -eq 2 ]; then
+    printf "${A}→${R} copy into ${B}someone/pdf${R}\n"; p 0.5
+    printf "  Extract text, tables and forms from PDF files.\n"
+    printf "  ${D}license${R}    Apache-2.0 · notice kept in someone/pdf/LICENSE\n"
+    printf "  ${D}scripts${R}    scripts/extract.py, scripts/fill_form.py\n"
+    ask "Add it?"; choose "yes" "no"; p 0.2
+    printf "${A}+${R} pdf\n"
+    ok "generation 11 · skl rollback to undo"; exit 0
+  fi
   printf "${A}→${R} lesson into ${B}review/pr-review${R}\n"; p 0.4
   step "reading both skills  ${D}pr-review: 1 file · deep-pr-review: 4 files${R}"; p 0.8
   step "capability map"; p 0.3
@@ -60,8 +63,8 @@ learn)
   printf "  ${D}lesson recorded in review/pr-review/.skl-origin.toml${R}\n" ;;
 history)
   printf "  ${A}12${R}  now      learn deep-pr-review → review/pr-review\n"
-  printf "  ${A}11${R}  1m ago   use @backend writing/changelog anthropics/skills/pdf\n"
-  printf "  ${A}10${R}  3d ago   use @backend\n" ;;
+  printf "  ${A}11${R}  1m ago   learn someone/agent-skills/pdf → someone/pdf\n"
+  printf "  ${A}10${R}  2m ago   use @backend writing/changelog\n" ;;
 rollback)
   step "going back to generation 11"; p 0.4
   printf "  ${W}~${R} review/pr-review   content restored ${D}(revert commit 5d0e7aa)${R}\n"; p 0.3

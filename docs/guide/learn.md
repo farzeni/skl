@@ -13,7 +13,7 @@ skl learn someone/agent-skills/deep-pr-review review/pr-review \
 
 The first argument is the peer, given as any [repo reference](../reference/repos) or as one of your own skills. The second is your skill. Leave it out to use your skill with the peer's name. The text at the end is optional and goes to Claude as is, so say what you want in your own words. Without it, Claude asks.
 
-If you don't have the skill yet, the same command copies it: see [Make it yours](./other-skills#make-it-yours).
+If you don't have the skill yet, the same command copies it: see [Get one](./other-skills#get-one).
 
 ## How a lesson works
 
@@ -45,54 +45,48 @@ To learn from more than one peer, run `skl learn` once for each. Every run is it
 | Second argument | Your skill |
 |---|---|
 | none | the one with the peer's name: `pdf` |
-| `anthropics-pdf` | the one with that name, in whichever group has it |
+| `pdf-tools` | the one with that name, in whichever group has it |
 | `docs/pdf` | exactly that one |
 | `docs/` | the one with the peer's name in your `docs` group |
 
-A name matches a skill's folder or the `name` in its `SKILL.md`. If two groups have it, skl stops and asks you to write `group/name`. If no skill has it, a new one goes into a group named after the peer's owner: `anthropics/skills/pdf` becomes `anthropics/pdf`, and a repo on this machine uses its folder name.
+A name matches a skill's folder or the `name` in its `SKILL.md`. If two groups have it, skl stops and asks you to write `group/name`. If no skill has it, a new one goes into a group named after the peer's owner: `someone/agent-skills/pdf` becomes `someone/pdf`, and a repo on this machine uses its folder name. A skill at the root of a repo (`someone/pdf-skill//`) takes the `name` in its `SKILL.md`, else the repo's name.
 
 The last argument counts as text when it contains a space. So a one-word request needs more words, or it's read as a skill name.
 
 skl prints what it's about to do before it does it:
 
 ```
-→ copy into anthropics/pdf
+→ copy into someone/pdf
 → lesson into review/pr-review
-→ new skill anthropics/docx, learned from anthropics/skills/docx
+→ new skill someone/docx, learned from someone/agent-skills/docx
 ```
 
-It doesn't ask for confirmation. If it isn't what you meant, `skl rollback` undoes it.
+It asks only before someone else's new skill or scripts land (see [Get one](./other-skills#get-one)), and when a lesson is ready to land. If it isn't what you meant, `skl rollback` undoes it.
 
 ## A new skill from part of another
 
 With text and a skill you don't have, Claude builds a new skill from the peer with only what you asked for. It runs like a [lesson](#how-a-lesson-works), starting from an empty skill: Claude asks what to bring along with that part, and which scripts to take.
 
 ```sh
-skl learn anthropics/skills/docx "only the tables part"
+skl learn someone/agent-skills/docx "only the tables part"
 ```
 
 ## When the peer changes
 
-Peers keep improving. `skl upstream` lists your skills whose peer has new commits: see [Get the author's changes](./other-skills#get-the-author-s-changes). To pick up what's new, give `learn` only your skill:
+Peers keep improving. `skl sync` checks them and `skl status` shows `update available`: see [Keep up with its author](./other-skills#keep-up-with-its-author). To pick up what's new, give `learn` only your skill:
 
 ```sh
 skl learn review/pr-review "only the new security checks"
 ```
 
-skl uses the peer you learned from last, or for a copy the skill it was copied from. Running the first command again does the same. Claude sees three versions: the peer as you last learned from it, the peer now, and your skill. So it can tell the peer's changes from yours, and asks only about what's new. It reuses your saved answers, and changes you skip aren't asked about again.
+skl uses the peer you learned from last, or for a copy the skill it was copied from. Running the first command again does the same. If the skill is a copy you never changed, skl takes the author's version as it is, without Claude. Otherwise it runs a lesson. Claude sees three versions: the peer as you last learned from it, the peer now, and your skill, plus skl's own attempt at merging them. So it can tell the peer's changes from yours, and asks only about what's new and what contradicts. It reuses your saved answers, and changes you skip aren't asked about again, unless your text asks for them.
+
+Without text, Claude takes what's new. With text, it does what you say, even if the peer hasn't changed: "drop my changes, take theirs" brings back the author's version.
 
 ## Lessons
 
 Each run with Claude is recorded in the skill's `.skl-origin.toml` as a lesson. It holds the peer, its commit, what you asked for, your answers and what you declined. A copy records its source instead. See [Files](../reference/files#skl-origin-toml).
 
-## Options
-
-| Option | Effect |
-|---|---|
-| `"<text>"` | What you want, in your own words. Optional. |
-| `--as <name>` | Skip the landing question and save the lesson under a new name. |
-| `--all` | When learning again, also ask about changes you skipped before. |
-
 ## Who does the thinking
 
-For a lesson, skl prepares a workspace with both skills and runs the `claude` CLI in it, using your existing login. Claude writes its result to a staging folder. Only skl commits to your vault, and only after you choose. A copy needs no Claude; building a new skill from text does.
+For a lesson, skl prepares a workspace with both skills and runs the `claude` CLI in it, using your existing login. Claude writes its result to a staging folder. Only skl commits to your vault, and only after you choose. A copy, and an update to a copy you never changed, need no Claude. Building a new skill from text, and updating a skill you changed, do: without the `claude` CLI, skl stops and says so.

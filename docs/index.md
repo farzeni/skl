@@ -21,7 +21,7 @@ features:
   - title: Edit freely, undo anything
     details: Keep improving skills in Claude Code. skl saves every change to your vault, and skl rollback takes any of them back.
   - title: Use and learn from others
-    details: Load a skill from any git repo, pinned to a commit. Copy it to make it yours, or let Claude add what it does better to a skill you have.
+    details: Copy a skill from any git repo into your vault, or let Claude add what it does better to a skill you have. Take its author's later changes with the same command.
 ---
 
 <img class="demo" src="/demo.gif" alt="Terminal recording: skl init, skl use, skl status, skl learn, skl history, skl rollback">

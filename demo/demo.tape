@@ -22,7 +22,14 @@ Type "skl init you/skills"
 Enter
 Sleep 1.8s
 
-Type "skl use @backend writing/changelog anthropics/skills/pdf"
+Type "skl use @backend writing/changelog"
+Enter
+Sleep 2.2s
+
+Type "# get a skill from someone"
+Sleep 500ms
+Enter
+Type "skl learn someone/agent-skills/pdf"
 Enter
 Sleep 2.6s
 Type "1"

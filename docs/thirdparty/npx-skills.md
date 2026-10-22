@@ -16,11 +16,11 @@ To keep such a skill in your vault, [import](../guide/skills#add-a-skill-you-mad
 skl import pdf docs
 ```
 
-`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/other-skills#make-it-yours) does, so [`skl upstream`](../guide/other-skills#get-the-author-s-changes) shows the author's later changes:
+`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/other-skills#get-one) does, so [`skl status`](../guide/other-skills#keep-up-with-its-author) shows the author's later changes:
 
 ```
 ✓ imported   pdf → docs/pdf
-             source anthropics/skills/skills/pdf (from npx skills)
+             source someone/agent-skills/skills/pdf (from npx skills)
 ! pdf is also tracked by npx skills: `npx skills update` can change
   this folder and `npx skills remove` deletes it. Your vault keeps
   the imported version.
