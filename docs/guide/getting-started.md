@@ -63,7 +63,7 @@ skl learn someone/agent-skills/pdf
 ✓ generation 2 · skl rollback to undo
 ```
 
-skl shows what someone else's skill does and what it runs before it lands. The skill is now in your vault and loaded, with its source recorded. When its author changes it, `skl status` says so and `skl learn someone/pdf` takes the change. See [Get skills](./get-skills), which also covers `skl search`.
+skl shows what someone else's skill does and what it runs before it lands. The skill is now in your vault and loaded, with its source recorded. When its author changes it, `skl status` says so and `skl learn someone/pdf` takes the change. See [Learn](./learn#get-a-skill), which also covers `skl search`.
 
 ## Teach your skill a trick
 
@@ -74,7 +74,7 @@ skl learn someone/agent-skills/deep-pr-review \
   you/pr-review "its security checks"
 ```
 
-Claude reads both skills, asks you what to take, and shows the diff before anything lands. See [Learn](./learn).
+Claude reads both skills, asks you what to take, and shows the diff before anything lands. See [Teach your skill a trick](./learn#teach-your-skill-a-trick).
 
 ## Load only what a task needs
 
@@ -125,8 +125,7 @@ Run `skl sync` whenever you switch machines: it pushes this machine's changes an
 - [Your skills](./skills): import, rename and delete skills, or edit the vault directly.
 - [Rollback](./rollback): go back to any generation.
 - [Skill sets](./skill-sets): per-repo skills and name clashes.
-- [Get skills](./get-skills): find skills, keep up with their authors, licenses.
-- [Learn](./learn): how a lesson works.
+- [Learn](./learn): get skills, teach yours, keep up with authors, licenses.
 - [Sync](./sync): when two machines changed the same file.
 
 Words like generation, peer or selector are defined in the [Glossary](../reference/glossary).

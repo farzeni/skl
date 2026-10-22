@@ -27,7 +27,7 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 
 | Command | Description |
 |---|---|
-| `skl learn <peer> [skill] ["<text>"]` | Copy a skill or skill set you don't have, or with text build a new skill from it. Improve a skill you have with what its peer does better. With only your skill, take its author's changes: as they are if you never changed it, else by a lesson. With no arguments, take every available update; `--dry-run` lists them. See [Get skills](../guide/get-skills) and [Learn](../guide/learn). |
+| `skl learn <peer> [skill] ["<text>"]` | Copy a skill or skill set you don't have, or with text build a new skill from it. Improve a skill you have with what its peer does better. With only your skill, take its author's changes: as they are if you never changed it, else by a lesson. With no arguments, take every available update; `--dry-run` lists them. See [Learn](../guide/learn). |
 | `skl open [ref]` | Open a skill, skill set or repo in your browser, or your vault without `ref`. Always prints the URL. See [Web pages](./repos#web-pages). |
 
 ## Undo

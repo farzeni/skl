@@ -60,4 +60,4 @@ You can also edit `~/.skl/vault/<group>/<skill>` directly. The next command that
 
 If a skill changed in the vault after it was loaded, for example because `skl sync` pulled a change from another machine, and you changed the loaded skill too, skl merges both. When both changed the same lines, it asks you how to resolve them, the same way as [a sync conflict](./sync#when-both-machines-changed-the-same-file).
 
-A skill you learned from someone else is in your vault like any other, so your changes are saved the same way. Their repo is never written. Once you've changed it, its next update from the author runs a [lesson](./learn#when-the-peer-changes) instead of a plain update.
+A skill you learned from someone else is in your vault like any other, so your changes are saved the same way. Their repo is never written. Once you've changed it, its next update from the author runs a [lesson](./learn#keep-up-with-its-author) instead of a plain update.
