@@ -1,12 +1,33 @@
-# Repo references
+# Selectors and references
 
 ::: warning Design preview
 skl is not built yet. This page describes the planned behavior.
 :::
 
-skl works with any git remote. Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `learn`, `star`) accepts the same forms.
+Every command that loads skills takes the same selectors, and every command that takes a repo accepts the same reference forms. skl works with any git remote.
+
+## Selectors
+
+`use`, `add` and `drop` take selectors. They're applied left to right, and on a [name clash](../guide/skill-sets#names-and-clashes) the later one wins.
+
+| Selector | Loads |
+|---|---|
+| `review` | Every skill in one of your groups |
+| `review/pr-review` | One skill from one of your groups |
+| `@backend` | A named skill set from your vault |
+| `owner/repo/skill` | A skill from someone else's repo, used read-only and pinned to a commit. Any reference form below works. |
+| `owner/repo/@backend` | A skill set from someone else's repo, used read-only. Its selectors are read inside that repo, so `review` there means their `review` group. |
+| `-review/test-gaps` | Removes a skill that an earlier selector added |
+
+```sh
+skl use @backend -review/test-gaps anthropics/skills/pdf
+```
+
+skl's flags start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
 
 ## Repos
+
+Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `learn`, `star`) accepts the same forms.
 
 | Form | Means |
 |---|---|

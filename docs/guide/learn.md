@@ -4,7 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-You like how another skill handles something. `skl learn` takes it from that skill, its **peer**. If you don't have the skill yet, skl copies it into your vault. If you have one, Claude reads both, asks you what to take and how, and rewrites yours. You review the diff before anything lands.
+Improve a skill you have with what another skill does better. Claude reads both, asks you what to take and how, and rewrites yours. You review the diff before anything lands. The skill you learn from is its **peer**.
 
 ```sh
 skl learn someone/agent-skills/deep-pr-review review/pr-review "I like its security checks"
@@ -12,45 +12,7 @@ skl learn someone/agent-skills/deep-pr-review review/pr-review "I like its secur
 
 The first argument is the peer, given as any [repo reference](../reference/repos) or as one of your own skills. The second is your skill. Leave it out to use your skill with the peer's name. The text at the end is optional and goes to Claude as is, so say what you want in your own words. Without it, Claude asks.
 
-## Which skill it changes
-
-| Second argument | Your skill |
-|---|---|
-| none | the one with the peer's name: `pdf` |
-| `anthropics-pdf` | the one with that name, in whichever group has it |
-| `docs/pdf` | exactly that one |
-| `docs/` | the one with the peer's name in your `docs` group |
-
-A name matches a skill's folder or the `name` in its `SKILL.md`. If two groups have it, skl stops and asks you to write `group/name`. If no skill has it, a new one goes into a group named after the peer's owner: `anthropics/skills/pdf` becomes `anthropics/pdf`, and a repo on this machine uses its folder name.
-
-The last argument counts as text when it contains a space. So a one-word request needs more words, or it's read as a skill name.
-
-skl prints what it's about to do before it does it:
-
-```
-→ copy into anthropics/pdf
-→ lesson into review/pr-review
-→ new skill anthropics/docx, learned from anthropics/skills/docx
-```
-
-It doesn't ask for confirmation. If it isn't what you meant, `skl rollback` undoes it.
-
-## A skill you don't have
-
-Without text, skl copies the peer as it is and records where it came from in `.skl-origin.toml`. The copy is yours to edit. This needs no Claude.
-
-```sh
-skl learn anthropics/skills/pdf
-skl learn anthropics/skills/pdf anthropics-pdf
-```
-
-The first copies `pdf` into `anthropics/pdf`, if you have no `pdf` skill. The second copies it as `anthropics-pdf`. A copy under a new name also gets that name in its `SKILL.md`, so it doesn't clash with the original. If you already have the skill, the same commands run a lesson instead.
-
-With text, Claude builds a new skill from the peer with only what you asked for. It runs like a [lesson](#how-a-lesson-works), starting from an empty skill: Claude asks what to bring along with that part, and which scripts to take.
-
-```sh
-skl learn anthropics/skills/docx "only the tables part"
-```
+If you don't have the skill yet, the same command copies it: see [Make it yours](./other-skills#make-it-yours).
 
 ## How a lesson works
 
@@ -77,48 +39,46 @@ Landing creates a vault commit and a generation, so `skl rollback` undoes it. Ru
 
 To learn from more than one peer, run `skl learn` once for each. Every run is its own lesson, and you can roll each one back separately.
 
+## Which skill it changes
+
+| Second argument | Your skill |
+|---|---|
+| none | the one with the peer's name: `pdf` |
+| `anthropics-pdf` | the one with that name, in whichever group has it |
+| `docs/pdf` | exactly that one |
+| `docs/` | the one with the peer's name in your `docs` group |
+
+A name matches a skill's folder or the `name` in its `SKILL.md`. If two groups have it, skl stops and asks you to write `group/name`. If no skill has it, a new one goes into a group named after the peer's owner: `anthropics/skills/pdf` becomes `anthropics/pdf`, and a repo on this machine uses its folder name.
+
+The last argument counts as text when it contains a space. So a one-word request needs more words, or it's read as a skill name.
+
+skl prints what it's about to do before it does it:
+
+```
+→ copy into anthropics/pdf
+→ lesson into review/pr-review
+→ new skill anthropics/docx, learned from anthropics/skills/docx
+```
+
+It doesn't ask for confirmation. If it isn't what you meant, `skl rollback` undoes it.
+
+## A new skill from part of another
+
+With text and a skill you don't have, Claude builds a new skill from the peer with only what you asked for. It runs like a [lesson](#how-a-lesson-works), starting from an empty skill: Claude asks what to bring along with that part, and which scripts to take.
+
+```sh
+skl learn anthropics/skills/docx "only the tables part"
+```
+
 ## When the peer changes
 
-Peers keep improving. `skl upstream` lists your skills whose peer or source has new commits:
-
-```
-anthropics/pdf    anthropics/skills     4 behind  you changed 2 files
-review/pr-review  someone/agent-skills  1 behind
-```
-
-To pick up what's new, give `learn` only your skill:
+Peers keep improving. `skl upstream` lists your skills whose peer has new commits: see [Get the author's changes](./other-skills#get-the-author-s-changes). To pick up what's new, give `learn` only your skill:
 
 ```sh
 skl learn review/pr-review "only the new security checks"
 ```
 
 skl uses the peer you learned from last, or for a copy the skill it was copied from. Running the first command again does the same. Claude sees three versions: the peer as you last learned from it, the peer now, and your skill. So it can tell the peer's changes from yours, and asks only about what's new. It reuses your saved answers, and changes you skip aren't asked about again.
-
-### Take everything
-
-For a copy, you can also take all of the author's changes without Claude:
-
-```sh
-skl upstream anthropics/pdf --merge
-```
-
-skl rebuilds three versions of the skill: the commit you copied, your copy, and the author's latest. It merges each file with `git merge-file`. If both sides changed the same lines, the file gets standard conflict markers. Edit it, then finish with:
-
-```sh
-skl upstream --continue
-```
-
-A skill that Claude built from text isn't a copy, so `--merge` stops and tells you to run `skl learn` on it instead.
-
-## Skill sets
-
-`skl learn` also copies a [skill set](./skill-sets) you don't have:
-
-```sh
-skl learn someone/skills/@backend
-```
-
-saves it as `sets/backend.toml`, with each selector rewritten to point at their repo, so `review` becomes `someone/skills/review`. Their skills stay in their repo. Add a second argument such as `@their-backend` to save it under another name. A skill set is never rewritten by Claude: if you already have `@backend`, take their changes with `skl upstream @backend --merge`.
 
 ## Lessons
 

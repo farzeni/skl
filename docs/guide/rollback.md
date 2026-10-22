@@ -4,7 +4,9 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Every command that changes something creates a **generation**: a numbered snapshot of your [active skill set](./skill-sets), meaning which skills are loaded where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `save`, `import`, `learn` and `sync`, and saving back changes from a loaded skill. So rolling back is how you take a skill set, and the skills in it, back to an earlier state.
+Undo any change skl made or saved: a load, a lesson, an edit saved from Claude Code, a sync. Each of those is a **generation**, a numbered snapshot of your [active skill set](./skill-sets), meaning which skills are loaded where, plus the vault commit at that moment.
+
+## See what changed
 
 ```sh
 skl history
@@ -16,7 +18,7 @@ skl history
 10  3d ago   use @backend
 ```
 
-## Going back
+## Go back
 
 ```sh
 skl rollback       # one generation back
@@ -24,5 +26,7 @@ skl rollback 10    # to generation 10
 ```
 
 A rollback restores the loaded copies. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history.
+
+## Undo a rollback
 
 A rollback is itself a new generation, so you can undo it with another `skl rollback`.

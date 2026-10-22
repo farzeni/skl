@@ -33,7 +33,7 @@ status)
   printf "  sql-explain   data/        ${D}vault${R}\n"
   printf "  changelog     writing/     ${D}vault${R}\n"
   printf "  pdf           ${W}anthropics/skills${R}  ${D}@3f9a1c2${R}\n"
-  printf "  ${D}my-notes      not managed by skl, left alone${R}\n"
+  printf "  ${D}my-notes      not in your vault · skl import my-notes <group>${R}\n"
   printf "${B}skill sets${R}  @backend  @base\n" ;;
 learn)
   printf "${A}→${R} lesson into ${B}review/pr-review${R}\n"; p 0.4

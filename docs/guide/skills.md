@@ -4,25 +4,11 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-You make and improve skills in Claude Code, the way you would without skl. skl keeps the result in your vault.
+Keep improving your skills in Claude Code the way you do now. skl saves each change to your vault, so `skl sync` takes it to your other machines and `skl rollback` can undo it.
 
-## Make a skill
+## Edit as usual
 
-Ask Claude Code to make one, for example with the skill-creator skill, or create the folder yourself. Either way it lands in `~/.claude/skills/<name>` (or `./.claude/skills/<name>` in a repo). Until you import it, `skl status` lists it as not managed:
-
-```
-  my-notes      not managed by skl · skl import my-notes <group>
-```
-
-```sh
-skl import my-notes writing
-```
-
-copies it into your `writing` group and commits it. The folder in `~/.claude/skills` stays where it is and becomes skl's copy of `writing/my-notes`, so nothing moves and nothing clashes. Run `skl sync` to take it to your other machines.
-
-## Improve a skill
-
-Every skill skl loads is a plain folder in `~/.claude/skills`, a copy of the skill in your vault. Change it there, by hand or by asking Claude Code. skl saves your changes back to the vault at the next command that changes something, `skl sync` included:
+The skills skl loads are plain folders in `~/.claude/skills`, copies of the skills in your vault. Change one by hand, or ask Claude Code to improve it. When you're done, run `skl sync`: it saves your changes to the vault and takes them to your other machines. The other commands that change something (`use`, `add`, `drop`, `save`, `import`, `learn`, `rollback`) also save them first. `status` and `history` don't.
 
 ```
 ◇ saved back   pr-review → review/pr-review
@@ -30,17 +16,23 @@ Every skill skl loads is a plain folder in `~/.claude/skills`, a copy of the ski
 ✓ generation 15
 ```
 
-Saving back is its own generation, so `skl rollback` can undo it on its own. Until then, `skl status` lists the copies with changes that aren't saved yet.
+Each save is a **generation**, a numbered step in your [history](./rollback), so `skl rollback` undoes this save on its own. Until then, `skl status` lists the skills with unsaved changes.
 
-Only the files inside the skill's folder are saved. Folders next to it stay where they are, such as the `pr-review-workspace/` that skill-creator writes its test runs to.
+skl saves only the files inside the skill's folder. Folders next to it, such as the `pr-review-workspace/` that skill-creator writes its test runs to, stay out of your vault.
 
-If the skill also changed in the vault since it was copied, for example because `skl sync` pulled a change from another machine, skl merges both. When both changed the same lines, it asks you how to resolve them, the same way as [a sync conflict](./sync#when-both-machines-changed-the-same-file).
+## Add a skill you made
 
-## Edit in the vault
+A skill you make in Claude Code, for example with the skill-creator skill, lands in `~/.claude/skills/<name>` (or `./.claude/skills/<name>` in a repo) and isn't in your vault yet. `skl status` lists it:
 
-You can also edit `~/.skl/vault/<group>/<skill>` directly. Claude Code sees those edits after the next command that changes something, such as `skl sync`, copies them in.
+```
+  my-notes      not in your vault · skl import my-notes <group>
+```
 
-Before any command that changes the vault, skl commits your hand edits there as a generation of their own.
+```sh
+skl import my-notes writing
+```
+
+copies it into your `writing` group and commits it. The folder in `~/.claude/skills` stays where it is and becomes skl's copy of `writing/my-notes`, so Claude Code sees no change. Run `skl sync` to take it to your other machines.
 
 ## Rename or delete a skill
 
@@ -50,15 +42,12 @@ Rename or delete its folder in `~/.skl/vault`. The next command that loads skill
 ! review/old-name   matches no skill   (in @backend)
 ```
 
-## Someone else's skill
+## Edit the vault directly
 
-Skills from other people's repos are loaded as copies too, and skl never writes your changes into their repo or its cache. If you change one, skl stops before it refreshes or reloads that skill, and asks what to do:
+You can also edit `~/.skl/vault/<group>/<skill>` directly. The next command that changes something, such as `skl sync`, commits your edits as a generation of their own and copies them into `~/.claude/skills`, where Claude Code sees them.
 
-```
-? pdf changed since it was copied from anthropics/skills @3f9a1c2
-  › save it to my vault   discard my changes   keep for now
-```
+## When the vault changed too
 
-- **Save it to my vault** copies the skill as of the pinned commit into your vault, the way [`skl learn`](./learn#a-skill-you-don-t-have) copies a skill you don't have, then adds your changes. Its source is recorded, so `skl upstream` keeps working. If your vault already has a skill with that name, skl asks for another one.
-- **Discard** puts the pinned version back.
-- **Keep for now** leaves your copy as it is. skl doesn't refresh it, and `skl status` flags it. Outside a terminal, this is what happens.
+If a skill changed in the vault after it was copied, for example because `skl sync` pulled a change from another machine, and you changed the copy too, skl merges both. When both changed the same lines, it asks you how to resolve them, the same way as [a sync conflict](./sync#when-both-machines-changed-the-same-file).
+
+A copy of someone else's skill is never saved into their repo. If you change one, skl asks what to do: see [You changed someone's skill](./other-skills#you-changed-someone-s-skill).

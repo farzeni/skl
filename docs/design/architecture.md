@@ -44,7 +44,7 @@ skl runs git and behaves the same on every host.
 
 - A skill folder is fetched with `git clone --depth 1 --filter=blob:none --sparse`, then `git sparse-checkout set <path>`. On a large repo that's a few hundred KB instead of the full history. Servers without filter support send everything: slower, but still correct.
 - Local repos are cloned through `file://`, because git ignores filters for plain paths.
-- Merge bases for `skl upstream` are fetched by commit, only when needed.
+- Merge bases for `skl upstream` are fetched by commit, only when needed. `skl upstream --merge` rebuilds three versions of each file (the commit copied, the copy, the author's latest) and merges them with `git merge-file`.
 - The cache lives at `~/.skl/cache/<host>/<path>`.
 - Git runs with `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential or an unknown host key fails at once instead of waiting for input.
 

@@ -4,15 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Your vault is a plain git clone at `~/.skl/vault`. `skl sync` keeps it the same on every machine.
-
-## What changes the vault
-
-Commands that change the vault, such as `save`, `learn`, `import` and `rollback`, commit right away on this machine. They never push.
-
-Changes you make to loaded skills in `~/.claude/skills` are saved back to the vault: see [Your skills](./skills).
-
-You can also edit the vault by hand: change a `SKILL.md`, or edit or delete a file in `sets/`. Those edits stay uncommitted until the next command that changes the vault, sync included.
+Keep the same vault, and the same loaded skills, on every machine, with changes made on both merged. Your vault is a plain git clone at `~/.skl/vault`.
 
 ## What sync does
 
@@ -35,6 +27,10 @@ skl sync
 ```
 
 Sync creates a generation, so `skl rollback` undoes it like any other change.
+
+## What gets committed
+
+Commands that change the vault, such as `save`, `learn`, `import` and `rollback`, commit right away on this machine and never push. Changes you make to loaded skills, and hand edits in `~/.skl/vault` such as a `SKILL.md` or a file in `sets/`, are committed at the next command that changes something: see [Your skills](./skills). `skl sync` is what pushes them.
 
 ## When both machines changed the same file
 

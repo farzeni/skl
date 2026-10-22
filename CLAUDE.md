@@ -99,5 +99,6 @@ Don't reopen these without a reason from an experiment.
 - Write from the user's side: what they type, what they see, what changes on disk.
 - Use generic examples only: vault `you/skills`, groups like `review`, `data`, `writing`, peer `someone/agent-skills/...`. Never the maintainer's own projects, names or tools.
 - Plain, direct sentences. No marketing tone.
+- Order pages and sections by value to the user: what they get first, daily use next, edge cases and mechanism last. Every guide page opens with its goal in one sentence.
 - Every page about planned behavior keeps the "Design preview" warning until the feature ships.
 - When you change commands or output, update `demo/bin/skl` and `demo/demo.tape` so the recording stays true to the docs.
