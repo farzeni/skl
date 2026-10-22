@@ -27,7 +27,7 @@ skl's flags start with `--` and can go anywhere on the line. Every other word is
 
 ## Repos
 
-Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `learn`, `star`) accepts the same forms.
+Every command that takes a repo (`init`, remote selectors in `use`, `add` and `drop`, `learn`, `open`) accepts the same forms.
 
 | Form | Means |
 |---|---|
@@ -85,6 +85,57 @@ skl use someone/agent-skills/pdf#v1.2
 ```
 
 Without a pin, skl uses the default branch, records the commit it fetched, and keeps using that commit until you run `skl upstream`.
+
+## Web pages
+
+`skl open` shows a skill, a skill set or a repo in your browser:
+
+| You type | It opens |
+|---|---|
+| `skl open` | Your vault's repo page |
+| `skl open review/pr-review` | The skill's folder in your vault repo |
+| `skl open @backend` | `sets/backend.toml` in your vault repo |
+| `skl open someone/agent-skills/pdf` | The skill's folder in their repo |
+| `skl open someone/agent-skills/@backend` | Their `sets/backend.toml` |
+| `skl open someone/agent-skills` | Their repo page |
+
+It always prints the URL:
+
+```
+$ skl open review/pr-review
+https://github.com/you/skills/tree/HEAD/review/pr-review
+```
+
+A page in someone else's repo shows the version you pinned with `#`, else the commit you have loaded, else the default branch. A page in your vault shows its default branch, as you last pushed it: if the skill has commits you haven't pushed yet, skl says so, and [`skl sync`](../guide/sync) pushes them.
+
+For a skill you copied from someone else, skl opens your copy and prints where it came from on a second line:
+
+```
+$ skl open someone/pdf
+https://github.com/you/skills/tree/HEAD/someone/pdf
+source: https://github.com/someone/agent-skills/tree/3f9a1c2/pdf
+```
+
+skl starts your browser only when there's a screen to show it on. It uses `$BROWSER` if set, else the system's default. Over SSH, without a display, or when the output goes to a pipe, it only prints the URL, so `skl open review/pr-review | pbcopy` copies it. If the browser doesn't start, skl says so after the URL and still exits 0.
+
+### Hosts
+
+skl knows the page layout of these hosts:
+
+| Host | Folder page | Checked |
+|---|---|---|
+| GitHub | `https://github.com/<repo>/tree/<ref>/<path>` | yes |
+| GitLab | `https://gitlab.com/<repo>/-/tree/<ref>/<path>` | yes |
+| Bitbucket | `https://bitbucket.org/<repo>/src/<ref>/<path>` | yes |
+| Codeberg, Gitea, Forgejo | `https://codeberg.org/<repo>/src/<ref>/<path>` | not yet |
+| sourcehut | `https://git.sr.ht/<repo>/tree/<ref>/item/<path>` | not yet |
+| Azure Repos | `https://dev.azure.com/<org>/<project>/_git/<repo>?path=/<path>` | not yet |
+
+A skill set is a file, so GitHub and GitLab show it under `blob/` instead of `tree/`.
+
+For your own server, say which of these it runs in the [`[web]`](./config#your-own-git-servers) table of your config. Without an entry, skl opens the repo's front page, `https://<host>/<repo>`, which works on every host, and tells you how to add one.
+
+A repo on this machine (`~/code/skills`) has no web page: skl prints the folder's path and opens nothing.
 
 ## Authentication
 

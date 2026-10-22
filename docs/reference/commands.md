@@ -36,7 +36,7 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 |---|---|
 | `skl learn <peer> [skill] ["<text>"]` | Copy a skill or skill set you don't have, or with text build a new skill from it. Improve a skill you have with what its peer does better. With only your skill, learn again from its last peer or source. See [Other people's skills](../guide/other-skills) and [Learn](../guide/learn). |
 | `skl upstream [skill]` | Show later changes from the sources of your copies and the peers of your lessons. `--merge` takes everything from a copy's source, and `--continue` finishes a merge; see [Take everything](../guide/other-skills#take-everything). |
-| `skl star <ref>` | Bookmark a skill without installing it. |
+| `skl open [ref]` | Open a skill, skill set or repo in your browser, or your vault without `ref`. Always prints the URL. See [Web pages](./repos#web-pages). |
 
 ## Sync
 

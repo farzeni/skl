@@ -37,4 +37,4 @@ npx skills add you/skills --list
 npx skills add you/skills --skill pr-review -g
 ```
 
-It finds every `<group>/<skill>/SKILL.md` and ignores `sets/`, `lessons/` and `stars.toml`. If the vault is a public GitHub repo, the skills appear on [skills.sh](./skills-sh) once people install them this way.
+It finds every `<group>/<skill>/SKILL.md` and ignores `sets/` and `lessons/`. If the vault is a public GitHub repo, the skills appear on [skills.sh](./skills-sh) once people install them this way.

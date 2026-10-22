@@ -77,6 +77,7 @@ Don't reopen these without a reason from an experiment.
 - A changed copy of someone else's skill is never discarded silently: skl asks save to my vault (a copy from the pinned commit plus your changes) / discard / keep. The cache is never written.
 - Hand edits in the vault are committed as their own generation before any vault-changing command. A selector that matches nothing warns and is listed in `skl status`.
 - A remote reference whose path has no `SKILL.md` and is one word names a skill: skl looks it up in the repo by folder or frontmatter `name` and records the path it found. Two matches stop and list the paths. So `anthropics/skills/pdf` works although the folder is `skills/pdf`.
+- `skl open [ref]` replaces `skl star` (no bookmarks, no `stars.toml`). It always prints the web URL of a vault skill, skill set, remote ref or repo, and opens a browser only when stdout is a terminal and a screen exists (no flags; a failed launch exits 0). Known hosts: GitHub, GitLab, Bitbucket, Gitea/Forgejo, sourcehut, Azure; a `[web]` table in `config.toml` names a self-hosted server's software; otherwise the repo root. A copied skill opens its vault page and prints its source. A local repo prints its path. Core, not third party.
 - Anything that depends on a third-party service or file format is a removable part: code in `thirdparty/<name>/` behind `internal/ext` (commands, reference rewriters, import sources), docs in `docs/thirdparty/`. Core code and core docs never assume a part exists; core pages only link to it. The parts are skills.sh (`skl search` on its undocumented `/api/search`, skills.sh links as references) and npx skills (`skl import` reads `~/.agents/.skill-lock.json` v3 for the source). skl sends no telemetry.
 
 ## Unproven assumptions (validate before freezing)
@@ -91,7 +92,7 @@ Don't reopen these without a reason from an experiment.
 
 - Claude Code loads skills from symlinked folders in `~/.claude/skills` and `.claude/skills`, and reads `SKILL.md` from the target (Claude Code skills docs, 2026-10-21). Issue #7. skl now loads copies, not links (issue #15), so this no longer matters.
 - Fetching one skill folder with `git clone --depth 1 --filter=blob:none --sparse` works on GitHub, GitLab, Bitbucket, Gitea, Forgejo and local `file://` repos, and older commits can be fetched by sha on demand. Issue #1.
-- The vault layout works as an `npx skills` source without extra files (skills@1.7.4, through its recursive fallback; `sets/`, `lessons/` and `stars.toml` are ignored). Issue #20.
+- The vault layout works as an `npx skills` source without extra files (skills@1.7.4, through its recursive fallback; `sets/` and `lessons/` are ignored). Issue #20.
 
 ## Writing the docs
 
