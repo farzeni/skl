@@ -104,7 +104,10 @@ Their groups all land in one group, so two of their skills can have the same nam
 ```
 ~ someone/data-lint (renamed: someone/lint is taken by their review/lint)
 ! someone/deploy skipped: already in your vault, not from someone/agent-skills
+  · rename yours, then skl learn someone/agent-skills/@backend
 ```
+
+To rename a skill of yours, see [Rename or delete a skill](./skills#rename-or-delete-a-skill).
 
 Run the same command again to take their changes. New skills in their set are copied, each skill updates the way a single one does, and skills they removed leave the set file but stay in your vault. Lines you added to the set file yourself stay too. A skill set is never rewritten by Claude.
 
