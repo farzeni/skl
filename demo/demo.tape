@@ -18,13 +18,9 @@ Show
 Type "# new machine: get my skills"
 Sleep 500ms
 Enter
-Type "skl init you/skills"
+Type "skl init you/skills @backend writing/changelog"
 Enter
-Sleep 1.8s
-
-Type "skl use @backend writing/changelog"
-Enter
-Sleep 2.2s
+Sleep 2.6s
 
 Type "# get a skill from someone"
 Sleep 500ms

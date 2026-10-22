@@ -25,7 +25,7 @@ skl rollback       # one generation back
 skl rollback 10    # to generation 10
 ```
 
-A rollback restores the loaded copies. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history.
+A rollback restores what was loaded. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history.
 
 ## Undo a rollback
 

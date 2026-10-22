@@ -4,92 +4,128 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Put your skills in a vault, load the ones you need, and have the same ones on your next machine.
+In ten minutes your skills are in a git repo you own, safe to edit and undo, and one command away on your next machine.
 
 ## Install
-
-skl is a single binary. It needs `git` on your `PATH`. Optional: the `claude` CLI for [lessons](./learn#how-a-lesson-works), and the `gh` CLI to create your vault repo on GitHub.
 
 ```sh
 go install github.com/farzeni/skl/cmd/skl@latest
 ```
 
-## Set up your vault
+skl is a single binary. It needs `git`. [Lessons](./learn) need the `claude` CLI, and creating your vault repo on GitHub needs the `gh` CLI.
 
-Your vault is a git repo that holds your skills. Use the same one on every machine.
+## Make your vault
+
+Your **vault** is a git repo that holds your skills. Use the same one on every machine.
 
 ```sh
 skl init you/skills
 ```
 
-`you/skills` is a GitHub repo, but any git remote works: see [Selectors and references](../reference/repos).
-
-- If the repo has content, skl clones it to `~/.skl/vault`.
-- If it's empty, skl sets up a new vault there and pushes it. A new vault gets a `LICENSE` file: MIT, unless the [`license`](../reference/config) setting says otherwise.
-- If it doesn't exist and is on GitHub, skl offers to create it as a private repo with the `gh` CLI. On other hosts, create it first.
-
-skl also writes this machine's settings to `~/.skl/config.toml`. See [Configuration](../reference/config).
-
-## Bring in the skills you have
-
-If you already have skills in `~/.claude/skills`, put them in your vault first. `skl status` lists them:
-
 ```
-  pr-review     not in your vault · skl import pr-review <group>
-  my-notes      not in your vault · skl import my-notes <group>
+→ new vault you/skills (private, on GitHub)
+? Import the 3 skills in ~/.claude/skills into you/?
+  › yes   choose   no
+◇ imported   pr-review, my-notes, sql-explain → you/
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
+✓ generation 1 · skl rollback to undo
 ```
+
+Your skills stay where Claude Code reads them. They're now versioned, and they go wherever your vault goes. They sit in a **group** named after you, `you/`; you can [move them](./skills#rename-or-delete-a-skill) into groups such as `review` or `writing` later.
+
+If the repo already holds a vault, skl clones it instead. If it's missing and on GitHub, skl offers to create it as a private repo. Any git remote works: see [Selectors and references](../reference/repos).
+
+## Keep editing as usual
+
+Improve your skills in Claude Code, by hand or by asking Claude. skl saves your changes to the vault at the start of the next skl command that changes something. Each change is a numbered **generation**, and any of them can be undone:
 
 ```sh
-skl import pr-review review
-skl import my-notes writing
+skl history
+skl rollback        # one step back
+skl rollback 4      # back to generation 4
 ```
 
-A **group** is a folder of skills in your vault, such as `review` or `writing`. Claude Code sees no change. The skills are now versioned, and they go wherever your vault goes.
+A skill you make later in Claude Code isn't in your vault yet. `skl status` lists it with the command to add it: `skl import my-new-skill`. See [Your skills](./skills).
 
-## Load only what you need
+## Get a skill from someone
 
 ```sh
-skl use review writing
+skl learn someone/agent-skills/pdf
 ```
 
-This loads every skill in your `review` and `writing` groups. skl copies them into `~/.claude/skills`, and Claude Code picks them up. To get a skill from someone else's repo, [learn it](./other-skills#get-one): `skl learn someone/agent-skills/pdf` copies it into your vault and loads it.
+```
+→ copy into someone/pdf
+  Extract text, tables and forms from PDF files.
+  license    Apache-2.0 · notice kept in someone/pdf/LICENSE
+  scripts    scripts/extract.py
+? Add it?   › yes   no
++ pdf
+✓ generation 2 · skl rollback to undo
+```
+
+skl shows what someone else's skill does and what it runs before it lands. The skill is now in your vault and loaded, with its source recorded. When its author changes it, `skl status` says so and `skl learn someone/pdf` takes the change. See [Learn](./learn#get-a-skill), which also covers `skl search`.
+
+## Teach your skill a trick
+
+Your `pr-review` is fine, but someone else's checks security better:
+
+```sh
+skl learn someone/agent-skills/deep-pr-review \
+  you/pr-review "its security checks"
+```
+
+Claude reads both skills, asks you what to take, and shows the diff before anything lands. See [Teach your skill a trick](./learn#teach-your-skill-a-trick).
+
+## Load only what a task needs
+
+Claude Code shows Claude the description of every loaded skill, and past a budget it cuts them short. Load the groups and skills a task needs, and save the mix:
+
+```sh
+skl use you someone/pdf -you/my-notes
+skl save backend
+```
+
+`@backend` now loads the same mix on any machine: `skl use @backend`. See [Skill sets](./skill-sets).
+
+## See where you stand
 
 ```sh
 skl status
 ```
 
-shows what's loaded, where each skill comes from, and your named skill sets. [Skill sets](./skill-sets) explains why loading fewer skills helps Claude pick the right one.
-
-## Save it as a skill set
-
-```sh
-skl save backend
+```
+loaded (user)  @backend
+  you/pr-review   changed · saved at the next command
+  someone/pdf     update available · skl learn someone/pdf
+not in your vault
+  my-new-skill    · skl import my-new-skill
+vault           2 changes not pushed · skl sync
 ```
 
-saves what you just loaded as the skill set `@backend` in your vault. See [Named skill sets](./skill-sets#named-skill-sets) to change or delete one.
+Every line that needs you ends with the command to run.
 
-## Keep machines in sync
+## On your next machine
+
+Here, push your changes:
 
 ```sh
 skl sync
 ```
 
-commits your changes to the vault, pulls and pushes it, and reloads what you have loaded so it matches. Run it after changing skills on one machine, before switching to another. If two machines changed the same file, skl helps you merge them: see [Sync](./sync).
-
-On a new machine, the same mix is two commands away:
+There, get your vault and load your mix:
 
 ```sh
-skl init you/skills
-skl use @backend
+skl init you/skills @backend
 ```
+
+Run `skl sync` whenever you switch machines: it pushes this machine's changes and pulls the others'. If two machines changed the same skill, see [Sync](./sync).
 
 ## Next
 
-- [Your skills](./skills): keep improving skills in Claude Code; skl saves every change.
-- [Rollback](./rollback): undo any change.
-- [Skill sets](./skill-sets): load only what a task needs.
-- [Other people's skills](./other-skills): get skills from any git repo and keep up with their authors.
-- [Learn](./learn): improve a skill with what another one does better.
-- [Sync](./sync): merge changes made on two machines.
+- [Your skills](./skills): import, rename and delete skills, or edit the vault directly.
+- [Rollback](./rollback): go back to any generation.
+- [Skill sets](./skill-sets): per-repo skills and name clashes.
+- [Learn](./learn): get skills, teach yours, keep up with authors, licenses.
+- [Sync](./sync): when two machines changed the same file.
 
 Words like generation, peer or selector are defined in the [Glossary](../reference/glossary).

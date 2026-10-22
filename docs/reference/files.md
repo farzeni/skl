@@ -61,7 +61,7 @@ answers = "lessons/7c21e9f.md"
 declined = ["inline comments"]
 ```
 
-`[source]` is written when [`skl learn`](../guide/other-skills#get-one) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
+`[source]` is written when [`skl learn`](../guide/learn#get-a-skill) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
 
 `tree` is the git tree hash of the author's folder at `commit`, with skl's own changes applied (a new `name`, a license file). If your folder still has that hash, you never changed the skill, so its next update is taken as it is, without Claude. `license` is the license skl found, or `unknown` or `none`, plus your answer if skl asked.
 

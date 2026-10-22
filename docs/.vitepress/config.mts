@@ -20,7 +20,6 @@ export default defineConfig({
           { text: 'Your skills', link: '/guide/skills' },
           { text: 'Rollback', link: '/guide/rollback' },
           { text: 'Skill sets', link: '/guide/skill-sets' },
-          { text: "Other people's skills", link: '/guide/other-skills' },
           { text: 'Learn', link: '/guide/learn' },
           { text: 'Sync', link: '/guide/sync' }
         ]
