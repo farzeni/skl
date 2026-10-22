@@ -15,16 +15,16 @@ hero:
 
 features:
   - title: Same skills everywhere
-    details: Run skl init you/skills on a new machine and your skills are there. skl sync keeps machines in step and merges edits made on both.
-  - title: Only what you need
-    details: Load a group, one skill or a saved mix like @backend, per machine or per repo. Nothing is deleted to make room.
+    details: Run skl init you/skills @backend on a new machine and your skills are there. skl sync keeps machines in step and merges edits made on both.
   - title: Edit freely, undo anything
     details: Keep improving skills in Claude Code. skl saves every change to your vault, and skl rollback takes any of them back.
-  - title: Use and learn from others
-    details: Copy a skill from any git repo into your vault, or let Claude add what it does better to a skill you have. Take its author's later changes with the same command.
+  - title: Get any skill, or learn part of it
+    details: skl learn copies a skill from any git repo into your vault, or lets Claude add what it does better to a skill you have. The same command takes its author's later changes.
+  - title: Only what you need
+    details: Load a group, one skill or a saved mix like @backend, per machine or per repo. Nothing is deleted to make room.
 ---
 
-<img class="demo" src="/demo.gif" alt="Terminal recording: skl init, skl use, skl status, skl learn, skl history, skl rollback">
+<img class="demo" src="/demo.gif" alt="Terminal recording: skl init, skl learn, skl status, a lesson, skl history, skl rollback">
 
 ::: warning Design preview
 skl is not built yet. These docs describe the planned behavior, and the recording above runs a scripted mock.

@@ -19,21 +19,26 @@ skl sync
 5. **Check for updates.** skl checks where the skills you learned came from. It changes nothing: `skl status` shows `update available`, and [`skl learn`](./other-skills#keep-up-with-its-author) takes it.
 
 ```
-◇ saved back pr-review → review/pr-review
+◇ saved      pr-review → review/pr-review
 ◇ committed  sets/backend.toml
 ◇ pulled     3 commits from laptop
 ◇ pushed
   + data/sql-explain   − review/test-gaps
 ◇ checked    2 sources · update available: someone/pdf
   · skl learn someone/pdf
-✓ generation 14
+✓ generation 14 · skl rollback to undo
 ```
 
 Sync creates a generation, so `skl rollback` undoes it like any other change.
 
 ## What gets committed
 
-Commands that change the vault, such as `save`, `learn`, `import` and `rollback`, commit right away on this machine and never push. Changes you make to loaded skills, and hand edits in `~/.skl/vault` such as a `SKILL.md` or a file in `sets/`, are committed at the next command that changes something: see [Your skills](./skills). `skl sync` is what pushes them.
+Commands that change the vault, such as `save`, `learn`, `import` and `rollback`, commit right away on this machine and never push. Changes you make to loaded skills, and hand edits in `~/.skl/vault` such as a `SKILL.md` or a file in `sets/`, are committed at the next command that changes something: see [Your skills](./skills). `skl sync` is what pushes them. skl never pushes on its own, so it reminds you instead: `skl status` and the last line of each command that changes something say what isn't pushed yet.
+
+```
+! 2 changes not pushed · skl sync
+✓ generation 15 · skl rollback to undo
+```
 
 ## When both machines changed the same file
 

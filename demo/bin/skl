@@ -13,10 +13,8 @@ choose() { # choose "opt1" "opt2" ... -> reads a digit, echoes the pick
 }
 case "$1" in
 init)
-  step "cloning github.com/$2"; p 0.6
-  ok "vault ready  ${D}3 groups · 14 skills · 2 skill sets${R}" ;;
-use)
-  step "resolving @backend writing/changelog"; p 0.4
+  step "cloned      github.com/$2  ${D}3 groups · 14 skills · 2 skill sets${R}"; p 0.6
+  step "loading     @backend writing/changelog"; p 0.4
   printf "  ${A}+${R} pr-review     ${A}+${R} test-gaps\n"
   printf "  ${A}+${R} sql-explain   ${A}+${R} changelog\n"; p 0.3
   ok "generation 10 · skl rollback to undo" ;;
@@ -26,9 +24,11 @@ status)
   printf "  test-gaps     review/      ${D}vault${R}\n"
   printf "  sql-explain   data/        ${D}vault${R}\n"
   printf "  changelog     writing/     ${D}vault${R}\n"
-  printf "  pdf           someone/     ${D}copy · someone/agent-skills @3f9a1c2${R}\n"
-  printf "  ${D}my-notes      not in your vault · skl import my-notes <group>${R}\n"
-  printf "${B}skill sets${R}  @backend  @base\n" ;;
+  printf "  pdf           someone/     ${D}from someone/agent-skills @3f9a1c2${R}\n"
+  printf "${B}not in your vault${R}\n"
+  printf "  my-notes      ${D}· skl import my-notes${R}\n"
+  printf "${B}skill sets${R}  @backend  @base\n"
+  printf "${B}vault${R}       ${W}1 change not pushed${R} ${D}· skl sync${R}\n" ;;
 learn)
   if [ $# -eq 2 ]; then
     printf "${A}→${R} copy into ${B}someone/pdf${R}\n"; p 0.5
@@ -59,14 +59,14 @@ learn)
   printf "  ${D}  +38 −5 · scripts/scan_secrets.sh (new)${R}\n\n"; p 0.4
   ask "Land it"
   choose "replace review/pr-review" "save as review/pr-review-sec" "discard"; p 0.3
-  ok "committed to vault a91c3e0 · generation 12"
-  printf "  ${D}lesson recorded in review/pr-review/.skl-origin.toml${R}\n" ;;
+  printf "  ${D}lesson recorded in review/pr-review/.skl-origin.toml${R}\n"
+  ok "generation 12 · skl rollback to undo" ;;
 history)
   printf "  ${A}12${R}  now      learn deep-pr-review → review/pr-review\n"
   printf "  ${A}11${R}  1m ago   learn someone/agent-skills/pdf → someone/pdf\n"
-  printf "  ${A}10${R}  2m ago   use @backend writing/changelog\n" ;;
+  printf "  ${A}10${R}  2m ago   init you/skills @backend writing/changelog\n" ;;
 rollback)
   step "going back to generation 11"; p 0.4
   printf "  ${W}~${R} review/pr-review   content restored ${D}(revert commit 5d0e7aa)${R}\n"; p 0.3
-  ok "generation 13 = generation 11   ${D}undo with: skl rollback 12${R}" ;;
+  ok "generation 13 = generation 11 · skl rollback to undo" ;;
 esac

@@ -23,11 +23,11 @@ skl use @backend -review/test-gaps someone/pdf
 | `skl use <selectors>` | Replace the active skill set |
 | `skl add <selectors>` | Add to it |
 | `skl drop <selectors>` | Remove from it |
-| `skl status` | Show what's loaded, where it came from, and your named skill sets |
+| `skl status` | Show what's loaded, where it came from, your named skill sets, and what needs you |
 
 Add `--dry-run` to any of them to see the changes without applying them.
 
-Loaded skills are plain copies. Changes you make to them are saved back to your vault: see [Your skills](./skills).
+Loaded skills are plain folders. Changes you make to them are saved back to your vault: see [Your skills](./skills).
 
 ## Named skill sets
 
@@ -63,7 +63,7 @@ Selectors are applied left to right, and on a [name clash](#names-and-clashes) t
 | `@backend` | A named skill set from your vault |
 | `-review/test-gaps` | Removes a skill that an earlier selector added |
 
-Every selector names something in your vault. To use a skill or a skill set from someone else's repo, [learn it](./other-skills#get-one) first: it becomes a copy in your vault. Given a reference to someone else's repo, `use`, `add` and `drop` stop and say so:
+Every selector names something in your vault. To use a skill or a skill set from someone else's repo, [learn it](./other-skills#get-one) first: it becomes a skill in your vault. Given a reference to someone else's repo, `use`, `add` and `drop` stop and say so:
 
 ```
 ✗ someone/agent-skills/pdf is someone else's skill
@@ -104,6 +104,7 @@ If a hand-made skill already has a name that a loaded skill needs, skl skips its
 
 ```
 ! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
+  · skl import pr-review
 ```
 
 `skl status` keeps listing it as skipped until the name is free.

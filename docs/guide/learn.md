@@ -33,7 +33,7 @@ If you don't have the skill yet, the same command copies it: see [Get one](./oth
   › yes, as an optional step
 ◇ rewritten  SKILL.md +38 −5
 ? Land it   › replace   save as review/pr-review-sec   discard
-✓ committed · generation 12
+✓ generation 12 · skl rollback to undo
 ```
 
 Landing creates a vault commit and a generation, so `skl rollback` undoes it. Run `skl sync` to push it.
