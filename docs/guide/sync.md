@@ -25,6 +25,7 @@ skl sync
 ◇ pushed
   + data/sql-explain   − review/test-gaps
 ◇ checked    2 sources · update available: someone/pdf
+  · skl learn someone/pdf
 ✓ generation 14
 ```
 
