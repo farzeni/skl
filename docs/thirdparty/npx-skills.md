@@ -16,7 +16,7 @@ To keep such a skill in your vault, [import](../guide/skills#make-a-skill) it:
 skl import pdf docs
 ```
 
-`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [fork](../guide/fork) does, so [`skl upstream`](../guide/fork) shows the author's later changes:
+`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/learn#a-skill-you-don-t-have) does, so [`skl upstream`](../guide/learn#when-the-peer-changes) shows the author's later changes:
 
 ```
 ✓ imported   pdf → docs/pdf

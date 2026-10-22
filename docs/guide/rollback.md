@@ -4,7 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Every command that changes something creates a **generation**: a numbered snapshot of your [active skill set](./skill-sets), meaning which skills are loaded where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `save`, `import`, `learn`, `fork` and `sync`, and saving back changes from a loaded skill. So rolling back is how you take a skill set, and the skills in it, back to an earlier state.
+Every command that changes something creates a **generation**: a numbered snapshot of your [active skill set](./skill-sets), meaning which skills are loaded where, plus the vault commit at that moment. That covers `use`, `add`, `drop`, `save`, `import`, `learn` and `sync`, and saving back changes from a loaded skill. So rolling back is how you take a skill set, and the skills in it, back to an earlier state.
 
 ```sh
 skl history

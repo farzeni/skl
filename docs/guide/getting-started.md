@@ -6,7 +6,7 @@ skl is not built yet. This page describes the planned behavior.
 
 ## Install
 
-skl is a single binary. It needs `git` on your `PATH`. Optional: the `claude` CLI for [`skl learn`](./learn), and the `gh` CLI to create your vault repo on GitHub.
+skl is a single binary. It needs `git` on your `PATH`. Optional: the `claude` CLI for [lessons](./learn#how-a-lesson-works), and the `gh` CLI to create your vault repo on GitHub.
 
 ```sh
 go install github.com/farzeni/skl/cmd/skl@latest

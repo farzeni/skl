@@ -1,6 +1,6 @@
 # skl
 
-skl is a CLI for Claude Code skills. It keeps your skills in one git repo (the vault), loads any mix of them on any machine, can roll back any change, forks single skills, and lets a skill **learn** from another one through an LLM interview.
+skl is a CLI for Claude Code skills. It keeps your skills in one git repo (the vault), loads any mix of them on any machine, can roll back any change, and lets a skill **learn** from another one: copied as is if you don't have it, or through an LLM interview if you do.
 
 **Status: very early design phase. There is no implementation.** The docs in `docs/` describe planned behavior. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
 
@@ -60,18 +60,21 @@ Don't reopen these without a reason from an experiment.
 - Every change creates a **generation**; `skl rollback` never rewrites git history.
 - Git is the only backend; no server. One Go binary that shells out to the git CLI.
 - `learn` runs the user's `claude` CLI in a prepared workspace. Claude writes to staging; only skl commits.
-- `skl learn <skill> [peer] ["<text>"]`: the skill a lesson learns from is its **peer**. No flags for the target or a focus; the optional text goes to Claude as is. One peer per run.
-- `skl learn <skill> ["<text>"]` without a peer learns again from the last lesson's peer, or a fork's source, taking changes selectively. Skipped changes are declined (`--all` asks again). `skl upstream` only lists changes; `--merge` takes everything. There is no `upstream --learn` and no `learn --again`.
+- `skl learn <peer> [skill] ["<text>"]` (reverses PR #10; there is no `skl fork`). The skill a lesson learns from is its **peer**. No flags for the target or a focus; the optional text goes to Claude as is. One peer per run. The last argument is text if it contains whitespace. The target is `name`, `group/name` or `group/`; left out, it's the vault skill with the peer's name. Names match a folder or frontmatter `name`; a name in two groups stops and asks for `group/name`.
+- Target exists → lesson. Missing, no text → verbatim copy, no Claude, recorded as `[source]` (`url`, `commit`) in `.skl-origin.toml`; a renamed copy gets its frontmatter `name` rewritten. Missing, with text → a lesson into an empty skill, recorded as `[[lesson]]` only (no `[source]`, so `--merge` refuses it). A new skill's default group is the peer's owner (`anthropics/skills/pdf` → `anthropics/pdf`), or a local repo's folder name. skl prints `→ copy into …`, `→ lesson into …` or `→ new skill …` and never asks for confirmation; `skl rollback` is the undo. `--as` is for lessons only.
+- `skl learn <someone>/@set [@name]` copies a skill set you don't have, rewritten to their repo, with `[source]` in the set file. Never a lesson; an existing set takes changes with `skl upstream @name --merge`.
+- `skl learn <skill> ["<text>"]` with only your skill learns again from the last lesson's peer, or a copy's source, taking changes selectively. Skipped changes are declined (`--all` asks again). `skl upstream` only lists changes; `--merge` takes everything. There is no `upstream --learn` and no `learn --again`.
 - skl never changes or removes skills it didn't create.
 - Any git remote works for every command that takes a repo. `owner/repo` means the default host (GitHub); `//` separates a repo from a path inside it; `#` pins a ref. See `docs/reference/repos.md`.
 - Per-machine settings live in `~/.skl/config.toml`, edited by hand (no `skl config` command). Precedence: flag, env var, file, default.
 - A **skill set** is a list of selectors (no "profile", no "loaded set"). The loaded one is the **active skill set**; `skl save <name>` stores it as a **named skill set** in `sets/<name>.toml`, one selector per line, loaded with `@name`. It stores selectors, not a resolved list. `save` creates or overwrites (asks first); edit or delete the file by hand. No set subcommands. `sets` and `lessons` can't be group names. "skill set" in prose, "Skill sets" in titles.
 - A skill set in someone else's repo is `<repo>/@name` (an `@` at the start of the last path part; `<repo>@name` collides with SSH URLs). Rollback stays global: a generation is a snapshot of the active skill set; there is no `skl rollback @set`.
+- Two parts (`review/pr-review`) is your vault; three or more, a host, a URL or a local path is a remote; `//` separates a nested path.
 - skl's flags are `--long` only and can go anywhere. Every other word is a selector, so `-review/test-gaps` is a removal (Go's stdlib `flag` can't parse this; skl parses its own args).
 - Vault-changing commands commit locally and never push. `skl sync` commits hand edits, merges (never rebases), pushes, and reloads the loaded selectors. A conflict is resolved with Claude (learn engine), by hand (`--continue`), or aborted.
 - A skill whose name (folder or frontmatter `name`) is taken by a skill skl didn't create is skipped with a warning. `skl import <name> [group]` copies such a skill into the vault.
 - Loaded skills are copies, not links. Each holds `.skl-copy.toml` (source, commit, hash). Changes to a copy are saved back to the vault (three-way, base = the recorded commit) at the start of every command that changes something, as their own generation. People make and improve skills in Claude Code; there is no `skl new`, and `skl import` adopts the folder as skl's copy.
-- A changed copy of someone else's skill is never discarded silently: skl asks fork / discard / keep. The cache is never written.
+- A changed copy of someone else's skill is never discarded silently: skl asks save to my vault (a copy from the pinned commit plus your changes) / discard / keep. The cache is never written.
 - Hand edits in the vault are committed as their own generation before any vault-changing command. A selector that matches nothing warns and is listed in `skl status`.
 - A remote reference whose path has no `SKILL.md` and is one word names a skill: skl looks it up in the repo by folder or frontmatter `name` and records the path it found. Two matches stop and list the paths. So `anthropics/skills/pdf` works although the folder is `skills/pdf`.
 - Anything that depends on a third-party service or file format is a removable part: code in `thirdparty/<name>/` behind `internal/ext` (commands, reference rewriters, import sources), docs in `docs/thirdparty/`. Core code and core docs never assume a part exists; core pages only link to it. The parts are skills.sh (`skl search` on its undocumented `/api/search`, skills.sh links as references) and npx skills (`skl import` reads `~/.agents/.skill-lock.json` v3 for the source). skl sends no telemetry.
@@ -82,7 +85,7 @@ Don't reopen these without a reason from an experiment.
 - The vault layout (`<group>/<skill>/SKILL.md`) works as a Claude Code plugin marketplace without extra files. Likely false (that needs `.claude-plugin/` manifests); the docs no longer claim it.
 - `git merge-file` gives usable three-way merges for `SKILL.md` edits.
 - The `claude` CLI can be launched non-trivially for `learn`: interview the user, then write files to a given folder and exit.
-- Selector grammar: `group/skill` vs `owner/repo/skill` is ambiguous for nested paths.
+- A repo whose root is the skill has two parts (`someone/pdf-skill`), which the vault rule claims; `someone/pdf-skill//` reaches it, but where its name comes from is undecided.
 
 ## Confirmed assumptions
 

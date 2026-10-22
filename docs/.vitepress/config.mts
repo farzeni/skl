@@ -22,7 +22,6 @@ export default defineConfig({
           { text: 'Skill sets', link: '/guide/skill-sets' },
           { text: 'Sync', link: '/guide/sync' },
           { text: 'Rollback', link: '/guide/rollback' },
-          { text: 'Fork', link: '/guide/fork' },
           { text: 'Learn', link: '/guide/learn' }
         ]
       },

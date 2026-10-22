@@ -23,9 +23,8 @@ Wherever a command takes `<repo>` or `<ref>`, any form from [Repo references](./
 
 | Command | Description |
 |---|---|
-| `skl fork <ref> [group]` | Copy a skill into your vault and record its source. |
-| `skl upstream [skill]` | Show later changes from the sources of your forks and the peers of your lessons. `--merge` takes everything from a fork's source; see [Fork](../guide/fork). |
-| `skl learn <skill> [peer] ["<text>"]` | Improve your skill with what its peer does better. Without a peer, learn again from the last one, or a fork's source. See [Learn](../guide/learn). |
+| `skl upstream [skill]` | Show later changes from the sources of your copies and the peers of your lessons. `--merge` takes everything from a copy's source, and `--continue` finishes a merge; see [Take everything](../guide/learn#take-everything). |
+| `skl learn <peer> [skill] ["<text>"]` | Copy a skill or skill set you don't have, or with text build a new skill from it. Improve a skill you have with what its peer does better. With only your skill, learn again from its last peer or source. See [Learn](../guide/learn). |
 | `skl star <ref>` | Bookmark a skill without installing it. |
 
 ## Vault
