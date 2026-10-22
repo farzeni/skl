@@ -25,13 +25,13 @@ If you don't have the skill yet, the same command copies it: see [Make it yours]
 
 ```
 → lesson into review/pr-review
-◇ peer only    OWASP checklist, secret scanning   ← what you asked for
-◇ clash        peer comments inline; yours writes one summary
+◇ peer only  OWASP checklist, secret scanning ← what you asked for
+◇ clash      peer comments inline; yours writes one summary
 ? Inline comments or one summary?
   › keep my summary, add a Security section
 ? Bring along the peer's secret-scanning script?
   › yes, as an optional step
-◇ rewritten    SKILL.md +38 −5
+◇ rewritten  SKILL.md +38 −5
 ? Land it   › replace   save as review/pr-review-sec   discard
 ✓ committed · generation 12
 ```
