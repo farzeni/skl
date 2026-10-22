@@ -10,13 +10,13 @@ skl is not built yet. This page describes the planned behavior.
 
 `npx skills add -g` puts a skill in `~/.claude/skills/<name>`, either as a link into `~/.agents/skills/` or as a plain folder. To skl it's a [skill skl didn't create](../guide/skill-sets#skills-skl-didn-t-create): skl leaves it alone, and skips its own skill if the names clash.
 
-To keep such a skill in your vault, [import](../guide/skills#make-a-skill) it:
+To keep such a skill in your vault, [import](../guide/skills#add-a-skill-you-made) it:
 
 ```sh
 skl import pdf docs
 ```
 
-`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/learn#a-skill-you-don-t-have) does, so [`skl upstream`](../guide/learn#when-the-peer-changes) shows the author's later changes:
+`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/other-skills#make-it-yours) does, so [`skl upstream`](../guide/other-skills#get-the-author-s-changes) shows the author's later changes:
 
 ```
 ✓ imported   pdf → docs/pdf

@@ -53,7 +53,7 @@ answers = "lessons/7c21e9f.md"
 declined = ["inline comments"]
 ```
 
-`[source]` is written when [`skl learn`](../guide/learn#a-skill-you-don-t-have) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
+`[source]` is written when [`skl learn`](../guide/other-skills#make-it-yours) copies a skill, and only then. A skill Claude built from text has only lessons. A copied skill set keeps the same `[source]` table in its `sets/<name>.toml`.
 
 Sources and peers are stored as full URLs, so they mean the same thing on every machine, whatever its `default_host`. After `skl upstream --merge` or `skl learn`, `commit` moves to the upstream commit you reviewed.
 
@@ -81,7 +81,7 @@ commit = "a91c3e0"            # what it was copied from
 hash   = "sha256:9f2c41"      # its files as copied
 ```
 
-skl uses it to find changes to [save back](../guide/skills#improve-a-skill). A folder without it is a skill skl didn't create.
+skl uses it to find changes to [save back](../guide/skills#edit-as-usual). A folder without it is a skill skl didn't create.
 
 ## Local state
 

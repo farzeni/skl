@@ -4,30 +4,19 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
+Load only the skills a task needs, and switch to a saved mix with one word on any machine.
+
 A skill set is a list of selectors: the groups and skills you load together. The one you have loaded now is your **active skill set**. Save it with a name and it becomes a **named skill set**, which you load anywhere with `@name`.
 
-A group is a folder in your vault, where a skill lives. A skill set is a list of selectors, what you load.
+## Why load fewer
 
-## Selectors
+Claude Code lists every skill in `~/.claude/skills` to Claude on each turn, within a budget of 1% of the context window. Past it, Claude Code drops the descriptions of the skills you use least, and Claude is less likely to pick those on its own ([Claude Code docs](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)). Loading only what a task needs keeps every description in view. Nothing is deleted: what you don't load stays in your vault.
 
-Every loading command takes the same selectors. They're applied left to right, and on a [name clash](#names-and-clashes) the later one wins.
-
-| Selector | Loads |
-|---|---|
-| `review` | Every skill in one of your groups |
-| `review/pr-review` | One skill from one of your groups |
-| `@backend` | A named skill set from your vault |
-| `owner/repo/skill` | A skill from someone else's repo, used read-only and pinned to a commit. Any git host works: see [Repo references](../reference/repos). |
-| `owner/repo/@backend` | A skill set from someone else's repo, used read-only. Its selectors are read inside that repo, so `review` there means their `review` group. |
-| `-review/test-gaps` | Removes a skill that an earlier selector added |
+## Load, add and drop
 
 ```sh
 skl use @backend -review/test-gaps anthropics/skills/pdf
 ```
-
-skl's flags start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
-
-## Changing the active skill set
 
 | Command | Effect |
 |---|---|
@@ -63,7 +52,20 @@ If `backend` already exists, skl shows how its selectors change and asks before 
 
 To change a named skill set, edit its file in `~/.skl/vault/sets/`. To delete one, delete the file. `skl status` lists your named skill sets. Run `skl sync` to commit these edits and take them to your other machines: see [Sync](./sync).
 
-## Scope
+## Selectors
+
+Selectors are applied left to right, and on a [name clash](#names-and-clashes) the later one wins.
+
+| Selector | Loads |
+|---|---|
+| `review` | Every skill in one of your groups |
+| `review/pr-review` | One skill from one of your groups |
+| `@backend` | A named skill set from your vault |
+| `-review/test-gaps` | Removes a skill that an earlier selector added |
+
+Skills and skill sets from other people's repos, and pinning them to a version, are in [Selectors and references](../reference/repos).
+
+## For one repo only
 
 skl loads skills into your user folder, `~/.claude/skills`, by default. To load skills for one repo only:
 
@@ -91,20 +93,14 @@ Claude Code prefers a user skill to a project skill with the same name. When a s
 
 ## Skills skl didn't create
 
-Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not managed. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
+Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not in your vault. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
 
 If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and exits with an error:
 
 ```
-! pr-review   skipped: ~/.claude/skills/pr-review is not managed by skl
+! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
 ```
 
 `skl status` keeps listing it as skipped until the name is free.
 
-`skl save` leaves these skills out of the skill set, and says which ones it left out. To keep one in your vault, import it:
-
-```sh
-skl import my-notes writing
-```
-
-This copies `~/.claude/skills/my-notes` into your `writing` group and commits it. The original becomes skl's copy of `writing/my-notes`: see [Make a skill](./skills#make-a-skill).
+`skl save` leaves these skills out of the skill set, and says which ones it left out. To keep one in your vault, import it: see [Add a skill you made](./skills#add-a-skill-you-made).

@@ -17,21 +17,22 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Getting started', link: '/guide/getting-started' },
-          { text: 'Concepts', link: '/guide/concepts' },
           { text: 'Your skills', link: '/guide/skills' },
-          { text: 'Skill sets', link: '/guide/skill-sets' },
-          { text: 'Sync', link: '/guide/sync' },
           { text: 'Rollback', link: '/guide/rollback' },
-          { text: 'Learn', link: '/guide/learn' }
+          { text: 'Skill sets', link: '/guide/skill-sets' },
+          { text: "Other people's skills", link: '/guide/other-skills' },
+          { text: 'Learn', link: '/guide/learn' },
+          { text: 'Sync', link: '/guide/sync' }
         ]
       },
       {
         text: 'Reference',
         items: [
           { text: 'Commands', link: '/reference/commands' },
-          { text: 'Repo references', link: '/reference/repos' },
+          { text: 'Selectors and references', link: '/reference/repos' },
           { text: 'Configuration', link: '/reference/config' },
-          { text: 'Files', link: '/reference/files' }
+          { text: 'Files', link: '/reference/files' },
+          { text: 'Glossary', link: '/reference/glossary' }
         ]
       },
       {
