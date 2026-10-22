@@ -15,7 +15,7 @@ Claude Code lists every skill in `~/.claude/skills` to Claude on each turn, with
 ## Load, add and drop
 
 ```sh
-skl use @backend -review/test-gaps someone/pdf
+skl use @backend writing/changelog -someone/pdf
 ```
 
 | Command | Effect |
@@ -25,14 +25,39 @@ skl use @backend -review/test-gaps someone/pdf
 | `skl drop <selectors>` | Remove from it |
 | `skl status` | Show what's loaded, where it came from, your named skill sets, and what needs you |
 
-Add `--dry-run` to any of them to see the changes without applying them.
+Add `--dry-run` to any of them to see the changes without applying them: see [Dry run](../reference/commands#dry-run).
 
 Loaded skills are plain folders. Changes you make to them are saved back to your vault: see [Your skills](./skills).
+
+## What's loaded
+
+`skl status` shows each scope you have skills in, what's loaded there and from which vault skill, then everything that needs you, each with the command to run:
+
+```
+loaded (user)  @backend writing/changelog
+  pr-review     review/pr-review    changed · skl sync
+  sql-explain   data/sql-explain
+  changelog     writing/changelog
+  pdf           someone/pdf         update available
+                · skl learn someone/pdf
+! review/old-name   matches no skill (in @backend)
+  · edit sets/backend.toml
+! lint   skipped: ~/.claude/skills/lint
+  is not in your vault · skl import lint
+loaded (project ~/code/app)  data
+  sql-explain   data/sql-explain
+not in your vault
+  my-new-skill  · skl import my-new-skill
+skill sets      @backend  @base
+vault           2 changes not pushed · skl sync
+```
+
+The project scope shows only inside a git repo that has skills loaded. `skl status` never goes online: `update available` is what the last [`skl sync`](./sync) found. For scripts, add `--json`: see [JSON](../reference/commands#json).
 
 ## Named skill sets
 
 ```sh
-skl use @base review -review/test-gaps
+skl use @base review -review/test-gaps someone/pdf
 skl save backend
 ```
 
@@ -43,6 +68,7 @@ select = [
   "@base",
   "review",
   "-review/test-gaps",
+  "someone/pdf",
 ]
 ```
 
@@ -78,7 +104,7 @@ skl loads skills into your user folder, `~/.claude/skills`, by default. To load 
 skl use review --scope project
 ```
 
-This copies them into `./.claude/skills` in the current repo.
+This copies them into `.claude/skills` at the root of the git repo you're in. Outside a git repo, `--scope project` is an error. See [Flags](../reference/commands#flags) for the commands that take it.
 
 ## Names and clashes
 
@@ -100,7 +126,7 @@ Claude Code prefers a user skill to a project skill with the same name. When a s
 
 Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not in your vault. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
 
-If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and exits with an error:
+If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and warns you. The command still succeeds:
 
 ```
 ! pr-review   skipped: ~/.claude/skills/pr-review
@@ -110,4 +136,4 @@ If a hand-made skill already has a name that a loaded skill needs, skl skips its
 
 `skl status` keeps listing it as skipped until the name is free.
 
-`skl save` leaves these skills out of the skill set, and says which ones it left out. To keep one in your vault, import it: see [Add a skill you made](./skills#add-a-skill-you-made).
+`skl save` saves your selectors as they are; the skipped skills load once their names are free. To keep one in your vault, import it: see [Add a skill you made](./skills#add-a-skill-you-made).

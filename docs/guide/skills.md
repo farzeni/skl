@@ -6,6 +6,8 @@ skl is not built yet. This page describes the planned behavior.
 
 Keep improving your skills in Claude Code the way you do now. skl saves each change to your vault, so `skl sync` takes it to your other machines and `skl rollback` can undo it.
 
+The examples from here on assume you've moved the skills you imported in [Getting started](./getting-started) into groups such as `review`, `data` and `writing`.
+
 ## Edit as usual
 
 The skills skl loads are plain folders in `~/.claude/skills`, made from the skills in your vault. Change one by hand, or ask Claude Code to improve it. When you're done, run `skl sync`: it saves your changes to the vault and takes them to your other machines. The other commands that change something (`use`, `add`, `drop`, `save`, `import`, `learn`, `rollback`) also save them first. `status` and `history` don't.
@@ -26,14 +28,14 @@ A skill you make in Claude Code, for example with the skill-creator skill, lands
 
 ```
 not in your vault
-  my-notes      · skl import my-notes
+  my-new-skill   · skl import my-new-skill
 ```
 
 ```sh
-skl import my-notes
+skl import my-new-skill
 ```
 
-copies it into your vault and commits it, in the group named after your vault's owner: `you/my-notes` for `you/skills`. Name several skills at once, or pick the group:
+copies it into your vault and commits it, in the group named after your vault's owner: `you/my-new-skill` for `you/skills`. Name several skills at once, or pick the group:
 
 ```sh
 skl import changelog release-notes --group writing
