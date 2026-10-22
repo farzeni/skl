@@ -7,7 +7,8 @@ skl is not built yet. This page describes the planned behavior.
 Improve a skill you have with what another skill does better. Claude reads both, asks you what to take and how, and rewrites yours. You review the diff before anything lands. The skill you learn from is its **peer**.
 
 ```sh
-skl learn someone/agent-skills/deep-pr-review review/pr-review "I like its security checks"
+skl learn someone/agent-skills/deep-pr-review review/pr-review \
+  "I like its security checks"
 ```
 
 The first argument is the peer, given as any [repo reference](../reference/repos) or as one of your own skills. The second is your skill. Leave it out to use your skill with the peer's name. The text at the end is optional and goes to Claude as is, so say what you want in your own words. Without it, Claude asks.
