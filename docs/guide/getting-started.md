@@ -36,7 +36,16 @@ skl init you/skills
 
 Your skills stay where Claude Code reads them. They're now versioned, and they go wherever your vault goes. They sit in a **group** named after you, `you/`; you can [move them](./skills#rename-or-delete-a-skill) into groups such as `review` or `writing` later.
 
-If the repo already holds a vault, skl clones it instead. If it's missing and on GitHub, skl offers to create it as a private repo. Any git remote works: see [Selectors and references](../reference/repos).
+If the repo already holds skills, skl clones it as your vault instead: its groups are the folders that hold skills. An empty repo becomes a new vault. If the repo is missing and on GitHub, skl offers to create it as a private repo. Any git remote works: see [Selectors and references](../reference/repos). To pick which skills to import, answer `choose`: skl asks about each one.
+
+Running `skl init` again with the same repo only loads the selectors you give it. A machine has one vault, so a different repo stops:
+
+```
+✗ ~/.skl/vault already holds you/skills
+  · SKL_HOME=~/.skl-team skl init team/skills
+```
+
+[`SKL_HOME`](../reference/config#environment-variables) keeps a second setup apart.
 
 ## Keep editing as usual
 
@@ -98,14 +107,15 @@ skl status
 
 ```
 loaded (user)  @backend
-  you/pr-review   changed · saved at the next command
-  someone/pdf     update available · skl learn someone/pdf
+  pr-review     you/pr-review   changed · skl sync
+  pdf           someone/pdf     update available
+                · skl learn someone/pdf
 not in your vault
-  my-new-skill    · skl import my-new-skill
+  my-new-skill  · skl import my-new-skill
 vault           2 changes not pushed · skl sync
 ```
 
-Every line that needs you ends with the command to run.
+Every line that needs you ends with the command to run. [What's loaded](./skill-sets#what-s-loaded) shows every kind of line.
 
 ## On your next machine
 

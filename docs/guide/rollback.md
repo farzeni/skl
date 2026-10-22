@@ -15,8 +15,15 @@ skl history
 ```
 12  now      learn deep-pr-review → review/pr-review
 11  2h ago   use @backend writing/changelog
-10  3d ago   use @backend
+10  2h ago   saved pr-review → review/pr-review
+ 9  3d ago   use @backend
 ```
+
+`skl history` lists every generation, newest first. `--json` prints the same list for scripts: see [JSON](../reference/commands#json).
+
+A command that first [saves your edits](./skills#edit-as-usual) makes two generations: the save, then its own. Generation 10 above is such a save, so `skl rollback 10` undoes generations 11 and 12 and keeps the edits saved in 10. A command that changes nothing makes no generation.
+
+Generations are numbered on each machine. Your laptop's generation 12 isn't your desktop's: the history is local, and only the vault is synced.
 
 ## Go back
 
@@ -25,7 +32,28 @@ skl rollback       # one generation back
 skl rollback 10    # to generation 10
 ```
 
-A rollback restores what was loaded. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history.
+```
+→ back to generation 10
+  − writing/changelog
+◇ reverted   review/pr-review (revert commit 5d0e7aa)
+✓ generation 13 · skl rollback to undo
+```
+
+A rollback restores what was loaded. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history. Add `--dry-run` to see the plan without applying it.
+
+A rollback acts on your user scope and, inside a git repo, on that repo's project scope. Other repos keep what they have loaded.
+
+If the generations you go back over include changes pulled by `skl sync`, the revert takes back the other machine's work too, and your next `skl sync` pushes that. skl warns you when it applies the plan:
+
+```
+! reverts 3 commits from laptop · skl rollback to undo
+```
+
+There's nothing to go back to before generation 1, and `N` must be a generation in `skl history`:
+
+```
+✗ no generation 40 · skl history
+```
 
 ## Undo a rollback
 

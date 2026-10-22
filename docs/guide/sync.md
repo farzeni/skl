@@ -21,15 +21,16 @@ skl sync
 ```
 ◇ saved      pr-review → review/pr-review
 ◇ committed  sets/backend.toml
+◇ generation 13
 ◇ pulled     3 commits from laptop
 ◇ pushed
-  + data/sql-explain   − review/test-gaps
+  + data/sql-explain   − someone/pdf
 ◇ checked    2 sources
 ! update available: someone/pdf · skl learn someone/pdf
 ✓ generation 14 · skl rollback to undo
 ```
 
-Sync creates a generation, so `skl rollback` undoes it like any other change.
+Saving your changes first is a generation of its own, 13 here, and the sync is the next one. So `skl rollback` undoes the sync and keeps your saved changes, like any other change: see [Rollback](./rollback#see-what-changed). If the network fails, sync stops after step 1: your changes are saved and committed, and `skl status` lists them as not pushed. See [Errors](../reference/commands#errors).
 
 ## What gets committed
 
@@ -45,10 +46,10 @@ Commands that change the vault, such as `save`, `learn`, `import` and `rollback`
 If the merge in step 2 conflicts, skl shows which files clash and what each side did, then asks how to resolve them. Your loaded skills don't change until the merge lands, so Claude Code never sees a half-merged skill.
 
 ```
-✗ conflict   sets/backend.toml
-  this machine   drop review/test-gaps
+! conflict   sets/backend.toml
+  this machine   drop someone/pdf
   laptop         add data/sql-explain
-                 use someone/test-gaps
+                 use someone/pdf-tools
 ? Resolve   › with Claude   by hand   abort
 ```
 
@@ -63,17 +64,17 @@ skl runs the `claude` CLI on the conflict, the same way [`skl learn`](./learn#wh
 
 ```
 ◇ merged     data/sql-explain added (laptop only)
-? test-gaps: drop it (this machine)
-  or use someone/test-gaps (laptop)?
-  › use someone/test-gaps
+? pdf: drop it (this machine)
+  or use someone/pdf-tools (laptop)?
+  › use someone/pdf-tools
 ◇ sets/backend.toml
-    + data/sql-explain   + someone/test-gaps
+    + data/sql-explain   + someone/pdf-tools
 ? Land it   › yes   change it   abort
 ◇ pushed
 ✓ generation 14 · skl rollback to undo
 ```
 
-This option shows only when the `claude` CLI is installed and skl runs in a terminal.
+This option shows only when the `claude` CLI is installed and skl runs in a terminal. Without a terminal, sync undoes the merge and stops: see [Questions](../reference/commands#questions).
 
 ### By hand
 
