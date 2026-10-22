@@ -21,9 +21,25 @@ Every command that loads skills takes the same selectors, and every command that
 skl use @backend -review/test-gaps someone/pdf
 ```
 
-skl's flags start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
+skl's [flags](./commands#flags) start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
 
 A selector has one or two parts. A word with three or more parts, a host, a URL or a path is a [reference](#repos) to someone else's repo: `use`, `add` and `drop` stop and tell you to [learn it](../guide/learn#get-a-skill) first.
+
+### Grammar
+
+```
+selector  = [ "-" ] ( group | group "/" skill | "@" set )
+group     = name        skill = name        set = name
+name      = letters, digits, "-" and "_", starting with a
+            letter or a digit
+```
+
+- **One part** is a group, **two parts** are a skill in a group, and **`@name`** is a named skill set in `sets/`. A skill is found by its folder name or its frontmatter `name`.
+- **`-`** removes what the rest of the selector names from what the earlier selectors added: `-review/test-gaps`, `-review` or `-@base`.
+- **Anything else is a reference:** three or more parts, a dot in the first part, a URL (`https://…`, `git@host:…`), or a word that starts with `~`, `/` or `.`. Every name is free of dots, so a group can't be mistaken for a host.
+- **Reserved names.** A group can't be named `sets`, `lessons` or `h`. When a new skill's group would be the owner's name and that name is reserved or isn't a valid name, skl uses `<owner>-skills` instead.
+- **A word that names a skill but no group** matches nothing, and the warning names the skill: `! pdf   matches no group · skl use someone/pdf`.
+- **`-h` and `--`** follow the [flag rules](./commands#flags): `-h` is help, never a removal, and every word after `--` is an argument.
 
 ## Repos
 
@@ -38,6 +54,10 @@ Every command that takes a repo (`init`, `learn`, `open`) accepts the same forms
 | `~/code/skills` | A repo on this machine |
 
 For `owner/repo` and `host/path` forms, skl picks SSH or HTTPS from the [`protocol`](./config) setting.
+
+### How a reference is stored
+
+skl records the sources and peers you learn from as full URLs, so they mean the same thing on every machine. `owner/repo` and `host/path` forms are stored as HTTPS, whatever `protocol` you fetch with: `someone/agent-skills/pdf` becomes `https://github.com/someone/agent-skills//skills/pdf`, with the path skl found after `//`. A URL you typed is stored as you typed it. A trailing `.git` is dropped, so two references to the same repo match with or without it. A pin is stored apart, as `ref` in [`.skl-origin.toml`](./files#skl-origin-toml).
 
 ## Skills inside a repo
 
@@ -101,6 +121,8 @@ skl copies that version and records the pin with the copy. A tag or a commit sta
 | `skl open someone/agent-skills/@backend` | Their `sets/backend.toml` |
 | `skl open someone/agent-skills` | Their repo page |
 
+Here two parts mean a skill in your vault if one exists, such as `someone/pdf`, and otherwise a repo on the default host, such as `someone/agent-skills`.
+
 It always prints the URL:
 
 ```
@@ -110,12 +132,13 @@ https://github.com/you/skills/tree/HEAD/review/pr-review
 
 A page in someone else's repo shows the version you pinned with `#`, else the default branch. A page in your vault shows its default branch, as you last pushed it: if the skill has commits you haven't pushed yet, skl says so, and [`skl sync`](../guide/sync) pushes them.
 
-For a skill you copied from someone else, skl opens your copy and prints where it came from on a second line:
+For a skill you copied from someone else, skl opens your copy and prints where it came from below it:
 
 ```
 $ skl open someone/pdf
 https://github.com/you/skills/tree/HEAD/someone/pdf
-source: https://github.com/someone/agent-skills/tree/3f9a1c2/pdf
+source:
+  https://github.com/someone/agent-skills/tree/3f9a1c2/skills/pdf
 ```
 
 skl starts your browser only when there's a screen to show it on. It uses `$BROWSER` if set, else the system's default. Over SSH, without a display, or when the output goes to a pipe, it only prints the URL, so `skl open review/pr-review | pbcopy` copies it. If the browser doesn't start, skl says so after the URL and still exits 0.
