@@ -19,11 +19,12 @@ skl import pdf --group docs
 `npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/learn#get-a-skill) does, so [`skl status`](../guide/learn#keep-up-with-its-author) shows the author's later changes:
 
 ```
-✓ imported   pdf → docs/pdf
-             source someone/agent-skills/skills/pdf (from npx skills)
-! pdf is also tracked by npx skills: `npx skills update` can change
-  this folder and `npx skills remove` deletes it. Your vault keeps
-  the imported version.
+◇ imported   pdf → docs/pdf
+  source     someone/agent-skills/skills/pdf (npx skills)
+! pdf is also tracked by npx skills: `npx skills update` can
+  change this folder and `npx skills remove` deletes it.
+  Your vault keeps the imported version.
+✓ generation 15 · skl rollback to undo
 ```
 
 If the lock file is missing, or in a format skl doesn't know, `skl import` makes a plain copy. skl never changes the lock file or `~/.agents/`.

@@ -64,7 +64,7 @@ Every command uses the same marks:
 | `+` `~` `−` | A skill loaded, replaced or updated, unloaded | `+ pdf` |
 | `?` `›` | A question; the first answer is the default | `? Add it?   › yes   no` |
 | `!` | A warning, with the command that deals with it | `! 2 changes not pushed · skl sync` |
-| `✗` | An error, with the command to run | `✗ someone/agent-skills/pdf is someone else's skill` |
+| `✗` | An error, with the command to run | `✗ someone/agent-skills/pdf is someone else's skill · skl learn someone/agent-skills/pdf` |
 | `✓` | The result, last; for a change, its generation | `✓ generation 14 · skl rollback to undo` |
 
 A command that doesn't fit on the line moves to the next one, after `·`.

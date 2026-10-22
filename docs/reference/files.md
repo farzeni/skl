@@ -20,7 +20,7 @@ you/skills/
 ├── someone/
 │   └── pdf/
 │       ├── SKILL.md
-│       ├── LICENSE             # their license, kept with the copy
+│       ├── LICENSE             # their license, copied
 │       └── .skl-origin.toml
 ├── sets/
 │   └── backend.toml
@@ -47,14 +47,14 @@ select = [
 
 ```toml
 [source]
-url = "https://github.com/someone/agent-skills.git//pdf"
+url = "https://github.com/someone/agent-skills//pdf"
 commit = "3f9a1c2"
-tree = "5dabfb3444c1"   # the author's folder at that commit, as skl landed it
+tree = "5dabfb3444c1"   # the author's folder, as skl landed it
 ref = "v1.2"            # only if you pinned one with #
 license = "Apache-2.0"
 
 [[lesson]]
-peer = "https://github.com/someone/agent-skills.git//deep-pr-review"
+peer = "https://github.com/someone/agent-skills//deep-pr-review"
 commit = "7c21e9f"
 prompt = "I like its security checks"
 answers = "lessons/7c21e9f.md"
@@ -93,7 +93,7 @@ Never synced. Safe to delete, apart from losing your rollback history.
 ~/.skl/
 ├── config.toml     # this machine's settings, see Configuration
 ├── vault/          # your vault: a git clone you can edit
-├── cache/          # sparse clones skl learn reads, by host and path
+├── cache/          # sparse clones for learn, by host and path
 ├── state.json      # every copy skl made, and where
 └── generations/    # one snapshot per change
 ```

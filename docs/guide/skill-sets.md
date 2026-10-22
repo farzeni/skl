@@ -103,7 +103,8 @@ Skills you added by hand, installed with another tool such as [`npx skills`](../
 If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and exits with an error:
 
 ```
-! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
+! pr-review   skipped: ~/.claude/skills/pr-review
+  is not in your vault
   · skl import pr-review
 ```
 

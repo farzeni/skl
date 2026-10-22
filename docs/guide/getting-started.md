@@ -23,11 +23,14 @@ skl init you/skills
 ```
 
 ```
+? Create you/skills, a private repo on GitHub?
+  › yes   no
 → new vault you/skills (private, on GitHub)
 ? Import the 3 skills in ~/.claude/skills into you/?
   › yes   choose   no
 ◇ imported   pr-review, my-notes, sql-explain → you/
-◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
+◇ LICENSE    MIT, for the skills you write
+  · edit LICENSE to change it
 ✓ generation 1 · skl rollback to undo
 ```
 
