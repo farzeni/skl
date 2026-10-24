@@ -8,7 +8,7 @@ skl is not built yet. This page describes the planned behavior.
 
 ## Skills it installed
 
-`npx skills add -g` puts a skill in `~/.claude/skills/<name>`, either as a link into `~/.agents/skills/` or as a plain folder. To skl it's a [skill skl didn't create](../guide/skill-sets#skills-skl-didn-t-create): skl leaves it alone, and skips its own skill if the names clash.
+`npx skills add -g` puts a skill in `~/.claude/skills/<name>`, either as a link into `~/.agents/skills/` or as a plain folder. To skl it's a [skill skl didn't create](../guide/skill-sets#skills-skl-didn-t-create): skl leaves it alone, and skips its own skill if the names clash. The same goes for its folders in `~/.agents/skills`, which is also skl's `agents` [target](../guide/skill-sets#which-agents-read-them).
 
 To keep such a skill in your vault, [import](../guide/skills#add-a-skill-you-made) it:
 
@@ -31,7 +31,7 @@ If `~/.claude/skills/pdf` is a link into `~/.agents/skills/`, skl replaces the l
 ✓ generation 15 · skl rollback to undo
 ```
 
-If the lock file is missing, or in a format skl doesn't know, `skl import` makes a plain copy. skl never changes the lock file or `~/.agents/`.
+If the lock file is missing, or in a format skl doesn't know, `skl import` makes a plain copy. skl never changes the lock file, or the folders `npx skills` made in `~/.agents/`.
 
 ## Installing from your vault
 

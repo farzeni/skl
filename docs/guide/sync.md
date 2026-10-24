@@ -55,7 +55,7 @@ If the merge in step 2 conflicts, skl shows which files clash and what each side
 
 ### With Claude
 
-skl runs the `claude` CLI on the conflict, the same way [`skl learn`](./learn#who-does-the-thinking) does. Claude sees the version both sides started from, yours and the other machine's, plus both commit messages.
+skl runs the [engine](./learn#who-does-the-thinking), the `claude` CLI by default, on the conflict, the same way [`skl learn`](./learn#who-does-the-thinking) does. Claude sees the version both sides started from, yours and the other machine's, plus both commit messages.
 
 1. **Merge.** Claude combines the changes that don't contradict each other, and tells you what it did.
 2. **Interview.** One question for each real conflict, about what you meant rather than which lines to keep.
@@ -74,7 +74,7 @@ skl runs the `claude` CLI on the conflict, the same way [`skl learn`](./learn#wh
 ✓ generation 14 · skl rollback to undo
 ```
 
-This option shows only when the `claude` CLI is installed and skl runs in a terminal. Without a terminal, sync undoes the merge and stops: see [Questions](../reference/commands#questions).
+This option shows only when the engine's CLI is installed and skl runs in a terminal. With another engine it carries that engine's name, such as `with opencode`. Without a terminal, sync undoes the merge and stops: see [Questions](../reference/commands#questions).
 
 ### By hand
 

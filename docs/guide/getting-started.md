@@ -12,7 +12,9 @@ In ten minutes your skills are in a git repo you own, safe to edit and undo, and
 go install github.com/farzeni/skl/cmd/skl@latest
 ```
 
-skl is a single binary. It needs `git`. [Lessons](./learn) need the `claude` CLI.
+skl is a single binary. It needs `git`. [Lessons](./learn) need an agent to run them: the `claude` CLI by default, or another [engine](./learn#who-does-the-thinking).
+
+The examples use Claude Code. For opencode, pi, Codex and other agents, see [Which agents read them](./skill-sets#which-agents-read-them).
 
 ## Make your vault
 

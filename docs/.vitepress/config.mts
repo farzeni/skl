@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'skl',
-  description: 'Your Claude Code skills, on any machine.',
+  description: 'Your agent skills, on any machine.',
   cleanUrls: true,
   lastUpdated: true,
   themeConfig: {
@@ -40,6 +40,8 @@ export default defineConfig({
           { text: 'Overview', link: '/thirdparty/' },
           { text: 'skills.sh', link: '/thirdparty/skills-sh' },
           { text: 'npx skills', link: '/thirdparty/npx-skills' },
+          { text: 'opencode', link: '/thirdparty/opencode' },
+          { text: 'pi', link: '/thirdparty/pi' },
           { text: 'gh', link: '/thirdparty/gh' }
         ]
       },

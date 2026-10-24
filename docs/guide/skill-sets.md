@@ -10,7 +10,7 @@ A skill set is a list of selectors: the groups and skills you load together. The
 
 ## Why load fewer
 
-Claude Code lists every skill in `~/.claude/skills` to Claude on each turn, within a budget of 1% of the context window. Past it, Claude Code drops the descriptions of the skills you use least, and Claude is less likely to pick those on its own ([Claude Code docs](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)). Loading only what a task needs keeps every description in view. Nothing is deleted: what you don't load stays in your vault.
+Your agent sees the description of every loaded skill on each turn. Claude Code keeps that list within 1% of the context window. Past it, Claude Code drops the descriptions of the skills you use least, and Claude is less likely to pick those on its own ([Claude Code docs](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)). Codex caps it at 2%. Others, such as pi, list every skill, so each one costs context on every turn. Loading only what a task needs keeps every description in view. Nothing is deleted: what you don't load stays in your vault.
 
 ## Load, add and drop
 
@@ -104,11 +104,45 @@ skl loads skills into your user folder, `~/.claude/skills`, by default. To load 
 skl use review --scope project
 ```
 
-This copies them into `.claude/skills` at the root of the git repo you're in. Outside a git repo, `--scope project` is an error. See [Flags](../reference/commands#flags) for the commands that take it.
+This copies them into `.claude/skills` at the root of the git repo you're in, or `.agents/skills` for the [`agents` target](#which-agents-read-them). Outside a git repo, `--scope project` is an error. See [Flags](../reference/commands#flags) for the commands that take it.
+
+## Which agents read them
+
+skl loads plain skill folders in the [Agent Skills](https://agentskills.io/specification) format, which other agents read too. It writes them into the folders of your **targets**:
+
+| Target | User scope | Project scope |
+|---|---|---|
+| `claude`, the default | `~/.claude/skills` | `.claude/skills` |
+| `agents` | `~/.agents/skills` | `.agents/skills` |
+
+To load into both, set `targets` in your [config](../reference/config):
+
+```toml
+targets = ["claude", "agents"]
+```
+
+Each target then holds its own copy of every loaded skill, and changes to either copy are [saved back](./skills#edit-as-usual) to your vault.
+
+| Agent | Reads `claude` | Reads `agents` | After `skl use` |
+|---|---|---|---|
+| Claude Code | yes | not in its docs | sees the change |
+| opencode | yes | yes, first | restart it |
+| pi | with [one setting](../thirdparty/pi#your-skills-in-pi) | yes | `/reload` |
+| Codex | no | yes | sees the change, else restart it |
+| Gemini CLI | no | yes | `/skills reload` |
+| GitHub Copilot | project scope only | yes | not stated |
+| Cursor | yes | yes | restart it |
+| Amp | yes | yes | `reload_skills` |
+
+From each agent's docs, October 2026; opencode and pi were tested.
+
+Pick the one target your agents read. Load into both only when one of your agents reads just `~/.claude/skills` and another just `~/.agents/skills`, such as Claude Code and Codex. An agent that reads both folders then sees each skill twice and keeps one.
+
+skl copies a skill as it is. Frontmatter fields that only Claude Code knows, such as `context: fork` or `hooks`, do nothing in other agents, which still load the skill.
 
 ## Names and clashes
 
-Claude Code reads skills from one flat folder, so skl copies each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`. Two skills clash when they have the same folder name or the same `name` in their `SKILL.md` frontmatter.
+Claude Code reads skills from one flat folder, so skl copies each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`, and `~/.agents/skills/pr-review` for the `agents` target. Two skills clash when they have the same folder name or the same `name` in their `SKILL.md` frontmatter.
 
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
@@ -124,7 +158,7 @@ Claude Code prefers a user skill to a project skill with the same name. When a s
 
 ## Skills skl didn't create
 
-Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not in your vault. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
+Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not in your vault, from the folders of every target. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
 
 If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and warns you. The command still succeeds:
 
@@ -135,5 +169,12 @@ If a hand-made skill already has a name that a loaded skill needs, skl skips its
 ```
 
 `skl status` keeps listing it as skipped until the name is free.
+
+opencode reads `~/.agents/skills` before `~/.claude/skills`. So even without the `agents` target, `skl status` warns when a skill there that skl didn't create hides one you loaded:
+
+```
+! pdf   hidden in opencode by ~/.agents/skills/pdf
+  · rename or remove one of them
+```
 
 `skl save` saves your selectors as they are; the skipped skills load once their names are free. To keep one in your vault, import it: see [Add a skill you made](./skills#add-a-skill-you-made).
