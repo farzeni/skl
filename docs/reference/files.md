@@ -81,7 +81,7 @@ declined = ["inline comments"]
 
 `[source]` is written when [`skl learn`](../guide/learn#get-a-skill) copies a skill, and only then. A skill Claude built from text has only lessons.
 
-`tree` is the git tree hash of the author's folder at `commit`, with skl's own changes applied (a new `name`, a license file). If your folder still has that hash, you never changed the skill, so its next update is taken as it is, without Claude.
+`tree` is the git tree hash of the author's folder at `commit`, with skl's own changes applied (a new `name`, a license file). If your folder still has that hash, you never changed the skill, so its next update is taken as it is, without a lesson.
 
 `ref_kind` says what you pinned: a branch is followed, a tag or a commit [never updates](./repos#pinning-a-version).
 
@@ -95,7 +95,7 @@ Commits and trees are stored as full hashes; the examples shorten them. Sources 
 
 ## Loaded skills
 
-Each skill skl loads is a copy, with one extra file:
+Each skill skl loads is a copy in the folder of each [target](./config), with one extra file:
 
 ```
 ~/.claude/skills/pr-review/
@@ -109,7 +109,7 @@ commit = "a91c3e0"            # what it was copied from
 tree   = "9f2c41d07e3b"       # git tree hash of the folder
 ```
 
-skl uses it to find changes to [save back](../guide/skills#edit-as-usual): if the folder's tree hash no longer matches `tree`, it changed. `.skl-copy.toml` itself is never saved back to the vault. A folder without it is a skill skl didn't create.
+skl uses it to find changes to [save back](../guide/skills#edit-as-usual): if the folder's tree hash no longer matches `tree`, it changed. `.skl-copy.toml` itself is never saved back to the vault. With two targets, each copy has its own and is saved back on its own. A folder without it is a skill skl didn't create.
 
 ## Local state
 

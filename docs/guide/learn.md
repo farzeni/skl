@@ -62,7 +62,7 @@ The first argument is the peer, given as any [repo reference](../reference/repos
 4. **Review.** skl shows the diff.
 5. **Land.** You replace your skill, ask for changes in plain words ("make the security part shorter") and review again, save the result under a new name, or discard it. A discarded lesson changes nothing and records nothing.
 
-The examples show what Claude asks. The questions appear in Claude Code's own interface, so their exact look may differ. A lesson needs a terminal, since you answer its questions.
+The examples show what Claude asks. The questions appear in Claude Code's own interface, or your [engine](#who-does-the-thinking)'s, so their exact look may differ. A lesson needs a terminal, since you answer its questions.
 
 ```
 → lesson into review/pr-review
@@ -116,7 +116,7 @@ skl uses the skill it was copied from, or the peer you learned from last, and pi
 
 - **Up to date.** The author changed nothing in the skill's folder.
 - **Update.** You never changed the skill, so skl replaces it with the author's version. No Claude.
-- **Lesson.** You changed it, so Claude merges the author's changes into yours. Claude sees three versions: the author's as you last took it, the author's now, and yours, plus skl's own attempt at merging them. So it can tell their changes from yours, and asks only about what's new and what contradicts. It reuses your saved answers, and changes you skip aren't asked about again, unless your text asks for them. Without the `claude` CLI, skl stops and says so.
+- **Lesson.** You changed it, so Claude merges the author's changes into yours. Claude sees three versions: the author's as you last took it, the author's now, and yours, plus skl's own attempt at merging them. So it can tell their changes from yours, and asks only about what's new and what contradicts. It reuses your saved answers, and changes you skip aren't asked about again, unless your text asks for them. Without the [engine](#who-does-the-thinking)'s CLI, skl stops and says so.
 
 Text narrows it down: `skl learn review/pr-review "only the new security checks"`. With text, skl always runs a lesson, even if the author changed nothing.
 
@@ -193,9 +193,34 @@ Run the same command again to take their changes. New skills in their set are co
 
 ## Who does the thinking
 
-For a lesson, skl prepares a workspace with both skills and runs the `claude` CLI in it, using your existing login. Claude writes its result to a staging folder. Only skl commits to your vault, and only after you choose. A copy, and an update to a copy you never changed, need no Claude. Building a new skill from text, and updating a skill you changed, do: without the `claude` CLI, skl stops and says so.
+For a lesson, skl prepares a workspace with both skills and runs the **engine** in it: the `claude` CLI by default, using your existing login. Claude writes its result to a staging folder. Only skl commits to your vault, and only after you choose. A copy, and an update to a copy you never changed, need no engine. Building a new skill from text, and updating a skill you changed, do: without the engine's CLI, skl stops and says so.
 
-Each run with Claude is recorded in the skill's `.skl-origin.toml` as a lesson. It holds the peer, its commit, what you asked for, your answers and what you declined. A copy records its source instead. See [Files](../reference/files#skl-origin-toml).
+Each run with the engine is recorded in the skill's `.skl-origin.toml` as a lesson. It holds the peer, its commit, what you asked for, your answers and what you declined. A copy records its source instead. See [Files](../reference/files#skl-origin-toml).
+
+### Other agents
+
+To run lessons and sync conflicts in another agent, set [`engine`](../reference/config) to the command line skl runs in the lesson workspace:
+
+```toml
+engine = "opencode --prompt {prompt}"     # opencode
+engine = "pi --skill {skill} {prompt}"    # pi
+```
+
+| Placeholder | Becomes |
+|---|---|
+| `{prompt}` | The first prompt: it names the lesson skill and the brief. |
+| `{skill}` | The path of the bundled lesson or merge skill in the workspace, for agents that load a skill by path. |
+
+skl splits the line into words at spaces, keeping text in double quotes together, and runs the first word from your `PATH`. There's no shell, so `$VAR`, `~` and pipes stay as they are. Each placeholder becomes exactly one argument, whatever it holds, also inside a word such as `--skill={skill}`. The agent uses its own login, and finds skl's lesson skill in the workspace's `.claude/skills` or `.agents/skills` if it doesn't load it by path. What every engine must do is in [Learn engine](../design/architecture#learn-engine).
+
+A line skl can't use stops the lesson before anything starts:
+
+```
+✗ engine: unknown placeholder {promt}
+  · edit engine in ~/.skl/config.toml
+```
+
+The same goes for an unclosed quote or a command that isn't on your `PATH`. The examples above aren't tested yet: they are checked before lessons ship in v0.3, see [Roadmap](../design/roadmap).
 
 ## Licenses
 

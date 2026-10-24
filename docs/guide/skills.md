@@ -10,7 +10,7 @@ The examples from here on assume you've moved the skills you imported in [Gettin
 
 ## Edit as usual
 
-The skills skl loads are plain folders in `~/.claude/skills`, made from the skills in your vault. Change one by hand, or ask Claude Code to improve it. When you're done, run `skl sync`: it saves your changes to the vault and takes them to your other machines. The other commands that change something (`use`, `add`, `drop`, `save`, `import`, `learn`, `rollback`) also save them first. `status` and `history` don't.
+The skills skl loads are plain folders in `~/.claude/skills` (and `~/.agents/skills` with the [`agents` target](./skill-sets#which-agents-read-them)), made from the skills in your vault. Change one by hand, or ask Claude Code to improve it. When you're done, run `skl sync`: it saves your changes to the vault and takes them to your other machines. The other commands that change something (`use`, `add`, `drop`, `save`, `import`, `learn`, `rollback`) also save them first. `status` and `history` don't.
 
 ```
 ◇ saved      pr-review → review/pr-review
@@ -41,7 +41,7 @@ copies it into your vault and commits it, in the group named after your vault's 
 skl import changelog release-notes --group writing
 ```
 
-The folder in `~/.claude/skills` stays where it is and becomes the loaded skill, so Claude Code sees no change. Run `skl sync` to take it to your other machines.
+The folder in `~/.claude/skills` stays where it is and becomes the loaded skill, so Claude Code sees no change. skl looks for the folder in every [target](./skill-sets#which-agents-read-them)'s folder, and with two targets it also loads the skill into the other one. Run `skl sync` to take it to your other machines.
 
 To import a skill from a repo's own `.claude/skills`, add `--scope project` inside that repo.
 

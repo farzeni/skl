@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: skl
-  text: Your Claude Code skills, in one repo, on every machine.
-  tagline: skl keeps your skills in a git repo you own, loads only the ones you need, and lets you undo any change. It also brings in skills from other people's repos, and can teach yours what theirs do better.
+  text: Your agent skills, in one repo, on every machine.
+  tagline: skl keeps your skills in a git repo you own, loads only the ones you need, and lets you undo any change. It also brings in skills from other people's repos, and can teach yours what theirs do better. For Claude Code, and for opencode, pi, Codex, Cursor and other agents that read skill folders.
   actions:
     - theme: brand
       text: Get started
@@ -34,6 +34,6 @@ skl is not built yet. These docs describe the planned behavior, and the recordin
 
 Claude Code reads your skills from `~/.claude/skills` on each machine. That folder isn't versioned and isn't shared, so a skill you improve on your laptop stays there, and a change you regret can't be taken back. Claude Code also lists every skill in it to Claude on each turn. Past a budget it drops descriptions, and Claude picks those skills less often ([Claude Code docs](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
 
-skl keeps your skills in a git repo you own, copies only the ones you choose into that folder, and saves your edits back. Every change is a step you can undo.
+skl keeps your skills in a git repo you own, copies only the ones you choose into that folder, and saves your edits back. Every change is a step you can undo. Other agents read the same folder, or `~/.agents/skills`, which skl can fill too: see [Which agents read them](./guide/skill-sets#which-agents-read-them).
 
 **When you don't need skl:** if you use a few skills on one machine, the folder is enough. If you only install other people's skills and never change them, Claude Code plugins or `npx skills` do that.

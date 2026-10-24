@@ -4,7 +4,7 @@
 skl is not built yet. This page describes the planned behavior.
 :::
 
-Core skl needs only git, and the `claude` CLI for lessons. The parts on these pages work with services and tools other people run. Each one is optional and kept apart from the rest of skl: if one is removed, or the service behind it goes away, every other command works as before.
+Core skl needs only git, and an agent's CLI for lessons: `claude`, or any [engine](../guide/learn#other-agents) you set. The parts on these pages work with services and tools other people run. Each one is optional and kept apart from the rest of skl: if one is removed, or the service behind it goes away, every other command works as before.
 
 | Part | Adds |
 |---|---|

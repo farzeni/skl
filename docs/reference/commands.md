@@ -10,7 +10,7 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 
 | Command | Description |
 |---|---|
-| `skl init <repo> [selectors]` | Clone your vault, or set up a new one, and load `selectors` if given. Offers to import the skills in `~/.claude/skills` that aren't in a vault. See [Getting started](../guide/getting-started#make-your-vault). |
+| `skl init <repo> [selectors]` | Clone your vault, or set up a new one, and load `selectors` if given. Offers to import the skills in your [targets](./config)' folders (`~/.claude/skills` by default) that aren't in a vault. See [Getting started](../guide/getting-started#make-your-vault). |
 | `skl import <name>… [--group <group>]` | Copy skills skl didn't create into your vault; each original becomes the loaded skill. The group defaults to your vault's owner (`you` for `you/skills`). See [Add a skill you made](../guide/skills#add-a-skill-you-made). |
 
 ## Load
@@ -83,7 +83,7 @@ The one exception is `-h`, which always means `--help`. So a group can't be name
 | Flag | Commands | Effect |
 |---|---|---|
 | `--help`, `-h` | all | Show the command's help, and change nothing. |
-| `--scope user\|project` | `init` `import` `use` `add` `drop` `save` `learn` `rollback` | Where to load skills, or for `import`, where to read them. `user` is `~/.claude/skills`; `project` is `.claude/skills` at the root of the git repo you're in. Outside a git repo, `project` is an error. Defaults to `scope` in the [config](./config), else `user`. |
+| `--scope user\|project` | `init` `import` `use` `add` `drop` `save` `learn` `rollback` | Where to load skills, or for `import`, where to read them. `user` is `~/.claude/skills`; `project` is `.claude/skills` at the root of the git repo you're in. The `agents` [target](./config) uses `~/.agents/skills` and `.agents/skills`. Outside a git repo, `project` is an error. Defaults to `scope` in the [config](./config), else `user`. |
 | `--dry-run` | every command that changes something | Print what would change, and change nothing. See [below](#dry-run). |
 | `--yes` | every command that asks | Take the first answer to every question. See [Questions](#questions). |
 | `--json` | `status` `history` | Print [JSON](#json) instead of text. |
@@ -100,7 +100,7 @@ With `--dry-run`, a command prints its plan, the `→` line and the `+ ~ −` li
 |---|---|
 | `init` | Whether it would clone or create the repo, what it would import, and what it would load. |
 | `import`, `use`, `add`, `drop`, `save`, `rollback` | The skills it would load, replace or unload, and the files it would write. |
-| `learn <peer> …` | Whether it would copy, update or run a lesson, and into which skill. Claude doesn't run. |
+| `learn <peer> …` | Whether it would copy, update or run a lesson, and into which skill. The engine doesn't run. |
 | `learn` | Every available update, and how each would be taken. |
 | `sync` | What it would commit, pull, push and reload. It fetches the remote but doesn't merge or push. |
 | `open` | The URL, without starting a browser. |
@@ -115,7 +115,7 @@ A question shows its answers; the first one is the default, taken with Enter. sk
 
 | Question | First answer |
 |---|---|
-| `skl init`: import the skills in `~/.claude/skills`? | yes, all of them |
+| `skl init`: import the skills it found? | yes, all of them |
 | `skl learn`: add someone else's skill or scripts? | yes |
 | `skl learn`: a license that may not fit your vault | yes, keep their license and notice |
 | `skl save`: overwrite a named skill set? | yes |
@@ -128,7 +128,7 @@ Without a terminal and without `--yes`, a question stops the command before it c
   · skl learn someone/agent-skills/pdf --yes
 ```
 
-Two things always need a terminal, because Claude asks you questions in them: a [lesson](../guide/learn#how-a-lesson-works) and a [sync conflict resolved with Claude](../guide/sync#with-claude). `--yes` doesn't answer them. Without a terminal, `skl learn` stops before Claude runs. `skl sync` undoes the merge, keeps your local commits, and stops:
+Two things always need a terminal, because the [engine](../guide/learn#who-does-the-thinking) asks you questions in them: a [lesson](../guide/learn#how-a-lesson-works) and a [sync conflict resolved with Claude](../guide/sync#with-claude). `--yes` doesn't answer them. Without a terminal, `skl learn` stops before the engine runs. `skl sync` undoes the merge, keeps your local commits, and stops:
 
 ```
 ✗ conflict in sets/backend.toml needs you
@@ -167,7 +167,7 @@ A command that changes nothing makes no generation and ends with `✓ nothing to
   "scopes": [
     {
       "scope": "user",
-      "path": "/home/you/.claude/skills",
+      "paths": ["/home/you/.claude/skills"],
       "selectors": ["@backend"],
       "skills": [
         { "name": "pr-review", "skill": "you/pr-review" },
@@ -212,7 +212,7 @@ A command that changes nothing makes no generation and ends with `✓ nothing to
 }
 ```
 
-To see the git and `claude` commands skl runs, set `SKL_DEBUG=1`: each one is printed to standard error before it runs.
+To see the git and engine commands skl runs, set `SKL_DEBUG=1`: each one is printed to standard error before it runs.
 
 ## Exit codes
 

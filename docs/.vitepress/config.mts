@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'skl',
-  description: 'Your Claude Code skills, on any machine.',
+  description: 'Your agent skills, on any machine.',
   cleanUrls: true,
   lastUpdated: true,
   themeConfig: {
