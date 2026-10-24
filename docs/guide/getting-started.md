@@ -16,16 +16,14 @@ skl is a single binary. It needs `git`. [Lessons](./learn) need the `claude` CLI
 
 ## Make your vault
 
-Your **vault** is a git repo that holds your skills. Use the same one on every machine.
+Your **vault** is a git repo that holds your skills. Use the same one on every machine. Create an empty repo for it on your git host first, private if you like, then run:
 
 ```sh
 skl init you/skills
 ```
 
 ```
-? Create you/skills, a private repo on GitHub?
-  › yes   no
-→ new vault you/skills (private, on GitHub)
+→ new vault you/skills
 ? Import the 3 skills in ~/.claude/skills into you/?
   › yes   choose   no
 ◇ imported   pr-review, my-notes, sql-explain → you/
@@ -36,7 +34,14 @@ skl init you/skills
 
 Your skills stay where Claude Code reads them. They're now versioned, and they go wherever your vault goes. They sit in a **group** named after you, `you/`; you can [move them](./skills#rename-or-delete-a-skill) into groups such as `review` or `writing` later.
 
-If the repo already holds skills, skl clones it as your vault instead: its groups are the folders that hold skills. An empty repo becomes a new vault. If the repo is missing, create it first, or let the optional [gh part](../thirdparty/gh) create it on GitHub, as in the example. Any git remote works: see [Selectors and references](../reference/repos). To pick which skills to import, answer `choose`: skl asks about each one.
+If the repo already holds skills, skl clones it as your vault instead: its groups are the folders that hold skills. An empty repo becomes a new vault. skl never creates a repo, so one it can't reach stops init:
+
+```
+✗ can't reach you/skills
+  · create it or check access, then skl init you/skills
+```
+
+Any git remote works: see [Selectors and references](../reference/repos). To pick which skills to import, answer `choose`: skl asks about each one.
 
 Running `skl init` again with the same repo only loads the selectors you give it. A machine has one vault, so a different repo stops:
 

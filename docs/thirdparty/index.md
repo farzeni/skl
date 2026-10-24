@@ -10,4 +10,3 @@ Core skl needs only git, and the `claude` CLI for lessons. The parts on these pa
 |---|---|
 | [skills.sh](./skills-sh) | `skl search`, and skills.sh links as repo references |
 | [npx skills](./npx-skills) | `skl import` remembers where a skill installed by `npx skills` came from |
-| [gh](./gh) | `skl init` creates a missing vault repo on GitHub; `protocol` follows your `gh` setting |
