@@ -19,7 +19,7 @@ license      = "MIT"
 | Key | Default | Effect |
 |---|---|---|
 | `default_host` | `github.com` | The host that `owner/repo` refers to. Set it to your company's GitLab, for example. |
-| `protocol` | from `gh`, else `https` | `ssh` or `https`, for repos written as `owner/repo` or `host/path`. Without a setting, skl uses the protocol the `gh` CLI is configured with for that host, or `https` if `gh` isn't installed. |
+| `protocol` | `https` | `ssh` or `https`, for repos written as `owner/repo` or `host/path`. With the [gh part](../thirdparty/gh#pick-ssh-or-https), the default follows your `gh` setting. |
 | `scope` | `user` | The default for `--scope`. |
 | `claude` | `claude` | The Claude Code binary that a [lesson](../guide/learn#how-a-lesson-works) runs. |
 | `license` | `MIT` | The license `skl init` writes into a new vault: an SPDX id such as `Apache-2.0`, or `none`. An existing vault's `LICENSE` file is never changed. See [Licenses](../guide/learn#licenses). |

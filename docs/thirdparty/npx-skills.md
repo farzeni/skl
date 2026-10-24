@@ -16,14 +16,18 @@ To keep such a skill in your vault, [import](../guide/skills#add-a-skill-you-mad
 skl import pdf --group docs
 ```
 
-`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/learn#get-a-skill) does, so [`skl status`](../guide/learn#keep-up-with-its-author) shows the author's later changes:
+`npx skills` records where each skill came from in `~/.agents/.skill-lock.json`. If the skill is listed there with a git source, `skl import` records that source too, as a [copy made by `skl learn`](../guide/learn#get-a-skill) does, so [`skl status`](../guide/learn#keep-up-with-its-author) shows the author's later changes. Since the skill is someone else's, skl also checks its [license](../guide/learn#licenses) as `skl learn` does, and asks first if the license may not fit your vault.
+
+If `~/.claude/skills/pdf` is a link into `~/.agents/skills/`, skl replaces the link with a real copy, so the loaded skill is skl's own folder:
 
 ```
+◇ replaced   link ~/.claude/skills/pdf with a copy
 ◇ imported   pdf → docs/pdf
   source     someone/agent-skills/skills/pdf (npx skills)
-! pdf is also tracked by npx skills: `npx skills update` can
-  change this folder and `npx skills remove` deletes it.
-  Your vault keeps the imported version.
+  license    Apache-2.0
+◇ npx skills still tracks pdf: `npx skills update` may
+  write a new folder there, and `npx skills remove`
+  deletes it. Your vault keeps the imported version.
 ✓ generation 15 · skl rollback to undo
 ```
 

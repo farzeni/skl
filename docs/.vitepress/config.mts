@@ -39,7 +39,8 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/thirdparty/' },
           { text: 'skills.sh', link: '/thirdparty/skills-sh' },
-          { text: 'npx skills', link: '/thirdparty/npx-skills' }
+          { text: 'npx skills', link: '/thirdparty/npx-skills' },
+          { text: 'gh', link: '/thirdparty/gh' }
         ]
       },
       {
