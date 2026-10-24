@@ -122,13 +122,12 @@ skl/
     └── ext/        # hooks for third-party parts
 thirdparty/
 ├── skillssh/       # skl search, skills.sh links
-├── npxskills/      # import source from the npx skills lock
-└── gh/             # create a missing vault repo, protocol
+└── npxskills/      # import source from the npx skills lock
 ```
 
 ## Third-party parts
 
-Code that depends on someone else's service, tool or file format lives in `thirdparty/<name>/`, never in `internal/`. Core offers four hooks in `internal/ext` and knows nothing about what plugs into them:
+Code that depends on someone else's service, tool or file format lives in `thirdparty/<name>/`, never in `internal/`. Core offers three hooks in `internal/ext` and knows nothing about what plugs into them:
 
 ```go
 // a new subcommand
@@ -137,10 +136,8 @@ func RegisterCommand(c Command)
 func RegisterRefRewriter(f func(ref string) (string, bool))
 // where a skill being imported came from
 func RegisterImportSource(f func(string) (ImportSource, bool))
-// creates a vault repo that doesn't exist yet
-func RegisterRepoCreator(c RepoCreator)
 ```
 
-Each part registers itself in `init()`, and `cmd/skl/thirdparty.go` imports it with one line. Deleting the package and that line removes the part: everything else builds and passes its tests. Its settings are a table in `config.toml` that only the part reads; core ignores tables it doesn't own. A part may also supply the default of a core setting: the `gh` part takes `protocol` from `gh`'s own config. Without a repo creator, `skl init` on a missing repo stops with `✗ you/skills doesn't exist · create it, then skl init you/skills`; without the `gh` part, `protocol` defaults to `https`. A part's failure stays inside its own command. Apart from git, only the skills.sh part, and the `gh` CLI that the `gh` part runs, reach the network.
+Each part registers itself in `init()`, and `cmd/skl/thirdparty.go` imports it with one line. Deleting the package and that line removes the part: everything else builds and passes its tests. Its settings are a table in `config.toml` that only the part reads; core ignores tables it doesn't own. A part's failure stays inside its own command. Apart from git, only the skills.sh part reaches the network.
 
 `selector` and `resolve` never touch the disk, so they're tested with plain tables. Integration tests use a temporary `HOME` and local bare repos standing in for GitHub, so every flow runs offline.
