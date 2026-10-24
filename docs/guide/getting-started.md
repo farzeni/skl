@@ -12,7 +12,7 @@ In ten minutes your skills are in a git repo you own, safe to edit and undo, and
 go install github.com/farzeni/skl/cmd/skl@latest
 ```
 
-skl is a single binary. It needs `git`. [Lessons](./learn) need the `claude` CLI, and creating your vault repo on GitHub needs the `gh` CLI.
+skl is a single binary. It needs `git`. [Lessons](./learn) need the `claude` CLI.
 
 ## Make your vault
 
@@ -36,7 +36,7 @@ skl init you/skills
 
 Your skills stay where Claude Code reads them. They're now versioned, and they go wherever your vault goes. They sit in a **group** named after you, `you/`; you can [move them](./skills#rename-or-delete-a-skill) into groups such as `review` or `writing` later.
 
-If the repo already holds skills, skl clones it as your vault instead: its groups are the folders that hold skills. An empty repo becomes a new vault. If the repo is missing and on GitHub, skl offers to create it as a private repo. Any git remote works: see [Selectors and references](../reference/repos). To pick which skills to import, answer `choose`: skl asks about each one.
+If the repo already holds skills, skl clones it as your vault instead: its groups are the folders that hold skills. An empty repo becomes a new vault. If the repo is missing, create it first, or let the optional [gh part](../thirdparty/gh) create it on GitHub, as in the example. Any git remote works: see [Selectors and references](../reference/repos). To pick which skills to import, answer `choose`: skl asks about each one.
 
 Running `skl init` again with the same repo only loads the selectors you give it. A machine has one vault, so a different repo stops:
 
