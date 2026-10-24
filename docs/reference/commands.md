@@ -115,7 +115,6 @@ A question shows its answers; the first one is the default, taken with Enter. sk
 
 | Question | First answer |
 |---|---|
-| `skl init`: create the missing repo? ([gh part](../thirdparty/gh)) | yes, private |
 | `skl init`: import the skills it found? | yes, all of them |
 | `skl learn`: add someone else's skill or scripts? | yes |
 | `skl learn`: a license that may not fit your vault | yes, keep their license and notice |

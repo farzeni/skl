@@ -41,8 +41,7 @@ export default defineConfig({
           { text: 'skills.sh', link: '/thirdparty/skills-sh' },
           { text: 'npx skills', link: '/thirdparty/npx-skills' },
           { text: 'opencode', link: '/thirdparty/opencode' },
-          { text: 'pi', link: '/thirdparty/pi' },
-          { text: 'gh', link: '/thirdparty/gh' }
+          { text: 'pi', link: '/thirdparty/pi' }
         ]
       },
       {

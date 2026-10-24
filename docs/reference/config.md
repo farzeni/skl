@@ -20,7 +20,7 @@ license      = "MIT"
 | Key | Default | Effect |
 |---|---|---|
 | `default_host` | `github.com` | The host that `owner/repo` refers to. Set it to your company's GitLab, for example. |
-| `protocol` | `https` | `ssh` or `https`, for repos written as `owner/repo` or `host/path`. With the [gh part](../thirdparty/gh#pick-ssh-or-https), the default follows your `gh` setting. |
+| `protocol` | `https` | `ssh` or `https`, for repos written as `owner/repo` or `host/path`. |
 | `scope` | `user` | The default for `--scope`. |
 | `targets` | `["claude"]` | The folders skl loads skills into: `claude` is `~/.claude/skills`, `agents` is `~/.agents/skills` (`.claude/skills` and `.agents/skills` with `--scope project`). `["claude", "agents"]` loads into both. See [Which agents read them](../guide/skill-sets#which-agents-read-them). |
 | `engine` | `claude` | The agent that runs [lessons](../guide/learn#who-does-the-thinking) and [sync conflicts](../guide/sync#with-claude). `claude` runs the `claude` CLI from your `PATH`; [third-party parts](../thirdparty/) add others. |

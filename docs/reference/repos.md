@@ -170,4 +170,4 @@ When access fails, the command stops with git's error instead of waiting for a p
 
 ## Host-specific features
 
-Everything works on any host. The optional [skills.sh part](../thirdparty/skills-sh) searches GitHub only. The optional [gh part](../thirdparty/gh) creates a missing vault repo during `skl init`, on GitHub only. Elsewhere, or without it, create the repo yourself first.
+Everything works on any host. The optional [skills.sh part](../thirdparty/skills-sh) searches GitHub only.

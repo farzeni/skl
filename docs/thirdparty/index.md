@@ -12,4 +12,3 @@ Core skl needs only git, and the `claude` CLI for lessons unless a part adds ano
 | [npx skills](./npx-skills) | `skl import` remembers where a skill installed by `npx skills` came from |
 | [opencode](./opencode) | `engine = "opencode"`: lessons and sync conflicts run in opencode |
 | [pi](./pi) | `engine = "pi"`: lessons and sync conflicts run in pi |
-| [gh](./gh) | `skl init` creates a missing vault repo on GitHub; `protocol` follows your `gh` setting |
