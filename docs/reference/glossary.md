@@ -25,4 +25,4 @@ skl is not built yet. This page describes the planned behavior.
 | **Update** | `update available` | A later version of a skill's source or peer, found by `skl sync` and taken with `skl learn <skill>`. See [Keep up with its author](../guide/learn#keep-up-with-its-author). |
 | **Peer** | `someone/agent-skills/deep-pr-review` | The skill a lesson learns from. |
 | **Lesson** | peer → yours | One run of `skl learn` with the engine: Claude interviews you and rewrites your skill with what it takes from the peer. See [Learn](../guide/learn). |
-| **Engine** | `claude` | The agent that runs lessons and sync conflicts: the `claude` CLI by default. See [Who does the thinking](../guide/learn#who-does-the-thinking). |
+| **Engine** | `claude` | The agent that runs lessons and sync conflicts: the `claude` CLI by default, or a command you set. See [Other agents](../guide/learn#other-agents). |

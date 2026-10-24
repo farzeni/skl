@@ -127,14 +127,14 @@ Each target then holds its own copy of every loaded skill, and changes to either
 |---|---|---|---|
 | Claude Code | yes | not in its docs | sees the change |
 | opencode | yes | yes, first | restart it |
-| pi | with [one setting](../thirdparty/pi#your-skills-in-pi) | yes | `/reload` |
+| pi | with one setting, below | yes | `/reload` |
 | Codex | no | yes | sees the change, else restart it |
 | Gemini CLI | no | yes | `/skills reload` |
 | GitHub Copilot | project scope only | yes | not stated |
 | Cursor | yes | yes | restart it |
 | Amp | yes | yes | `reload_skills` |
 
-From each agent's docs, October 2026; opencode and pi were tested.
+From each agent's docs, October 2026; opencode and pi were tested. pi reads `~/.claude/skills` too if `~/.pi/agent/settings.json` holds `{"skills": ["~/.claude/skills"]}`. Use that or the `agents` target, not both: pi warns about every skill it finds twice.
 
 Pick the one target your agents read. Load into both only when one of your agents reads just `~/.claude/skills` and another just `~/.agents/skills`, such as Claude Code and Codex. An agent that reads both folders then sees each skill twice and keeps one.
 

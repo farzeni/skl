@@ -94,9 +94,9 @@ Every engine follows the same contract:
 3. The engine interviews you and writes only to `result/`.
 4. A non-zero exit, or a missing or empty `result/`, means no lesson: nothing lands. Otherwise skl shows the diff and lands it.
 
-The `claude` engine is core and runs `claude "<prompt>"`. Other engines are [third-party parts](#third-party-parts), such as [opencode](../thirdparty/opencode) and [pi](../thirdparty/pi).
+`engine = "claude"` runs `claude "<prompt>"`. Any other value is a command template, such as `pi --skill {skill} {prompt}`: skl splits it into words itself, with no shell, fills `{prompt}` with the first prompt and `{skill}` with the bundled skill's path in the workspace, each as one argument, and runs it in the workspace. A template skl can't parse, or whose command isn't on `PATH`, stops the lesson before the workspace is made. The syntax and examples are in [Other agents](../guide/learn#other-agents).
 
-How the interview reaches you isn't settled. Either the engine runs interactively in the workspace and asks in its agent's own interface, or skl asks the questions the engine writes and passes the answers back. A spike before v0.3 decides it, for each engine, because it rests on an unproven assumption: that `claude`, `opencode` and `pi` can be launched to interview the user, write files to a given folder and exit. The examples in the guide show what is asked, not how it looks.
+How the interview reaches you isn't settled. Either the engine runs interactively in the workspace and asks in its agent's own interface, or skl asks the questions the engine writes and passes the answers back. A spike before v0.3 decides it, for each engine, because it rests on an unproven assumption: that `claude`, and the opencode and pi templates, can be launched to interview the user, write files to a given folder and exit. The examples in the guide show what is asked, not how it looks.
 
 ## Import
 
@@ -131,14 +131,12 @@ skl/
     └── ext/        # hooks for third-party parts
 thirdparty/
 ├── skillssh/       # skl search, skills.sh links
-├── npxskills/      # import source from the npx skills lock
-├── opencode/       # opencode engine
-└── pi/             # pi engine
+└── npxskills/      # import source from the npx skills lock
 ```
 
 ## Third-party parts
 
-Code that depends on someone else's service, tool or file format lives in `thirdparty/<name>/`, never in `internal/`. Core offers four hooks in `internal/ext` and knows nothing about what plugs into them:
+Code that depends on someone else's service, tool or file format lives in `thirdparty/<name>/`, never in `internal/`. Core offers three hooks in `internal/ext` and knows nothing about what plugs into them:
 
 ```go
 // a new subcommand
@@ -147,12 +145,8 @@ func RegisterCommand(c Command)
 func RegisterRefRewriter(f func(ref string) (string, bool))
 // where a skill being imported came from
 func RegisterImportSource(f func(string) (ImportSource, bool))
-// an engine for lessons and sync conflicts
-func RegisterEngine(e Engine)
 ```
 
 Each part registers itself in `init()`, and `cmd/skl/thirdparty.go` imports it with one line. Deleting the package and that line removes the part: everything else builds and passes its tests. Its settings are a table in `config.toml` that only the part reads; core ignores tables it doesn't own. A part's failure stays inside its own command. Apart from git, only the skills.sh part reaches the network.
-
-An engine part names its engine, the value of `engine` in `config.toml`, and says how to start its agent's CLI in a workspace with a first prompt. Without the part, a lesson with that engine stops as a lesson without the `claude` CLI does.
 
 `selector` and `resolve` never touch the disk, so they're tested with plain tables. Integration tests use a temporary `HOME` and local bare repos standing in for GitHub, so every flow runs offline.

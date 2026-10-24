@@ -23,7 +23,7 @@ license      = "MIT"
 | `protocol` | `https` | `ssh` or `https`, for repos written as `owner/repo` or `host/path`. |
 | `scope` | `user` | The default for `--scope`. |
 | `targets` | `["claude"]` | The folders skl loads skills into: `claude` is `~/.claude/skills`, `agents` is `~/.agents/skills` (`.claude/skills` and `.agents/skills` with `--scope project`). `["claude", "agents"]` loads into both. See [Which agents read them](../guide/skill-sets#which-agents-read-them). |
-| `engine` | `claude` | The agent that runs [lessons](../guide/learn#who-does-the-thinking) and [sync conflicts](../guide/sync#with-claude). `claude` runs the `claude` CLI from your `PATH`; [third-party parts](../thirdparty/) add others. |
+| `engine` | `claude` | The agent that runs [lessons](../guide/learn#who-does-the-thinking) and [sync conflicts](../guide/sync#with-claude). `claude` runs the `claude` CLI from your `PATH`. Anything else is a command line, such as `pi --skill {skill} {prompt}`: see [Other agents](../guide/learn#other-agents). |
 | `license` | `MIT` | The license `skl init` writes into a new vault: an SPDX id such as `Apache-2.0`, or `none`. An existing vault's `LICENSE` file is never changed. See [Licenses](../guide/learn#licenses). |
 
 ## Your own git servers
