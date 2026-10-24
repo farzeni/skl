@@ -43,6 +43,17 @@ skl import changelog release-notes --group writing
 
 The folder in `~/.claude/skills` stays where it is and becomes the loaded skill, so Claude Code sees no change. Run `skl sync` to take it to your other machines.
 
+To import a skill from a repo's own `.claude/skills`, add `--scope project` inside that repo.
+
+skl imports the folder as it is now. A name your vault already has, as a folder or a frontmatter `name`, stops the import:
+
+```
+✗ my-new-skill is already in your vault: you/my-new-skill
+  · rename it in ~/.claude/skills, then skl import it
+```
+
+For what import does with a linked folder or a skill installed by another tool, see [Import](../design/architecture#import).
+
 `skl init` offers the same for every skill it finds that isn't in a vault yet, when it sets up your vault.
 
 ## Rename or delete a skill

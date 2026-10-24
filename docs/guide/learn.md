@@ -177,7 +177,7 @@ skl learn someone/agent-skills/@backend
   4 skills into someone/
 ```
 
-skl reads their set and the sets it includes, copies each skill it names into the `someone` group, and saves `sets/backend.toml` listing those copies. Where the set came from is kept next to it, in `sets/backend.origin.toml`. Add a second argument such as `@their-backend` to save the set under another name.
+skl reads their set and the sets it includes, copies each skill it names into the `someone` group, and saves `sets/backend.toml` listing those copies. Where the set came from is kept next to it, in [`sets/backend.origin.toml`](../reference/files#sets-name-origin-toml). Add a second argument such as `@their-backend` to save the set under another name.
 
 Their groups all land in one group, so two of their skills can have the same name. The later one is copied under its group's name too, with that name in its `SKILL.md`. A skill already in your vault at that place, which isn't a copy of theirs, is left alone and skipped:
 

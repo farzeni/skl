@@ -83,7 +83,7 @@ The one exception is `-h`, which always means `--help`. So a group can't be name
 | Flag | Commands | Effect |
 |---|---|---|
 | `--help`, `-h` | all | Show the command's help, and change nothing. |
-| `--scope user\|project` | `init` `use` `add` `drop` `save` `learn` `rollback` | Where to load skills. `user` is `~/.claude/skills`; `project` is `.claude/skills` at the root of the git repo you're in. Outside a git repo, `project` is an error. Defaults to `scope` in the [config](./config), else `user`. |
+| `--scope user\|project` | `init` `import` `use` `add` `drop` `save` `learn` `rollback` | Where to load skills, or for `import`, where to read them. `user` is `~/.claude/skills`; `project` is `.claude/skills` at the root of the git repo you're in. Outside a git repo, `project` is an error. Defaults to `scope` in the [config](./config), else `user`. |
 | `--dry-run` | every command that changes something | Print what would change, and change nothing. See [below](#dry-run). |
 | `--yes` | every command that asks | Take the first answer to every question. See [Questions](#questions). |
 | `--json` | `status` `history` | Print [JSON](#json) instead of text. |

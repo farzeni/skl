@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Mock of the proposed skl CLI, for the demo video only. Prints scripted output.
+# Keep every line true to docs/: the same marks, formats and generation numbers.
 B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'
 A=$'\e[38;5;111m'; W=$'\e[38;5;215m'; G=$'\e[38;5;114m'; X=$'\e[38;5;203m'
 ok()   { printf "${G}✓${R} %s\n" "$*"; }
@@ -14,59 +15,53 @@ choose() { # choose "opt1" "opt2" ... -> reads a digit, echoes the pick
 case "$1" in
 init)
   step "cloned      github.com/$2  ${D}3 groups · 14 skills · 2 skill sets${R}"; p 0.6
-  step "loading     @backend writing/changelog"; p 0.4
-  printf "  ${A}+${R} pr-review     ${A}+${R} test-gaps\n"
-  printf "  ${A}+${R} sql-explain   ${A}+${R} changelog\n"; p 0.3
-  ok "generation 10 · skl rollback to undo" ;;
+  printf "${A}→${R} load ${B}@backend writing/changelog${R}\n"; p 0.4
+  printf "${A}+${R} pr-review     ${A}+${R} sql-explain\n"
+  printf "${A}+${R} changelog\n"; p 0.3
+  ok "generation 1 · skl rollback to undo" ;;
 status)
-  printf "${B}user scope${R}  ~/.claude/skills   ${D}generation 11${R}\n"
-  printf "  pr-review     review/      ${D}vault${R}\n"
-  printf "  test-gaps     review/      ${D}vault${R}\n"
-  printf "  sql-explain   data/        ${D}vault${R}\n"
-  printf "  changelog     writing/     ${D}vault${R}\n"
-  printf "  pdf           someone/     ${D}from someone/agent-skills @3f9a1c2${R}\n"
+  printf "${B}loaded (user)${R}  @backend writing/changelog someone/pdf\n"
+  printf "  pr-review     review/pr-review\n"
+  printf "  sql-explain   data/sql-explain\n"
+  printf "  changelog     writing/changelog\n"
+  printf "  pdf           someone/pdf\n"
   printf "${B}not in your vault${R}\n"
-  printf "  my-notes      ${D}· skl import my-notes${R}\n"
-  printf "${B}skill sets${R}  @backend  @base\n"
-  printf "${B}vault${R}       ${W}1 change not pushed${R} ${D}· skl sync${R}\n" ;;
+  printf "  my-new-skill  ${D}· skl import my-new-skill${R}\n"
+  printf "${B}skill sets${R}      @backend  @base\n"
+  printf "${B}vault${R}           ${W}1 change not pushed${R} ${D}· skl sync${R}\n" ;;
 learn)
   if [ $# -eq 2 ]; then
     printf "${A}→${R} copy into ${B}someone/pdf${R}\n"; p 0.5
     printf "  Extract text, tables and forms from PDF files.\n"
     printf "  ${D}license${R}    Apache-2.0 · notice kept in someone/pdf/LICENSE\n"
-    printf "  ${D}scripts${R}    scripts/extract.py, scripts/fill_form.py\n"
+    printf "  ${D}scripts${R}    scripts/extract.py\n"
     ask "Add it?"; choose "yes" "no"; p 0.2
     printf "${A}+${R} pdf\n"
-    ok "generation 11 · skl rollback to undo"; exit 0
+    ok "generation 2 · skl rollback to undo"; exit 0
   fi
-  printf "${A}→${R} lesson into ${B}review/pr-review${R}\n"; p 0.4
-  step "reading both skills  ${D}pr-review: 1 file · deep-pr-review: 4 files${R}"; p 0.8
-  step "capability map"; p 0.3
-  printf "    shared       diff walkthrough, test coverage check\n"; p 0.2
-  printf "    peer only    ${W}OWASP checklist, secret scanning${R}  ${D}← what you asked for${R}\n"; p 0.2
-  printf "    yours only   short summary, links to the ticket\n"; p 0.2
-  printf "    clash        peer comments inline; yours writes one summary\n\n"; p 0.5
+  printf "${A}→${R} lesson into ${B}review/pr-review${R}\n"; p 0.8
+  step "shared     diff walkthrough, test coverage check"; p 0.2
+  step "peer only  ${W}OWASP checklist, secret scanning${R} ${D}← what you asked for${R}"; p 0.2
+  step "yours only short summary, links to the ticket"; p 0.2
+  step "clash      peer comments inline; yours writes one summary"; p 0.5
   ask "Inline comments or one summary?"
   choose "keep my summary, add a Security section" "switch to inline comments" "both"; p 0.2
   ask "Bring along the peer's secret-scanning script?"
-  choose "yes, as an optional step" "yes, always run it" "no"; p 0.3
-  printf "\n"; step "rewriting review/pr-review"; p 1.0
-  printf "\n  ${D}SKILL.md${R}\n"
+  choose "yes, as an optional step" "yes, always run it" "no"; p 1.0
+  step "rewritten  SKILL.md +38 −5, scripts/scan_secrets.sh"
   printf "  ${G}+ ## Security${R}\n"
   printf "  ${G}+ Check the diff against the OWASP Top 10: injection, auth, secrets…${R}\n"
   printf "  ${G}+ Optionally run scripts/scan_secrets.sh on changed files.${R}\n"
-  printf "  ${X}- Mention anything that looks unsafe.${R}\n"
-  printf "  ${D}  +38 −5 · scripts/scan_secrets.sh (new)${R}\n\n"; p 0.4
+  printf "  ${X}- Mention anything that looks unsafe.${R}\n"; p 0.4
   ask "Land it"
-  choose "replace review/pr-review" "save as review/pr-review-sec" "discard"; p 0.3
-  printf "  ${D}lesson recorded in review/pr-review/.skl-origin.toml${R}\n"
-  ok "generation 12 · skl rollback to undo" ;;
+  choose "replace" "change it" "save as review/pr-review-sec" "discard"; p 0.3
+  ok "generation 3 · skl rollback to undo" ;;
 history)
-  printf "  ${A}12${R}  now      learn deep-pr-review → review/pr-review\n"
-  printf "  ${A}11${R}  1m ago   learn someone/agent-skills/pdf → someone/pdf\n"
-  printf "  ${A}10${R}  2m ago   init you/skills @backend writing/changelog\n" ;;
+  printf "3  now      learn deep-pr-review → review/pr-review\n"
+  printf "2  1m ago   learn someone/agent-skills/pdf → someone/pdf\n"
+  printf "1  2m ago   init you/skills @backend writing/changelog\n" ;;
 rollback)
-  step "going back to generation 11"; p 0.4
-  printf "  ${W}~${R} review/pr-review   content restored ${D}(revert commit 5d0e7aa)${R}\n"; p 0.3
-  ok "generation 13 = generation 11 · skl rollback to undo" ;;
+  printf "${A}→${R} back to generation 2\n"; p 0.4
+  step "reverted   review/pr-review ${D}(revert commit 5d0e7aa)${R}"; p 0.3
+  ok "generation 4 · skl rollback to undo" ;;
 esac

@@ -21,7 +21,7 @@ skl history
 
 `skl history` lists every generation, newest first. `--json` prints the same list for scripts: see [JSON](../reference/commands#json).
 
-A command that first [saves your edits](./skills#edit-as-usual) makes two generations: the save, then its own. Generation 10 above is such a save, so `skl rollback 10` undoes generations 11 and 12 and keeps the edits saved in 10. A command that changes nothing makes no generation.
+A command that first [saves your edits](./skills#edit-as-usual) makes two generations: the save, then its own. Generation 10 above is such a save, so `skl rollback 10` undoes generations 11 and 12 and keeps the edits saved in 10. A command that changes nothing makes no generation. See [Generations](../design/architecture#generations) for how they're kept.
 
 Generations are numbered on each machine. Your laptop's generation 12 isn't your desktop's: the history is local, and only the vault is synced.
 
