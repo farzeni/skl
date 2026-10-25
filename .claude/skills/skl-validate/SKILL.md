@@ -33,12 +33,12 @@ Input: `$ARGUMENTS`, the PR number. The **implementer** is the session that open
 From the main checkout:
 
 ```sh
-sha=$(gh pr view <pr> --repo farzeni/skl --json headRefOid -q .headRefOid)
+gh pr view <pr> --repo farzeni/skl --json headRefOid -q .headRefOid   # the head <sha>
 git fetch -q origin "pull/<pr>/head"
-git worktree add --detach .claude/worktrees/val-<pr> "$sha"   # later rounds: git -C .claude/worktrees/val-<pr> checkout -q --detach <sha>
+git worktree add --detach .claude/worktrees/val-<pr> <sha>   # later rounds: git -C .claude/worktrees/val-<pr> checkout -q --detach <sha>
 ```
 
-Every check below runs in that worktree, at that sha.
+Every check below runs in that worktree, at that `<sha>`. Write the sha out in each command; shell variables don't carry over between commands.
 
 ## 2. Check
 
@@ -46,12 +46,12 @@ Write the results to `.workbench/YYYY-MM-DD-card-<card>/validation/round-<k>.md`
 
 1. **Acceptance.** Each criterion in the card's `Acceptance`: met or not, with the evidence.
 2. **Doc sentences.** For each sentence under the card's `Docs implemented`:
-   - a script block in `spec/testdata/` preceded by `# "<sentence>"`, or, for a pure package with no command yet, a table test case naming it;
+   - a script block in `spec/testdata/` preceded by `# "<sentence>"`, or, for a package that no command uses yet, a test in the package (table or golden) naming it;
    - the block checks what the sentence says (read it; don't trust the comment);
    - it passes and isn't skipped, unless the PR lists the sentence as left for later and the card allows it.
 3. **Checks.** Run `make check` on the head. Also run `go test ./spec/...` on its own, to see each script's result.
 4. **Behavior.** Run `/testit` with the acceptance criteria and doc sentences as its claims. Build `skl`, run it against a temporary `HOME`, and try at least one case from the docs that the scripts don't cover: no terminal, `--dry-run`, a bad argument (exit 2), a re-run that should be a no-op.
-5. **Scope.** `git diff --stat origin/main...$sha` touches only the card's `Packages and files touched`, and the code follows the card's `Design`. No doc page changes its meaning, and no `CLAUDE.md` decision is reversed, without the user.
+5. **Scope.** `git diff --stat origin/main...<sha>` touches only the card's `Packages and files touched`, plus `spec/testdata/` for the card's own sentences, and the code follows the card's `Design`. No doc page changes its meaning, and no `CLAUDE.md` decision is reversed, without the user.
 6. **Conventions.** The change follows `CONTRIBUTING.md`: errors, context, output only through `ui`, no global state, the right testing layer. Each new dependency is justified in the PR.
 7. **CI.** `gh pr checks <pr> --repo farzeni/skl` is green on this sha. If it's still running, wait with `--watch`.
 
@@ -62,7 +62,8 @@ A finding is **blocking** when an acceptance criterion or a doc sentence isn't m
 - **GREEN** only when nothing blocks:
 
   ```
-  GREEN at <sha> · round <k>
+  skl-validate · round <k>
+  GREEN at <sha>
   Checked: <acceptance, sentences, make check, spec, testit, scope, CI, in one line each>
   Notes: <follow-ups, or none>
   Proofs: .workbench/YYYY-MM-DD-card-<card>/validation/round-<k>.md
@@ -71,7 +72,8 @@ A finding is **blocking** when an acceptance criterion or a doc sentence isn't m
 - Otherwise, findings, numbered across rounds so they can be referred to:
 
   ```
-  Findings at <sha> · round <k>
+  skl-validate · round <k>
+  Findings at <sha>
   1. internal/app/use.go:42: prints "✓ done" instead of "✓ nothing to change".
      Doc: "A command that changes nothing makes no generation and ends with `✓ nothing to change`." (docs/reference/commands.md "Output")
      Evidence: validation/round-1/rerun.txt
@@ -79,7 +81,7 @@ A finding is **blocking** when an acceptance criterion or a doc sentence isn't m
 
   Each finding has a file:line, the doc sentence or acceptance criterion with its page, and the evidence.
 
-Post the verdict as a PR comment (`gh pr comment <pr> --repo farzeni/skl --body-file <file>`), so skl-merge can check it later. In a swarm, also send it to the implementer.
+Post the verdict as a PR comment (`gh pr comment <pr> --repo farzeni/skl --body-file <file>`), so skl-merge can check it later. Its first line is always `skl-validate · round <k>`: the implementer posts from the same GitHub account, and never with that header. In a swarm, also send it to the implementer.
 
 ## 4. Next round
 
@@ -91,4 +93,4 @@ When the implementer replies with a new head, go back to step 1 with the new sha
 
 ## 5. Clean up
 
-After GREEN or a stop, remove your worktree with `git worktree remove .claude/worktrees/val-<pr>`. Report to the coordinator in one line: `GREEN at <sha> · PR #<pr>`, or the stop.
+After GREEN or a stop, remove your worktree with `git worktree remove .claude/worktrees/val-<pr>`. Report to the coordinator in one line: `PR #<pr> · GREEN at <sha> · round <k>`, or the stop.

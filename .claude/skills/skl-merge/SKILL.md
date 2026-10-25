@@ -19,9 +19,9 @@ Input: `$ARGUMENTS`, the PR number.
 
 - **The merge is approved**, in one of two ways:
   - **Docs mode:** the user approved merging this PR, in this conversation. Approval for one PR doesn't carry over to another.
-  - **Code card** (see skl-implement): the latest verdict from [skl-validate](../skl-validate/SKILL.md) on the PR (`gh pr view <pr> --repo farzeni/skl --comments`) is `GREEN at <sha>`, and `<sha>` is the PR's current head (`gh pr view <pr> --repo farzeni/skl --json headRefOid`). A push after GREEN voids it. The user's "merge" isn't needed.
+  - **Code card** (see skl-implement): the latest PR comment headed `skl-validate · round <k>` (`gh pr view <pr> --repo farzeni/skl --comments`), posted by [skl-validate](../skl-validate/SKILL.md), says `GREEN at <sha>`, and `<sha>` is the PR's current head (`gh pr view <pr> --repo farzeni/skl --json headRefOid`). A push after GREEN voids it. The user's "merge" isn't needed.
 - **The PR is open and mergeable.**
-- **CI is green.** `gh pr checks <pr> --repo farzeni/skl` passes. A code card's PR must have checks: `no checks reported` is a stop. In docs mode, a PR with no checks may merge.
+- **CI is green.** `gh pr checks <pr> --repo farzeni/skl` passes. A code card's PR must have checks: `no checks reported` is a stop, unless the coordinator waived it in a PR comment (only #73, which landed before CI existed). In docs mode, a PR with no checks may merge.
 - **The proofs are current.** In docs mode, if the PR changed after its proofs were made, run `/testit` again. For a code card, GREEN on the head covers it.
 
 If anything fails, report it to the user or the coordinator and stop.
