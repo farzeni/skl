@@ -120,7 +120,7 @@ skl/
 ├── cmd/skl/        # main: runs cli, exits with its code
 ├── internal/
 │   ├── cli/        # parse the line, command table, help, exit codes
-│   ├── app/        # one file per command, the frame every change runs in
+│   ├── app/        # the commands, one file each
 │   ├── errs/       # errors with the command to run, usage errors
 │   ├── ui/         # marks, color, questions
 │   ├── selector/   # parse selectors         (pure)
