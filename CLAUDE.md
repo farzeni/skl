@@ -8,27 +8,35 @@ skl is a CLI for agent skills: Claude Code first, and opencode, pi, Codex and th
 
 Documentation-driven development: the docs in `docs/` are the spec. Every behavior is written there first, from the user's side, and every claim is proven before any code is written. If an experiment contradicts the docs, the docs change. If something gets built that the docs don't describe, it gets documented first.
 
-Every change goes through three project skills, in order. Each one picks up the state the previous one left:
+Every change goes through the project skills, in order. Each one picks up the state the previous one left:
 
 | Skill | Starts from | Leaves |
 |---|---|---|
 | `/skl-investigate` | a question or a doc claim | a closed investigation in `.workbench/` with findings, decisions and a plan |
-| `/skl-implement` | a closed investigation | a card In Progress, a worktree, a change verified with `/testit`, an open PR |
-| `/skl-merge` | an approved PR | the PR merged, the card Done, the worktree removed, the investigation delivered |
+| `/skl-implement` | a closed investigation, or a code card | a card In Progress, a worktree, a change verified with `/testit`, an open PR |
+| `/skl-validate` | a code card's open PR | GREEN on the PR head, or numbered findings, with proofs (code cards only) |
+| `/skl-merge` | a PR the user approved, or a code card's PR with GREEN | the PR merged, the card Done, the worktree removed, the investigation delivered |
 
 Never commit to `main` directly.
 
+**Building the code (user, 2026-10-25).** A **code card** is an issue with a `sprint-N` label whose body has `Docs implemented` and `Acceptance` sections. The card and the doc pages it names replace the investigation.
+- The coordinator session (SKL) moves cards from Backlog to Todo and starts one implementer agent per card, at most 3 cards at a time.
+- The implementer works the card with `/skl-implement`: spec scripts first, then code, `make check` and `/testit`, then an open PR.
+- A separate validator agent checks the PR with `/skl-validate`, against the card and the docs, on the PR head, with proofs. It answers GREEN or numbered findings. The two iterate until GREEN. After 3 rounds without GREEN, the coordinator steps in.
+- On GREEN, with CI green, the implementer merges with `/skl-merge`. Code cards need no "merge" from the user. GREEN also covers the doc edits a code card names, unless they change a doc's meaning. Docs PRs (docs mode) still wait for the user's "merge".
+- A doc found wrong or silent, a change to a doc's meaning, or a change to a decision here goes to the user through the coordinator, and a docs PR comes first.
+
 ## Board
 
-Work is tracked on the SKL Board, https://github.com/users/farzeni/projects/1. Each card is an issue in `farzeni/skl`, and the board adds new issues on its own. Cards are In Progress from the start of work until the PR merges, then Done. `gh` needs the `project` scope.
+Work is tracked on the SKL Board, https://github.com/users/farzeni/projects/1. Each card is an issue in `farzeni/skl`, and the board adds new issues on its own. Cards go from Backlog to Todo (picked for work), then In Progress (from the start of work until the PR merges), then Done. `gh` needs the `project` scope.
 
 ```sh
-gh project item-list 1 --owner farzeni --format json      # find a card's item id
+gh project item-list 1 --owner farzeni --format json -L 200   # find a card's item id (default limit 30)
 gh project item-edit --project-id PVT_kwHOABQPns4Bn-yc --id <item-id> \
   --field-id PVTSSF_lAHOABQPns4Bn-yczhmg69s --single-select-option-id <option-id>
 ```
 
-Option ids: Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
+Option ids: Backlog `b7553686`, Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
 
 ## Repository layout
 
@@ -36,7 +44,11 @@ Option ids: Todo `f75ad846`, In Progress `47fc9ee4`, Done `98236657`.
 docs/          VitePress site, the spec        cd docs && pnpm dev | pnpm build
 docs/thirdparty/  optional parts that depend on other people's services or tools
 demo/          vhs tape + scripted mock         cd demo && vhs demo.tape
-spec/          stub tests (created with the first test; see below)
+cmd/skl/       main: signals, cli.Main, exit code
+internal/      cli, app (one file per command), ui, errs, the domain packages; see CONTRIBUTING.md
+spec/          spec tests: testscript harness + testdata/<page>[-<section>].txtar
+tools/         go.mod pinning golangci-lint, gofumpt, govulncheck
+Makefile       make check (the same as CI) | test | fmt | golden | docs
 .claude/skills/     the workflow skills
 .workbench/         investigations and proofs, NOT in git
 .claude/worktrees/  one worktree per card, NOT in git
@@ -44,12 +56,15 @@ spec/          stub tests (created with the first test; see below)
 
 ## Stub tests
 
-Stub tests turn doc statements into executable checks before the code exists. They are black-box: they run the `skl` binary against a temporary `HOME` with local bare git repos standing in for GitHub, and assert on exit codes, output and files on disk.
+Stub tests (spec tests) turn doc statements into executable checks before the code exists. They are black-box: they run `skl` against a temporary `HOME` with local bare git repos standing in for GitHub, and assert on exit codes, output and files on disk. Each test names the doc sentence it checks.
 
-- Go, in `spec/`, one file per doc page (`spec/skill_sets_test.go` ↔ `docs/guide/skill-sets.md`).
-- Each test names the doc sentence it checks in a comment.
-- Until the feature exists the test calls `t.Skip("pending: <page>")`. Remove the skip when implementing.
-- Pure logic with a clear contract (selector parsing, resolution order) gets table tests as soon as the grammar is frozen.
+- They are [testscript](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript) scripts, one txtar file per doc page or section: `spec/testdata/<page>[-<section>].txtar` (`skill-sets-status.txtar` ↔ `docs/guide/skill-sets.md` "What's loaded").
+- The first line names the page (`# docs/guide/skill-sets.md`). Each block is preceded by the sentence it checks: `# "<doc sentence>"`.
+- `skl` runs in-process. `spec/spec_test.go` uses `testscript.Main`, so the test binary acts as `skl` through the real `main` path, and coverage counts.
+- Each script gets `HOME=$WORK/home`, `GIT_CONFIG_NOSYSTEM=1`, and a `.gitconfig` that maps `https://github.com/` to local bare repos under `$REMOTES`, so skl needs no test hook. `remote <owner/repo> [dir]` creates one. Helper commands live in `spec/spec_test.go`; add one when a script needs it.
+- Expected output is golden (`cmp stderr want.txt`). `UPDATE=1 go test ./spec` (or `make golden`) rewrites it. Review the diff.
+- Each code card writes the scripts for the doc sentences it implements. Put `skip 'pending: <page>'` at the top of a script only for a sentence the card leaves for later.
+- Pure logic with a clear contract (selector parsing, resolution order, config precedence) also gets table tests in its package.
 
 ## Decisions already made
 
@@ -93,6 +108,12 @@ Don't reopen these without a reason from an experiment.
 - **Learn and import details (docs review, coordinator calls accepted by the user, 2026-10-22).** A learned new skill joins the active skill set, as `skl add` would. "Scripts" = any non-`*.md` file. `Land it` for a lesson is `› replace  change it  save as …  discard`; a discarded lesson records nothing. Your own vault skill is never copied (`✗ … already in your vault`, with a hint to run a lesson). `skl import` replaces a symlink in `~/.claude/skills` with a real copy, and runs the license check when an import source part finds where the skill came from. How lessons run Claude (Claude Code's own interview UI vs skl asking) is proved by a spike before v0.3.
 - **Other agents (user, 2026-10-22, #47).** skl loads skills for every agent that reads Agent Skills folders, through **targets**: config `targets = ["claude"]` (default; `SKL_TARGETS`, comma-separated) can add `"agents"`. `claude` = `~/.claude/skills` / `.claude/skills`, `agents` = `~/.agents/skills` / `.agents/skills`; no per-agent folders or agent names. Each target holds its own copy with its own `.skl-copy.toml`, saved back three-way like copies on two machines. `status`, the didn't-create check and `import`/`init` scan every target's folders; `status` also warns about a same-name skill skl didn't create in `~/.agents/skills` even without that target, since opencode reads it first. The "Which agents read them" table lives once, in `docs/guide/skill-sets.md`. Lessons and sync conflicts run through an **engine**: config `engine` (`SKL_ENGINE`) replaces the `claude` key, no alias. Contract: skl prepares the workspace with the bundled skill at `.claude/skills/<skill>/` and `.agents/skills/<skill>/`; starts the engine there on the user's terminal with one first prompt; the engine uses its own login, interviews and writes only `result/`; a non-zero exit or empty `result/` lands nothing. **Generic engine (user, 2026-10-24, via SKL; replaces opencode/pi engine parts):** `engine = "claude"` (default, core) runs `claude "<prompt>"`; any other value is a command template run in the workspace under the same contract, e.g. `opencode --prompt {prompt}`, `pi --skill {skill} {prompt}`. Placeholders `{prompt}` (first prompt) and `{skill}` (bundled skill's path in the workspace). skl splits the template into words itself (spaces; double quotes group), no shell, each placeholder one argument even inside a word; string form only. An unknown placeholder, unclosed quote or command not on `PATH` stops the lesson before it starts with `✗ engine: … · edit engine in ~/.skl/config.toml`. No engine parts and no `RegisterEngine` hook; the recipes live once, in `docs/guide/learn.md` "Other agents". Wording: "Your agent skills, in one repo, on every machine"; Claude Code is named first and stays the worked example.
 - **Project scope (#53, 2026-10-25; D1, D2, D6, D7 the user's, D3, D4, D5, D8 coordinator calls).** Each repo has its own active skill set next to the user scope's; the worked example is `@reviews` (user), `@frontend` in prj1, `@backend` in prj2, in `docs/guide/skill-sets.md` "For one repo only". **D1:** skl doesn't touch the repo's git (no `.git/info/exclude`, no `.gitignore`); the docs say loaded copies are untracked, name the `git add -A` trap and give the exclude/`.gitignore` tip, once, in that section. **D2:** a folder git tracks is never skl's, even with a committed `.skl-copy.toml`: `skl status` doesn't list it, a same-name loaded skill is skipped (`! team-style   skipped: .claude/skills/team-style is committed in this repo · skl drop frontend/team-style --scope project`), and `skl import --scope project` refuses with `✗ team-style is committed in this repo · skl learn team/prj1/team-style`. **D3:** `skl init --scope project` also offers the repo's untracked skills; otherwise `skl status` lists them with `skl import <name> --scope project`. **D4:** a project import's default group stays the vault owner's. **D5:** `skl save <name>` saves the given scope's active skill set; a self-reference (`@name` in the set saved as `name`) is replaced by that set's own lines; later `add`/`drop` change the active skill set, not the file. **D6:** save-back reads every copy recorded in `state.json`, in every repo; a repo whose copies are behind the vault shows `vault changed · skl sync` in its `skl status`; a repo that no longer exists is forgotten.
+- **Building skl (2026-10-25; the user's unless marked as a coordinator call).**
+  - Go module `github.com/farzeni/skl`. skl itself is MIT. CI runs on Linux and macOS (`ubuntu-latest`, `macos-latest`). One card = one PR. Spec tests use testscript.
+  - skl needs git 2.38 or later (D3). Save-back merges with `git merge-tree --write-tree` and a synthetic commit instead of `--merge-base`, which needs 2.40, so macOS's git 2.39 works. `gitx` stops with `✗ skl needs git 2.38 or later (found X) · update git`.
+  - Spec tests run `skl` in-process (D1, coordinator call). Spec scripts are written per card, not all at once (D2, coordinator call).
+  - Dev tools are pinned in a separate `tools/go.mod` and run through `make` as `go tool -modfile=tools/go.mod <tool>`, so the main `go.mod` stays small (D4, coordinator call).
+  - Conventions (architecture, errors, context, output, testing layers) live in `CONTRIBUTING.md`.
 
 ## Unproven assumptions (validate before freezing)
 
