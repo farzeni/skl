@@ -1,6 +1,10 @@
 # The fake github.com: "remote owner/repo [dir]" makes a bare repo that
 # skl's real https://github.com/owner/repo URL reaches.
 
+# Git reads only the script's own config, never the real user's.
+exec git config --show-origin --get user.email
+stdout '^file:.*/home/\.gitconfig\s+test@example\.com$'
+
 remote you/skills seed
 exec git clone --quiet https://github.com/you/skills vault
 exists vault/review/pr-review/SKILL.md
