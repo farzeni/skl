@@ -117,22 +117,33 @@ A single Go binary, so it installs anywhere with no runtime to set up. It calls 
 
 ```
 skl/
-├── cmd/skl/        # commands
-└── internal/
-    ├── selector/   # parse selectors         (pure)
-    ├── resolve/    # selectors → skill list  (pure)
-    ├── vault/      # groups, skill sets
-    ├── source/     # remote repos, cache
-    ├── web/        # ref → web page URL     (pure)
-    ├── load/       # plan, copy, save back, generations
-    ├── learn/      # copy, update paths, workspace,
-    │               # engines (claude), land
-    ├── license/    # find and recognize a license (pure)
-    └── ext/        # hooks for third-party parts
-thirdparty/
-├── skillssh/       # skl search, skills.sh links
-└── npxskills/      # import source from the npx skills lock
+├── cmd/skl/        # main: runs cli, exits with its code
+├── internal/
+│   ├── cli/        # parse the line, command table, help, exit codes
+│   ├── app/        # one file per command, the frame every change runs in
+│   ├── errs/       # errors with the command to run, usage errors
+│   ├── ui/         # marks, color, questions
+│   ├── selector/   # parse selectors         (pure)
+│   ├── resolve/    # selectors → skill list  (pure)
+│   ├── ref/        # repo references → URLs  (pure)
+│   ├── config/     # config.toml, SKL_* env, paths
+│   ├── state/      # state.json, generations, the lock
+│   ├── vault/      # groups, skill sets, commits
+│   ├── load/       # plan, copy, save back
+│   ├── gitx/       # the only package that runs git
+│   ├── source/     # remote repos, cache
+│   ├── web/        # ref → web page URL      (pure)
+│   ├── learn/      # copy, update paths, workspace,
+│   │               # engines (claude), land
+│   ├── license/    # find and recognize a license (pure)
+│   └── ext/        # hooks for third-party parts
+├── thirdparty/
+│   ├── skillssh/   # skl search, skills.sh links
+│   └── npxskills/  # import source from the npx skills lock
+└── spec/           # the docs' statements, run against skl
 ```
+
+Only `cli` prints errors and picks the exit code, and only `ui` writes to the terminal. The conventions are in `CONTRIBUTING.md`.
 
 ## Third-party parts
 
