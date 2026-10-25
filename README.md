@@ -4,5 +4,6 @@ Your Claude Code skills, on any machine. Keep them in one repo, load any mix of 
 
 > Design preview: skl is not built yet. The docs describe the planned behavior.
 
+- Code: `go run ./cmd/skl --help`, `make check`; see [CONTRIBUTING.md](CONTRIBUTING.md)
 - Docs: `cd docs && pnpm install && pnpm dev`
 - Demo recording: `cd demo && vhs demo.tape` (needs [vhs](https://github.com/charmbracelet/vhs); writes `docs/public/demo.gif` using the scripted mock in `demo/bin/skl`)

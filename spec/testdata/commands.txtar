@@ -1,0 +1,97 @@
+# docs/reference/commands.md
+
+# "skl --version: Print skl's version and the commit it was built from: skl 0.1.0 (b0a0fb2)."
+# A test binary carries no version or commit; internal/cli tests the format.
+exec skl --version
+stdout '^skl [0-9a-z.+-]+( \([0-9a-f]{7}\))?\n$'
+! stderr .
+
+# "skl alone lists the commands."
+exec skl
+cmp stdout help.txt
+! stderr .
+
+# "skl help [command]: List the commands, or show one command's arguments, flags and an example."
+exec skl help
+cmp stdout help.txt
+exec skl help help
+cmp stdout help-help.txt
+! stderr .
+
+# "skl <command> --help and -h do the same."
+exec skl help --help
+cmp stdout help-help.txt
+exec skl help -h
+cmp stdout help-help.txt
+
+# "Flags start with -- and can go anywhere on the line"
+# "The one exception is -h, which always means --help."
+exec skl -h
+cmp stdout help.txt
+exec skl -h help
+cmp stdout help-help.txt
+exec skl --help help
+cmp stdout help-help.txt
+
+# "--help, -h: Show the command's help, and change nothing."
+exec skl help --frob -h
+cmp stdout help-help.txt
+! stderr .
+
+# "A mistyped command gets a suggestion and exits with code 2"
+exitcode 2 skl hlep
+cmp stderr unknown-hlep.txt
+! stdout .
+exitcode 2 skl help hlep
+stderr '^✗ unknown command hlep · skl help help$'
+exitcode 2 skl frobnicate
+stderr '^✗ unknown command frobnicate · skl help$'
+
+# "2: A usage error: an unknown command or flag, a missing argument"
+exitcode 2 skl --frob
+stderr '^✗ unknown flag --frob · skl help$'
+exitcode 2 skl help --frob
+stderr '^✗ unknown flag --frob · skl help help$'
+exitcode 2 skl help --version
+stderr '^✗ skl help doesn''t take --version · skl help help$'
+exitcode 2 skl --version=1
+stderr '^✗ --version takes no value · skl help$'
+exitcode 2 skl help a b
+stderr '^✗ unexpected argument b · skl help help$'
+
+# "-- ends the flags: every word after it is an argument."
+exitcode 2 skl help -- -h
+stderr '^✗ unknown command -h · skl help$'
+exitcode 2 skl help -- --version
+stderr '^✗ unknown command --version · skl help$'
+exec skl -- help
+cmp stdout help.txt
+
+-- unknown-hlep.txt --
+✗ unknown command hlep · skl help
+-- help.txt --
+skl: your agent skills, in one repo, on every machine.
+
+Usage
+  skl <command> [arguments] [flags]
+
+Commands
+  help  List the commands, or show one command's help
+
+Flags
+  --help, -h  Show this help, and change nothing
+  --version   Print skl's version and the commit it was built from
+
+Run skl help <command> for its arguments, flags and an example.
+-- help-help.txt --
+List the commands, or show one command's arguments, flags and an example.
+skl <command> --help and -h do the same.
+
+Usage
+  skl help [command]
+
+Flags
+  --help, -h  Show this help, and change nothing
+
+Example
+  skl help help

@@ -1,0 +1,31 @@
+# The fake github.com: "remote owner/repo [dir]" makes a bare repo that
+# skl's real https://github.com/owner/repo URL reaches.
+
+# Git reads only the script's own config, never the real user's.
+exec git config --show-origin --get user.email
+stdout '^file:.*/home/\.gitconfig\s+test@example\.com$'
+
+remote you/skills seed
+exec git clone --quiet https://github.com/you/skills vault
+exists vault/review/pr-review/SKILL.md
+
+# A sparse partial clone works through the same mapping.
+exec git clone --quiet --depth 1 --filter=blob:none --sparse https://github.com/you/skills sparse
+! exists sparse/review/pr-review/SKILL.md
+exec git -C sparse sparse-checkout set review/pr-review
+exists sparse/review/pr-review/SKILL.md
+
+# An empty remote clones as an empty repo.
+remote you/empty
+exec git clone --quiet https://github.com/you/empty empty
+exists empty/.git
+
+# exitcode checks the exact code and keeps the output.
+exitcode 128 git -C empty log
+stderr 'does not have any commits'
+
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: Review a pull request.
+---
