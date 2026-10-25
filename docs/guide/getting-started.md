@@ -31,6 +31,7 @@ skl init you/skills
 ◇ imported   pr-review, my-notes, sql-explain → you/
 ◇ LICENSE    MIT, for the skills you write
   · edit LICENSE to change it
+! 1 change not pushed · skl sync
 ✓ generation 1 · skl rollback to undo
 ```
 

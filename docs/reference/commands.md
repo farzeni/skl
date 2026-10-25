@@ -10,8 +10,8 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 
 | Command | Description |
 |---|---|
-| `skl init <repo> [selectors]` | Clone your vault, or set up a new one, and load `selectors` if given. Offers to import the skills in your [targets](./config)' folders (`~/.claude/skills` by default) that aren't in a vault. See [Getting started](../guide/getting-started#make-your-vault). |
-| `skl import <name>… [--group <group>]` | Copy skills skl didn't create into your vault; each original becomes the loaded skill. The group defaults to your vault's owner (`you` for `you/skills`). See [Add a skill you made](../guide/skills#add-a-skill-you-made). |
+| `skl init <repo> [selectors]` | Clone your vault, or set up a new one, and load `selectors` if given. Offers to import the skills in your [targets](./config)' folders (`~/.claude/skills` by default) that aren't in a vault; imported skills join the active skill set. See [Getting started](../guide/getting-started#make-your-vault). |
+| `skl import <name>… [--group <group>]` | Copy skills skl didn't create into your vault; each original becomes the loaded skill and joins the active skill set, as `skl add` would. The group defaults to your vault's owner (`you` for `you/skills`). See [Add a skill you made](../guide/skills#add-a-skill-you-made). |
 
 ## Load
 
