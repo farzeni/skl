@@ -2,7 +2,7 @@
 
 skl is a CLI for agent skills: Claude Code first, and opencode, pi, Codex and the other agents that read the same skill folders. It keeps your skills in one git repo (the vault), loads any mix of them on any machine, can roll back any change, and lets a skill **learn** from another one: copied as is if you don't have it, or through an LLM interview if you do. `learn` is the only way a skill from elsewhere gets in.
 
-**Status: very early design phase. There is no implementation.** The docs in `docs/` describe planned behavior. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
+**Status: early implementation.** The walking skeleton exists (argument parser, help, exit codes, spec harness, CI); every other command is still planned behavior in `docs/`. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
 
 ## How we work
 
@@ -44,11 +44,12 @@ Option ids: Backlog `b7553686`, Todo `f75ad846`, In Progress `47fc9ee4`, Done `9
 docs/          VitePress site, the spec        cd docs && pnpm dev | pnpm build
 docs/thirdparty/  optional parts that depend on other people's services or tools
 demo/          vhs tape + scripted mock         cd demo && vhs demo.tape
-cmd/skl/       main: signals, cli.Main, exit code
+cmd/skl/       main: os.Exit(cli.Run()); cli.Run sets up signals
 internal/      cli, app (one file per command), ui, errs, the domain packages; see CONTRIBUTING.md
 spec/          spec tests: testscript harness + testdata/<page>[-<section>].txtar
 tools/         go.mod pinning golangci-lint, gofumpt, govulncheck
 Makefile       make check (the same as CI) | test | fmt | golden | docs
+CONTRIBUTING.md  conventions, make targets, how to add a command
 .claude/skills/     the workflow skills
 .workbench/         investigations and proofs, NOT in git
 .claude/worktrees/  one worktree per card, NOT in git
@@ -61,8 +62,9 @@ Stub tests (spec tests) turn doc statements into executable checks before the co
 - They are [testscript](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript) scripts, one txtar file per doc page or section: `spec/testdata/<page>[-<section>].txtar` (`skill-sets-status.txtar` ↔ `docs/guide/skill-sets.md` "What's loaded").
 - The first line names the page (`# docs/guide/skill-sets.md`). Each block is preceded by the sentence it checks: `# "<doc sentence>"`.
 - `skl` runs in-process. `spec/spec_test.go` uses `testscript.Main`, so the test binary acts as `skl` through the real `main` path, and coverage counts.
-- Each script gets `HOME=$WORK/home`, `GIT_CONFIG_NOSYSTEM=1`, and a `.gitconfig` that maps `https://github.com/` to local bare repos under `$REMOTES`, so skl needs no test hook. `remote <owner/repo> [dir]` creates one. Helper commands live in `spec/spec_test.go`; add one when a script needs it.
-- Expected output is golden (`cmp stderr want.txt`). `UPDATE=1 go test ./spec` (or `make golden`) rewrites it. Review the diff.
+- Each script gets `HOME=$WORK/home`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=$HOME/.gitconfig`, `COLUMNS=80`, and a `.gitconfig` that maps `https://github.com/` to local bare repos under `$REMOTES`, so skl needs no test hook.
+- Helper commands live in `spec/spec_test.go`; add one when a script needs it. `remote <owner/repo> [dir]` creates a bare repo, seeded from `dir` if given. `exitcode <n> <program> [args…]` runs like `exec` and checks the exact exit code (`! exec` only checks non-zero). `spec/testdata/harness/` tests the harness itself.
+- Expected output is golden (`cmp stderr want.txt`). `make golden` (`UPDATE=1 go test ./...`) rewrites it, in spec scripts and in package `testdata/*.golden` alike. Review the diff.
 - Each code card writes the scripts for the doc sentences it implements. Put `skip 'pending: <page>'` at the top of a script only for a sentence the card leaves for later.
 - Pure logic with a clear contract (selector parsing, resolution order, config precedence) also gets table tests in its package.
 
