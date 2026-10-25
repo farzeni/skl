@@ -109,7 +109,7 @@ commit = "a91c3e0"            # what it was copied from
 tree   = "9f2c41d07e3b"       # git tree hash of the folder
 ```
 
-skl uses it to find changes to [save back](../guide/skills#edit-as-usual): if the folder's tree hash no longer matches `tree`, it changed. `.skl-copy.toml` itself is never saved back to the vault. With two targets, each copy has its own and is saved back on its own. A folder without it is a skill skl didn't create.
+skl uses it to find changes to [save back](../guide/skills#edit-as-usual): if the folder's tree hash no longer matches `tree`, it changed. `.skl-copy.toml` itself is never saved back to the vault. With two targets, each copy has its own and is saved back on its own. A folder without it, or one that git tracks in a repo, is a skill skl didn't create. In a repo, loaded skills are untracked files that skl doesn't ignore: see [Keep your skills out of the repo's git](../guide/skill-sets#keep-your-skills-out-of-the-repo-s-git).
 
 ## Local state
 

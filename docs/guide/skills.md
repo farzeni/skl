@@ -43,7 +43,7 @@ skl import changelog release-notes --group writing
 
 The folder in `~/.claude/skills` stays where it is and becomes the loaded skill, so Claude Code sees no change. The skill joins your [active skill set](./skill-sets) as `skl add you/my-new-skill` would, unless a selector there already covers it, such as `you`. When `skl init` imports every skill into one group, it adds the group. skl looks for the folder in every [target](./skill-sets#which-agents-read-them)'s folder, and with two targets it also loads the skill into the other one. Run `skl sync` to take it to your other machines.
 
-To import a skill from a repo's own `.claude/skills`, add `--scope project` inside that repo.
+To import a skill from a repo's own `.claude/skills`, add `--scope project` inside that repo. A skill the repo commits is the repo's, not yours to import: see [Skills the repo commits](./skill-sets#skills-the-repo-commits).
 
 skl imports the folder as it is now. A name your vault already has, as a folder or a frontmatter `name`, stops the import:
 

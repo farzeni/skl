@@ -141,6 +141,15 @@ skl save backend
 
 `@backend` now loads the same mix on any machine: `skl use @backend`. See [Skill sets](./skill-sets).
 
+A repo can load more skills, for itself only. Inside it, add `--scope project`:
+
+```sh
+cd ~/code/prj1
+skl use you/my-notes --scope project
+```
+
+Claude Code sees `my-notes` only in `prj1`, next to your `@backend` mix. Each repo has its own active skill set, which you can save like any other: see [For one repo only](./skill-sets#for-one-repo-only).
+
 ## On your next machine
 
 Here, push your changes:
@@ -149,10 +158,11 @@ Here, push your changes:
 skl sync
 ```
 
-There, get your vault and load your mix:
+There, get your vault and load your mix, then each repo's own skills:
 
 ```sh
 skl init you/skills @backend
+cd ~/code/prj1 && skl use you/my-notes --scope project
 ```
 
 Run `skl sync` whenever you switch machines: it pushes this machine's changes and pulls the others'. If two machines changed the same skill, see [Sync](./sync).
