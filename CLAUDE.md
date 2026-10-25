@@ -96,13 +96,14 @@ Don't reopen these without a reason from an experiment.
 
 ## Unproven assumptions (validate before freezing)
 
-- Claude Code notices new or changed skill folders in `~/.claude/skills` during a running session.
 - The vault layout (`<group>/<skill>/SKILL.md`) works as a Claude Code plugin marketplace without extra files. Likely false (that needs `.claude-plugin/` manifests); the docs no longer claim it.
 - The `claude` CLI can be launched non-trivially for `learn`: interview the user, then write files to a given folder and exit.
 - Untested for other agents (#47; accepted for the docs, tested in the spike before v0.3 with docs-review X7): a real lesson in opencode and pi (interview, write `result/`, exit); whether Claude Code reads `~/.agents/skills` (not in its docs); Cursor with the same skill in `~/.claude/skills` and `~/.agents/skills`; whether `opencode --prompt` keeps the TUI open after the first answer. The `engine` templates in general, and the opencode and pi recipes in particular, are untested until that spike.
 - Whether Claude Code loads a project skill that git ignores (its skills docs are silent; #53, accepted by the coordinator, for the v0.3 spike). The docs say so next to the ignore tip.
 
 ## Confirmed assumptions
+
+- Claude Code notices new or changed skill folders in `~/.claude/skills` and the project `.claude/skills` during a running session, except a top-level skills folder created after the session started, which needs `/reload-skills` (so a repo's first `--scope project` load may need it). From the Claude Code skills docs, "Edit a skill during a session", read 2026-10-25 (#53).
 
 - opencode 1.19.4 reads `~/.claude/skills` and `./.claude/skills` by default, nested and linked folders included, and a skill in `~/.agents/skills` wins over them. pi 1.4.0 (`@earendil-works/pi-coding-agent`) reads `~/.agents/skills` and `.agents/skills`, not `~/.claude/skills` unless its `settings.json` has `"skills": ["~/.claude/skills"]`. Neither sees changes in a running session (restart, `/reload`). Tested in a throwaway HOME, 2026-10-22 (#47).
 

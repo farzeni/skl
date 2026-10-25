@@ -113,7 +113,7 @@ cd ~/code/prj2 && skl use @backend --scope project
 ✓ generation 3 · skl rollback to undo
 ```
 
-`--scope project` copies the skills into `.claude/skills` at the root of the git repo you're in, or `.agents/skills` for the [`agents` target](#which-agents-read-them). Outside a git repo, it's an error.
+`--scope project` copies the skills into `.claude/skills` at the root of the git repo you're in, or `.agents/skills` for the [`agents` target](#which-agents-read-them). Outside a git repo, it's an error. A Claude Code session that's already running may need `/reload-skills` after the repo's first load: see [Which agents read them](#which-agents-read-them).
 
 Each repo has its own active skill set, and your user scope has one too. In `prj1`, Claude Code sees `@reviews` and `@frontend`; in `prj2`, `@reviews` and `@backend`; anywhere else, only `@reviews`. If both scopes load a skill with the same name, the user one wins: see [Names and clashes](#names-and-clashes).
 
@@ -196,7 +196,7 @@ Each target then holds its own copy of every loaded skill, and changes to either
 
 | Agent | Reads `claude` | Reads `agents` | After `skl use` |
 |---|---|---|---|
-| Claude Code | yes | not in its docs | sees the change |
+| Claude Code | yes | not in its docs | sees the change, except a new skills folder, below |
 | opencode | yes | yes, first | restart it |
 | pi | with one setting, below | yes | `/reload` |
 | Codex | no | yes | sees the change, else restart it |
@@ -205,7 +205,7 @@ Each target then holds its own copy of every loaded skill, and changes to either
 | Cursor | yes | yes | restart it |
 | Amp | yes | yes | `reload_skills` |
 
-From each agent's docs, October 2026; opencode and pi were tested. pi reads `~/.claude/skills` too if `~/.pi/agent/settings.json` holds `{"skills": ["~/.claude/skills"]}`. Use that or the `agents` target, not both: pi warns about every skill it finds twice.
+From each agent's docs, October 2026; opencode and pi were tested. Claude Code watches its skills folders, but not one created after the session started: after a repo's first `--scope project` load, if the repo had no `.claude/skills` when you started Claude Code, run `/reload-skills` in it. pi reads `~/.claude/skills` too if `~/.pi/agent/settings.json` holds `{"skills": ["~/.claude/skills"]}`. Use that or the `agents` target, not both: pi warns about every skill it finds twice.
 
 Pick the one target your agents read. Load into both only when one of your agents reads just `~/.claude/skills` and another just `~/.agents/skills`, such as Claude Code and Codex. An agent that reads both folders then sees each skill twice and keeps one.
 
