@@ -31,6 +31,7 @@ skl init you/skills
 ◇ imported   pr-review, my-notes, sql-explain → you/
 ◇ LICENSE    MIT, for the skills you write
   · edit LICENSE to change it
+! 1 change not pushed · skl sync
 ✓ generation 1 · skl rollback to undo
 ```
 
@@ -54,17 +55,48 @@ Running `skl init` again with the same repo only loads the selectors you give it
 
 [`SKL_HOME`](../reference/config#environment-variables) keeps a second setup apart.
 
-## Keep editing as usual
+## Work as usual
 
-Improve your skills in Claude Code, by hand or by asking Claude. skl saves your changes to the vault at the start of the next skl command that changes something. Each change is a numbered **generation**, and any of them can be undone:
+Make and improve skills in Claude Code, by hand or by asking Claude, as you do now. Say you've sharpened `pr-review` and made a new skill, `my-new-skill`. `skl status` shows where things stand:
 
 ```sh
-skl history
-skl rollback        # one step back
-skl rollback 4      # back to generation 4
+skl status
 ```
 
-A skill you make later in Claude Code isn't in your vault yet. `skl status` lists it with the command to add it: `skl import my-new-skill`. See [Your skills](./skills).
+```
+loaded (user)  you
+  pr-review     you/pr-review    changed · skl sync
+  my-notes      you/my-notes
+  sql-explain   you/sql-explain
+not in your vault
+  my-new-skill  · skl import my-new-skill
+vault           1 change not pushed · skl sync
+```
+
+Every line that needs you ends with the command to run. `changed` means your edits to `pr-review` aren't in the vault yet. They get there at the start of the next skl command that changes something, such as `import`, `learn` or `sync`. `skl status` itself changes nothing.
+
+A skill you make in Claude Code isn't in your vault until you import it:
+
+```sh
+skl import my-new-skill
+```
+
+```
+◇ saved      pr-review → you/pr-review
+             SKILL.md
+◇ generation 2
+◇ imported   my-new-skill → you/
+! 3 changes not pushed · skl sync
+✓ generation 3 · skl rollback to undo
+```
+
+skl saved your `pr-review` edits first, as a generation of their own, then imported the new skill. Each change is a numbered **generation** you can go back to. All of it is committed in your vault on this machine, not pushed. When you're done, push:
+
+```sh
+skl sync
+```
+
+`skl sync` saves any edits left and pushes them. See [Your skills](./skills) for renaming and deleting skills, and [What's loaded](./skill-sets#what-s-loaded) for every kind of status line.
 
 ## Get a skill from someone
 
@@ -79,10 +111,13 @@ skl learn someone/agent-skills/pdf
   scripts    scripts/extract.py
 ? Add it?   › yes   no
 + pdf
-✓ generation 2 · skl rollback to undo
+! 1 change not pushed · skl sync
+✓ generation 4 · skl rollback to undo
 ```
 
 skl shows what someone else's skill does and what it runs before it lands. The skill is now in your vault and loaded, with its source recorded. When its author changes it, `skl status` says so and `skl learn someone/pdf` takes the change. See [Learn](./learn#get-a-skill), which also covers `skl search`.
+
+Changed your mind? `skl rollback` takes back the last generation: see [Rollback](./rollback).
 
 ## Teach your skill a trick
 
@@ -106,24 +141,6 @@ skl save backend
 
 `@backend` now loads the same mix on any machine: `skl use @backend`. See [Skill sets](./skill-sets).
 
-## See where you stand
-
-```sh
-skl status
-```
-
-```
-loaded (user)  @backend
-  pr-review     you/pr-review   changed · skl sync
-  pdf           someone/pdf     update available
-                · skl learn someone/pdf
-not in your vault
-  my-new-skill  · skl import my-new-skill
-vault           2 changes not pushed · skl sync
-```
-
-Every line that needs you ends with the command to run. [What's loaded](./skill-sets#what-s-loaded) shows every kind of line.
-
 ## On your next machine
 
 Here, push your changes:
@@ -143,7 +160,7 @@ Run `skl sync` whenever you switch machines: it pushes this machine's changes an
 ## Next
 
 - [Your skills](./skills): import, rename and delete skills, or edit the vault directly.
-- [Rollback](./rollback): go back to any generation.
+- [Rollback](./rollback): see your generations and go back to any of them.
 - [Skill sets](./skill-sets): per-repo skills and name clashes.
 - [Learn](./learn): get skills, teach yours, keep up with authors, licenses.
 - [Sync](./sync): when two machines changed the same file.
