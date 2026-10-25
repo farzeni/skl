@@ -23,7 +23,7 @@ If a step fails, the previous set stays in place. A skill whose name is taken by
 
 ## Saving back
 
-Each copy holds `.skl-copy.toml`: its source, the commit it was copied from, and the git tree hash of the folder as copied, the same kind of hash `.skl-origin.toml` uses. At the start of every command that changes something, skl hashes each copy and merges each folder that changed into the vault with `git merge-tree`, using the recorded commit as the base. `git merge-tree` sees added, deleted and renamed files, which a file-by-file merge misses. skl commits the result as a generation of its own. If both sides changed the same lines, or one side deleted a file the other changed, it uses the sync conflict flow. Every loaded skill comes from the vault, so there is nowhere else to save to. With two targets, each copy is saved back on its own, like copies on two machines: the second one merges into the vault the first one already changed.
+Each copy holds `.skl-copy.toml`: its source, the commit it was copied from, and the git tree hash of the folder as copied, the same kind of hash `.skl-origin.toml` uses. At the start of every command that changes something, skl hashes each copy recorded in `state.json`, in every repo, and merges each folder that changed into the vault with `git merge-tree`, using the recorded commit as the base. `git merge-tree` sees added, deleted and renamed files, which a file-by-file merge misses. skl commits the result as a generation of its own. If both sides changed the same lines, or one side deleted a file the other changed, it uses the sync conflict flow. Every loaded skill comes from the vault, so there is nowhere else to save to. With two targets, each copy is saved back on its own, like copies on two machines: the second one merges into the vault the first one already changed.
 
 `.skl-copy.toml` never enters the vault, and `.skl-origin.toml` stays in the vault: it isn't copied into the loaded folder.
 
@@ -37,7 +37,7 @@ A generation is a snapshot of what's loaded in each scope plus the vault commit,
 - If it first saves changes to loaded skills or hand edits in the vault, that save is a generation of its own, made before the command's. `skl history` lists both, so `skl rollback` undoes the command and keeps your edits.
 - A command that changes nothing makes no generation and ends with `✓ nothing to change`.
 
-What's loaded in a repo's project scope (`./.claude/skills`, and `./.agents/skills` for the `agents` target) is kept in `state.json`, keyed by the repo's top-level path. A generation records the user scope and the project scope of the repo it ran in. `skl rollback` and the reload step of `skl sync` act on the user scope and on the current repo's project scope only. Other repos' skill folders are never touched.
+What's loaded in a repo's project scope (`./.claude/skills`, and `./.agents/skills` for the `agents` target) is kept in `state.json`, keyed by the repo's top-level path, so each git worktree is a repo of its own. A generation records the user scope and the project scope of the repo it ran in. Loading, unloading and the reload step of `skl sync` act on the user scope and the current repo's project scope only. Save-back reads every repo's copies. `skl rollback` restores every scope that the generations it undoes changed, in whichever repo; a repo whose folder is gone is skipped and forgotten. A folder git tracks is never skl's, even if it holds `.skl-copy.toml`, and skl never touches the repo's git.
 
 ## Safety
 

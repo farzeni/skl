@@ -15,7 +15,7 @@ skl is not built yet. This page describes the planned behavior.
 | **Selector** | `review`, `@backend` | One word on the command line that picks skills to load or remove. See [Selectors and references](./repos#selectors). |
 | **Reference** | `someone/agent-skills/pdf` | A skill, a skill set or a repo in someone else's git remote. See [Repos](./repos#repos). |
 | **Skill set** | `@backend` | A list of selectors you load together. See [Skill sets](../guide/skill-sets). |
-| **Active skill set** | `@backend writing/changelog` | The selectors loaded now in a scope. |
+| **Active skill set** | `@backend writing/changelog` | The selectors loaded now in a scope: one for your user scope, and one for each repo. See [For one repo only](../guide/skill-sets#for-one-repo-only). |
 | **Named skill set** | `sets/backend.toml` | A skill set saved with `skl save`, loaded anywhere with `@name`. |
 | **Generation** | `#12` | A numbered snapshot taken after every change, so any change can be rolled back. Numbers are per machine. See [Rollback](../guide/rollback). |
 | **Author** | `someone` | Whoever owns the repo a skill came from. Their later changes are its updates. |

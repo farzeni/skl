@@ -44,15 +44,16 @@ loaded (user)  @backend writing/changelog
   · edit sets/backend.toml
 ! lint   skipped: ~/.claude/skills/lint
   is not in your vault · skl import lint
-loaded (project ~/code/app)  data
-  sql-explain   data/sql-explain
+loaded (project ~/code/prj1)  @frontend
+  ui-review     frontend/ui-review  vault changed · skl sync
 not in your vault
   my-new-skill  · skl import my-new-skill
-skill sets      @backend  @base
+  db-notes      · skl import db-notes --scope project
+skill sets      @backend  @base  @frontend
 vault           2 changes not pushed · skl sync
 ```
 
-The project scope shows only inside a git repo that has skills loaded. `skl status` never goes online: `update available` is what the last [`skl sync`](./sync) found. For scripts, add `--json`: see [JSON](../reference/commands#json).
+The project scope shows only inside a git repo that has skills loaded: see [For one repo only](#for-one-repo-only). `skl status` never goes online: `update available` is what the last [`skl sync`](./sync) found. For scripts, add `--json`: see [JSON](../reference/commands#json).
 
 ## Named skill sets
 
@@ -61,7 +62,7 @@ skl use @base review -review/test-gaps someone/pdf
 skl save backend
 ```
 
-saves the selectors behind your active skill set as `sets/backend.toml` in your vault, one selector per line:
+saves the selectors of your active skill set as `sets/backend.toml` in your vault, one selector per line. That's your user scope's active skill set; with `--scope project`, the [repo's](#for-one-repo-only).
 
 ```toml
 select = [
@@ -72,7 +73,7 @@ select = [
 ]
 ```
 
-Selectors from later `add` and `drop` commands are appended. Because a skill set keeps selectors, not a list of skills, a skill you add to the `review` group later is part of `@backend` too. A skill set can include other skill sets.
+Later `add` and `drop` commands change your active skill set, not the file: run `skl save backend` again to keep them. If your active skill set includes `@backend` itself, skl writes the lines of `@backend` in its place, so the file keeps its old lines plus your changes. Because a skill set keeps selectors, not a list of skills, a skill you add to the `review` group later is part of `@backend` too. A skill set can include other skill sets.
 
 If `backend` already exists, skl shows how its selectors change and asks before overwriting it.
 
@@ -98,13 +99,83 @@ Every selector names something in your vault. To use a skill or a skill set from
 
 ## For one repo only
 
-skl loads skills into your user folder, `~/.claude/skills`, by default. To load skills for one repo only:
+Load a skill set for one repo only, next to the one you load everywhere. Say you want `@reviews` in every repo, `@frontend` only in `prj1` and `@backend` only in `prj2`:
 
 ```sh
-skl use review --scope project
+skl use @reviews
+cd ~/code/prj1 && skl use @frontend --scope project
+cd ~/code/prj2 && skl use @backend --scope project
 ```
 
-This copies them into `.claude/skills` at the root of the git repo you're in, or `.agents/skills` for the [`agents` target](#which-agents-read-them). Outside a git repo, `--scope project` is an error. See [Flags](../reference/commands#flags) for the commands that take it.
+```
+→ load @backend in ~/code/prj2
++ sql-explain   + api-design
+✓ generation 3 · skl rollback to undo
+```
+
+`--scope project` copies the skills into `.claude/skills` at the root of the git repo you're in, or `.agents/skills` for the [`agents` target](#which-agents-read-them). Outside a git repo, it's an error. A Claude Code session that's already running may need `/reload-skills` after the repo's first load: see [Which agents read them](#which-agents-read-them).
+
+Each repo has its own active skill set, and your user scope has one too. In `prj1`, Claude Code sees `@reviews` and `@frontend`; in `prj2`, `@reviews` and `@backend`; anywhere else, only `@reviews`. If both scopes load a skill with the same name, the user one wins: see [Names and clashes](#names-and-clashes).
+
+### Work in a repo
+
+Inside a repo, add `--scope project` to act on that repo's active skill set. Without it, a command acts on your user scope, even inside a repo.
+
+| Command | With `--scope project` |
+|---|---|
+| `skl use`, `add`, `drop` | Change the repo's active skill set. |
+| `skl save <name>` | Save the repo's selectors as `@name`. |
+| `skl learn <peer>` | A new skill joins the repo's active skill set. |
+| `skl import <name>` | Import a skill from the repo's `.claude/skills`. `skl status` shows the command for each one. |
+| `skl init <repo>` | Also offer to import the repo's skills that aren't in a vault. |
+
+So to keep a skill you learned in `prj1` as part of `@frontend`:
+
+```sh
+skl learn someone/agent-skills/storybook --scope project
+skl save frontend --scope project
+```
+
+Edits to a loaded skill are [saved back](./skills#edit-as-usual) at the start of the next command that changes something, whichever repo you run it in. Loading changes only your user scope and the repo you're in. So after your vault changes elsewhere, for example with a `skl sync` in another folder, a repo's skills can be behind it: `skl status` in that repo marks them `vault changed`, and `skl sync` there reloads them. A [rollback](./rollback) undoes its generations in every repo they changed.
+
+A git worktree is a repo of its own: load its skill set there. In a worktree without a `.claude/skills` folder, Claude Code shows the main checkout's project skills.
+
+### On another machine
+
+A repo's active skill set is kept on this machine, in `~/.skl/state.json`, not in your vault. Save it as a named skill set, as above, and load it once in each repo on your next machine:
+
+```sh
+skl init you/skills @reviews
+cd ~/code/prj1 && skl use @frontend --scope project
+cd ~/code/prj2 && skl use @backend --scope project
+```
+
+### Skills the repo commits
+
+Claude Code's docs suggest committing a repo's `.claude/skills` so the whole team gets them. A skill folder git tracks belongs to the repo: skl never changes it, and `skl status` doesn't list it. If a skill you load has its name, skl skips yours and warns:
+
+```
+! team-style   skipped: .claude/skills/team-style
+  is committed in this repo
+  · skl drop frontend/team-style --scope project
+```
+
+To have a committed skill in your vault, learn it from the repo, so the team's later changes reach you as [updates](./learn#keep-up-with-its-author). `skl import` says so:
+
+```
+✗ team-style is committed in this repo
+  · skl learn team/prj1/team-style
+```
+
+### Keep your skills out of the repo's git
+
+skl doesn't touch the repo's git. The skills it loads into a repo are untracked files: `git status` lists them, and `git add -A` would commit them, `.skl-copy.toml` included, and hand your skills to the team. To keep them out, list each folder in `.git/info/exclude`, for you only, or in the repo's `.gitignore`, for everyone:
+
+```
+/.claude/skills/ui-review/
+```
+
+Claude Code's docs don't say whether it loads a project skill that git ignores; that's not tested yet.
 
 ## Which agents read them
 
@@ -125,7 +196,7 @@ Each target then holds its own copy of every loaded skill, and changes to either
 
 | Agent | Reads `claude` | Reads `agents` | After `skl use` |
 |---|---|---|---|
-| Claude Code | yes | not in its docs | sees the change |
+| Claude Code | yes | not in its docs | sees the change, except a new skills folder, below |
 | opencode | yes | yes, first | restart it |
 | pi | with one setting, below | yes | `/reload` |
 | Codex | no | yes | sees the change, else restart it |
@@ -134,7 +205,7 @@ Each target then holds its own copy of every loaded skill, and changes to either
 | Cursor | yes | yes | restart it |
 | Amp | yes | yes | `reload_skills` |
 
-From each agent's docs, October 2026; opencode and pi were tested. pi reads `~/.claude/skills` too if `~/.pi/agent/settings.json` holds `{"skills": ["~/.claude/skills"]}`. Use that or the `agents` target, not both: pi warns about every skill it finds twice.
+From each agent's docs, October 2026; opencode and pi were tested. Claude Code watches its skills folders, but not one created after the session started: after a repo's first `--scope project` load, if the repo had no `.claude/skills` when you started Claude Code, run `/reload-skills` in it. pi reads `~/.claude/skills` too if `~/.pi/agent/settings.json` holds `{"skills": ["~/.claude/skills"]}`. Use that or the `agents` target, not both: pi warns about every skill it finds twice.
 
 Pick the one target your agents read. Load into both only when one of your agents reads just `~/.claude/skills` and another just `~/.agents/skills`, such as Claude Code and Codex. An agent that reads both folders then sees each skill twice and keeps one.
 
@@ -158,7 +229,7 @@ Claude Code prefers a user skill to a project skill with the same name. When a s
 
 ## Skills skl didn't create
 
-Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not in your vault, from the folders of every target. skl never changes or removes them. Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
+Skills you added by hand, installed with another tool such as [`npx skills`](../thirdparty/npx-skills), or installed through Claude Code plugins show up in `skl status` as not in your vault, from the folders of every target. skl never changes or removes them. Skills a repo commits aren't listed: see [Skills the repo commits](#skills-the-repo-commits). Plugin skills never clash, because Claude Code prefixes their names with the plugin's.
 
 If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and warns you. The command still succeeds:
 

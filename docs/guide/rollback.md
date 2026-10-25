@@ -41,7 +41,7 @@ skl rollback 10    # to generation 10
 
 A rollback restores what was loaded. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history. Add `--dry-run` to see the plan without applying it.
 
-A rollback acts on your user scope and, inside a git repo, on that repo's project scope. Other repos keep what they have loaded.
+A rollback restores every scope the generations it undoes changed: your user scope, and the [project scope](./skill-sets#for-one-repo-only) of any repo they ran in, wherever you run it. `skl history` shows that repo after the command, as in `use @frontend · ~/code/prj1`. A repo that no longer exists is skipped.
 
 If the generations you go back over include changes pulled by `skl sync`, the revert takes back the other machine's work too, and your next `skl sync` pushes that. skl warns you when it applies the plan:
 

@@ -10,8 +10,8 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 
 | Command | Description |
 |---|---|
-| `skl init <repo> [selectors]` | Clone your vault, or set up a new one, and load `selectors` if given. Offers to import the skills in your [targets](./config)' folders (`~/.claude/skills` by default) that aren't in a vault; imported skills join the active skill set. See [Getting started](../guide/getting-started#make-your-vault). |
-| `skl import <name>… [--group <group>]` | Copy skills skl didn't create into your vault; each original becomes the loaded skill and joins the active skill set, as `skl add` would. The group defaults to your vault's owner (`you` for `you/skills`). See [Add a skill you made](../guide/skills#add-a-skill-you-made). |
+| `skl init <repo> [selectors]` | Clone your vault, or set up a new one, and load `selectors` if given. Offers to import the skills in your [targets](./config)' folders (`~/.claude/skills` by default) that aren't in a vault, and with `--scope project` the repo's too; imported skills join the active skill set. See [Getting started](../guide/getting-started#make-your-vault). |
+| `skl import <name>… [--group <group>]` | Copy skills skl didn't create into your vault; each original becomes the loaded skill and joins the active skill set, as `skl add` would. A skill a repo commits is refused: see [Skills the repo commits](../guide/skill-sets#skills-the-repo-commits). The group defaults to your vault's owner (`you` for `you/skills`). See [Add a skill you made](../guide/skills#add-a-skill-you-made). |
 
 ## Load
 
@@ -20,14 +20,14 @@ Wherever a command takes `<selectors>`, `<repo>` or `<ref>`, any form from [Sele
 | `skl use <selectors>` | Replace the active skill set. See [selectors](./repos#selectors). |
 | `skl add <selectors>` | Add to the active skill set. |
 | `skl drop <selectors>` | Remove from the active skill set. |
-| `skl save <name>` | Save the selectors behind the active skill set as a named skill set. Asks before overwriting one. See [Named skill sets](../guide/skill-sets#named-skill-sets). |
+| `skl save <name>` | Save the selectors of the active skill set, the user scope's or with `--scope project` the repo's, as a named skill set. Asks before overwriting one. See [Named skill sets](../guide/skill-sets#named-skill-sets). |
 
 ## See where you stand
 
 | Command | Description |
 |---|---|
 | `skl status` | Show what's loaded, where each skill came from, your named skill sets, and everything that needs you: changes not saved back yet, skills not in your vault, selectors that match nothing, updates that `skl sync` found, and changes not pushed. Each such line ends with the command to run. Works offline. |
-| `skl history` | List generations, newest first. |
+| `skl history` | List generations, newest first, with the repo each one ran in if it changed a project scope. |
 
 Both take `--json` for [scripts](#json).
 
@@ -42,7 +42,7 @@ Both take `--json` for [scripts](#json).
 
 | Command | Description |
 |---|---|
-| `skl rollback [N]` | Go back one generation, or to generation `N`. See [Rollback](../guide/rollback). |
+| `skl rollback [N]` | Go back one generation, or to generation `N`, in every scope those generations changed. See [Rollback](../guide/rollback). |
 
 ## Sync
 
@@ -83,7 +83,7 @@ The one exception is `-h`, which always means `--help`. So a group can't be name
 | Flag | Commands | Effect |
 |---|---|---|
 | `--help`, `-h` | all | Show the command's help, and change nothing. |
-| `--scope user\|project` | `init` `import` `use` `add` `drop` `save` `learn` `rollback` | Where to load skills, or for `import`, where to read them. `user` is `~/.claude/skills`; `project` is `.claude/skills` at the root of the git repo you're in. The `agents` [target](./config) uses `~/.agents/skills` and `.agents/skills`. Outside a git repo, `project` is an error. Defaults to `scope` in the [config](./config), else `user`. |
+| `--scope user\|project` | `init` `import` `use` `add` `drop` `save` `learn` | Where to load skills, or for `import`, where to read them. `user` is `~/.claude/skills`; `project` is `.claude/skills` at the root of the git repo you're in. The `agents` [target](./config) uses `~/.agents/skills` and `.agents/skills`. Outside a git repo, `project` is an error. Defaults to `scope` in the [config](./config), else `user`. See [For one repo only](../guide/skill-sets#for-one-repo-only). |
 | `--dry-run` | every command that changes something | Print what would change, and change nothing. See [below](#dry-run). |
 | `--yes` | every command that asks | Take the first answer to every question. See [Questions](#questions). |
 | `--json` | `status` `history` | Print [JSON](#json) instead of text. |
