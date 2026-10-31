@@ -1,0 +1,13 @@
+␛[36m→␛[m copy into someone/pdf
+␛[2m◇␛[m saved      pr-review → review/pr-review
+␛[2m◇␛[m committed  sets/backend.toml
+␛[2m◇␛[m pushed
+␛[32m+␛[m pdf
+␛[33m~␛[m pr-review   someone/pr-review replaces review/pr-review
+␛[31m−␛[m writing/changelog
+␛[1;33m!␛[m 2 changes not pushed · skl sync
+␛[1;33m!␛[m pdf   hidden in opencode by ~/.agents/skills/pdf · skl drop someone/pdf
+␛[1;31m✗␛[m someone/agent-skills/pdf is someone else's skill
+  · skl learn someone/agent-skills/pdf
+␛[1;31m✗␛[m can't reach github.com (Could not resolve host)
+␛[32m✓␛[m generation 14 · skl rollback to undo

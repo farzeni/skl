@@ -19,6 +19,7 @@ type Input struct {
 	Args  []string          // every word that isn't a flag, the command first
 	Flags map[string]string // flag name → value; "" for a switch
 	Help  bool              // --help or -h appeared before "--"
+	order []string          // flag names in command-line order, so checks report the first
 }
 
 // Has reports whether flag name was given.
@@ -79,6 +80,9 @@ func parse(words []string, known []Flag) (in Input, err error) {
 			}
 			if prev, dup := in.Flags[name]; dup && prev != value {
 				fail(errs.Usagef("", "--%s given twice", name))
+			}
+			if _, dup := in.Flags[name]; !dup {
+				in.order = append(in.order, name)
 			}
 			in.Flags[name] = value
 		default:

@@ -32,7 +32,7 @@ func (c *cli) printHelp(cmd *Command) {
 			fmt.Fprintf(&b, "\nExample\n%s\n", indent(cmd.Example))
 		}
 	}
-	fmt.Fprint(c.st.Stdout, b.String())
+	fmt.Fprint(c.ui.Report(), b.String())
 }
 
 func flagTable(b *strings.Builder, flags []Flag) {

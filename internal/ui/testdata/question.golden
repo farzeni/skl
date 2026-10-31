@@ -1,0 +1,20 @@
+== Add it? at 80
+? Add it?   › yes   no
+== Add it? after →
+? Add it?   yes   › no
+== Add it? answered no
+? Add it?   › no
+
+== Land it at 80
+? Land it   › replace   change it   save as review/pr-review-sec   discard
+== Land it at 40
+? Land it
+  › replace   change it
+  save as review/pr-review-sec   discard
+== Land it resized to 40
+? Land it
+  › replace   change it
+  save as review/pr-review-sec   discard
+== Land it after Ctrl-C
+? Land it   › discard
+

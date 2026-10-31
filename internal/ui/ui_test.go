@@ -1,0 +1,223 @@
+package ui
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/farzeni/skl/internal/errs"
+)
+
+// golden compares got with testdata/<name>.golden, and rewrites the file
+// when UPDATE=1 is set. Escapes are shown as ␛ so the file reads in a diff.
+func golden(t *testing.T, name, got string) {
+	t.Helper()
+	got = strings.ReplaceAll(got, "\x1b", "␛")
+	path := filepath.Join("testdata", name+".golden")
+	if os.Getenv("UPDATE") == "1" {
+		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != string(want) {
+		t.Errorf("%s: got\n%s\nwant\n%s", path, got, want)
+	}
+}
+
+type streams struct{ stdout, stderr bytes.Buffer }
+
+func testUI(profile colorprofile.Profile, width int, o Options) (*UI, *streams) {
+	s := &streams{}
+	o.Stdin, o.Stdout, o.Stderr = strings.NewReader(""), &s.stdout, &s.stderr
+	return newUI(o, profile, width, false), s
+}
+
+// every prints each mark once, with the docs' examples, and lines long
+// enough to wrap at 60 columns.
+func every(u *UI) {
+	u.Plan("copy into %s", "someone/pdf")
+	u.Step("saved", "pr-review → review/pr-review")
+	u.Step("committed", "sets/backend.toml")
+	u.Step("pushed", "")
+	u.Change(Loaded, "pdf", "")
+	u.Change(Replaced, "pr-review", "someone/pr-review replaces review/pr-review")
+	u.Change(Unloaded, "writing/changelog", "")
+	u.Warn("2 changes not pushed", "skl sync")
+	u.Warn("pdf   hidden in opencode by ~/.agents/skills/pdf", "skl drop someone/pdf")
+	u.Error("someone/agent-skills/pdf is someone else's skill", "skl learn someone/agent-skills/pdf")
+	u.Error("can't reach github.com (Could not resolve host)", "")
+	u.Done("generation 14 · skl rollback to undo")
+}
+
+// commands.md "Output": the marks → ◇ + ~ − ! ✗ ✓; "A command that doesn't
+// fit on the line moves to the next one, after ·"; "The marks themselves
+// stay the same" without color.
+func TestMarks(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		profile colorprofile.Profile
+		width   int
+	}{
+		{"marks-80", colorprofile.NoTTY, 80},
+		{"marks-60", colorprofile.NoTTY, 60},
+		{"marks-color", colorprofile.ANSI, 80},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			u, s := testUI(tt.profile, tt.width, Options{})
+			every(u)
+			if s.stdout.Len() != 0 {
+				t.Errorf("marks went to stdout: %q", s.stdout.String())
+			}
+			golden(t, tt.name, s.stderr.String())
+		})
+	}
+}
+
+// commands.md "Color": "The marks themselves stay the same."
+func TestColorKeepsMarks(t *testing.T) {
+	plain, sp := testUI(colorprofile.NoTTY, 80, Options{})
+	color, sc := testUI(colorprofile.TrueColor, 80, Options{})
+	every(plain)
+	every(color)
+	if strings.Contains(sp.stderr.String(), "\x1b") {
+		t.Errorf("NoTTY wrote escapes: %q", sp.stderr.String())
+	}
+	if !strings.Contains(sc.stderr.String(), "\x1b[") {
+		t.Fatalf("color wrote no escapes")
+	}
+	if got := ansi.Strip(sc.stderr.String()); got != sp.stderr.String() {
+		t.Errorf("color without escapes = %q, want %q", got, sp.stderr.String())
+	}
+}
+
+// commands.md "Where output goes": "What you asked for goes to standard
+// output … Everything else, the marks of a running command and its
+// questions, goes to standard error."
+func TestReportIsStdout(t *testing.T) {
+	u, s := testUI(colorprofile.NoTTY, 80, Options{})
+	fmt.Fprint(u.Report(), "report\n")
+	u.Done("nothing to change")
+	if s.stdout.String() != "report\n" || s.stderr.String() != "✓ nothing to change\n" {
+		t.Errorf("stdout %q, stderr %q", s.stdout.String(), s.stderr.String())
+	}
+}
+
+// commands.md "Color": "skl colors its marks only when the output is a
+// terminal. Setting NO_COLOR (to any value) or TERM=dumb turns color off."
+// A buffer is never a terminal; the terminal cases run in a pty, in the
+// card's proofs.
+func TestPickProfile(t *testing.T) {
+	env := func(kv ...string) func(string) string {
+		return func(k string) string {
+			for i := 0; i < len(kv); i += 2 {
+				if kv[i] == k {
+					return kv[i+1]
+				}
+			}
+			return ""
+		}
+	}
+	for _, getenv := range []func(string) string{
+		env("TERM", "xterm-256color"),
+		env("TERM", "xterm-256color", "CLICOLOR_FORCE", "1"),
+	} {
+		if p := pickProfile(&bytes.Buffer{}, getenv); p != colorprofile.NoTTY {
+			t.Errorf("not a terminal: profile %v, want NoTTY", p)
+		}
+	}
+}
+
+func TestPickWidth(t *testing.T) {
+	getenv := func(v string) func(string) string { return func(string) string { return v } }
+	for _, tt := range []struct {
+		columns string
+		want    int
+	}{{"60", 60}, {"", 80}, {"x", 80}, {"0", 80}} {
+		if got := pickWidth(&bytes.Buffer{}, getenv(tt.columns)); got != tt.want {
+			t.Errorf("COLUMNS=%q: width %d, want %d", tt.columns, got, tt.want)
+		}
+	}
+}
+
+var addIt = Question{Prompt: "Add it?", Answers: []string{"yes", "no"}}
+
+// commands.md "Questions": "--yes takes the first answer to every question
+// without showing it."
+func TestAskYes(t *testing.T) {
+	u, s := testUI(colorprofile.NoTTY, 80, Options{Yes: true, Command: "skl learn x"})
+	i, err := u.Ask(context.Background(), addIt)
+	if i != 0 || err != nil || s.stderr.Len() != 0 || s.stdout.Len() != 0 {
+		t.Errorf("Ask = %d, %v; stderr %q, stdout %q", i, err, s.stderr.String(), s.stdout.String())
+	}
+}
+
+// commands.md "Questions": "Without a terminal and without --yes, a
+// question stops the command before it changes anything", as
+// "✗ Add it? needs an answer · skl learn someone/agent-skills/pdf --yes".
+func TestAskNoTerminal(t *testing.T) {
+	u, s := testUI(colorprofile.NoTTY, 80, Options{Command: CommandLine([]string{"learn", "someone/agent-skills/pdf"})})
+	_, err := u.Ask(context.Background(), addIt)
+	var h *errs.Hinted
+	if !errors.Is(err, ErrNeedsAnswer) || !errors.As(err, &h) {
+		t.Fatalf("Ask err = %v, want ErrNeedsAnswer with a hint", err)
+	}
+	if s.stderr.Len() != 0 {
+		t.Errorf("Ask printed %q; the ✗ line is cli's", s.stderr.String())
+	}
+	u.Error(err.Error(), h.Hint)
+	golden(t, "needs-an-answer", s.stderr.String())
+}
+
+func TestCommandLine(t *testing.T) {
+	for _, tt := range []struct {
+		args []string
+		want string
+	}{
+		{nil, "skl"},
+		{[]string{"learn", "someone/agent-skills/pdf"}, "skl learn someone/agent-skills/pdf"},
+		{[]string{"use", "-review/test-gaps", "@base", "--scope=project"}, "skl use -review/test-gaps @base --scope=project"},
+		{[]string{"learn", "pdf", "add a section on tables"}, "skl learn pdf 'add a section on tables'"},
+		{[]string{"learn", "pdf", "don't"}, `skl learn pdf 'don'\''t'`},
+		{[]string{"learn", "~/code/x", ""}, "skl learn '~/code/x' ''"},
+		{[]string{"open", "https://git.example.com/a/b#v1"}, "skl open https://git.example.com/a/b#v1"},
+	} {
+		if got := CommandLine(tt.args); got != tt.want {
+			t.Errorf("CommandLine(%q) = %q, want %q", tt.args, got, tt.want)
+		}
+	}
+}
+
+// commands.md "Output": "A command that doesn't fit on the line moves to
+// the next one, after ·." Width counts columns, not bytes.
+func TestHinted(t *testing.T) {
+	for _, tt := range []struct {
+		msg, hint string
+		width     int
+		want      string
+	}{
+		{"unknown command stauts", "skl status", 80, "✗ unknown command stauts · skl status\n"},
+		{"boom", "", 80, "✗ boom\n"},
+		{"another skl is running (pid 4182)", "skl sync, once it's done", 40, "✗ another skl is running (pid 4182)\n  · skl sync, once it's done\n"},
+		{"abc", "skl x", 13, "✗ abc · skl x\n"},
+		{"abc", "skl x", 12, "✗ abc\n  · skl x\n"},
+	} {
+		u, s := testUI(colorprofile.NoTTY, tt.width, Options{})
+		u.Error(tt.msg, tt.hint)
+		if got := s.stderr.String(); got != tt.want {
+			t.Errorf("Error(%q, %q) at %d = %q, want %q", tt.msg, tt.hint, tt.width, got, tt.want)
+		}
+	}
+}

@@ -14,9 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/farzeni/skl/internal/errs"
+	"github.com/farzeni/skl/internal/ui"
 )
 
 // Exit codes, from docs/reference/commands.md "Exit codes".
@@ -79,10 +81,15 @@ type cli struct {
 	st     Streams
 	getenv func(string) string
 	cmds   []*Command
+	ui     *ui.UI
 }
 
 func (c *cli) run(ctx context.Context, args []string) int {
 	in, perr := parse(args, c.knownFlags())
+	c.ui = ui.New(ui.Options{
+		Stdin: c.st.Stdin, Stdout: c.st.Stdout, Stderr: c.st.Stderr, Getenv: c.getenv,
+		Yes: in.Has("yes"), Command: ui.CommandLine(args),
+	})
 	var cmd *Command
 	if len(in.Args) > 0 {
 		name := in.Args[0]
@@ -100,7 +107,7 @@ func (c *cli) run(ctx context.Context, args []string) int {
 	}
 	switch {
 	case cmd == nil && in.Has("version"):
-		fmt.Fprintln(c.st.Stdout, versionLine())
+		fmt.Fprintln(c.ui.Report(), versionLine())
 		return exitOK
 	case cmd == nil:
 		c.printHelp(nil)
@@ -125,7 +132,7 @@ func (c *cli) check(cmd *Command, in Input, perr error) error {
 		}
 		return perr
 	}
-	for name := range in.Flags {
+	for _, name := range in.order {
 		if _, ok := find(accepted, name); !ok {
 			if cmd != nil {
 				return errs.Usagef(hint, "skl %s doesn't take --%s", cmd.Name, name)
@@ -175,6 +182,9 @@ func (c *cli) unknownCommand(name, prefix string) error {
 	if s := suggest(name, names); s != "" {
 		hint = prefix + s
 	}
+	if name == "" || strings.ContainsFunc(name, unicode.IsSpace) {
+		name = strconv.Quote(name)
+	}
 	return errs.Usagef(hint, "unknown command %s", name)
 }
 
@@ -196,30 +206,8 @@ func (c *cli) fail(err error) int {
 	case errors.As(err, &h):
 		hint = h.Hint
 	}
-	fmt.Fprint(c.st.Stderr, errorLine(err.Error(), hint, c.width()))
+	c.ui.Error(err.Error(), hint)
 	return code
-}
-
-// errorLine renders "✗ msg · hint", moving the hint to its own line after
-// "·" when the whole doesn't fit in width (commands.md "Output").
-func errorLine(msg, hint string, width int) string {
-	line := "✗ " + msg
-	if hint == "" {
-		return line + "\n"
-	}
-	if one := line + " · " + hint; utf8.RuneCountInString(one) <= width {
-		return one + "\n"
-	}
-	return line + "\n  · " + hint + "\n"
-}
-
-// width is COLUMNS, else 80. The terminal's own width comes with the ui
-// package.
-func (c *cli) width() int {
-	if n, err := strconv.Atoi(c.getenv("COLUMNS")); err == nil && n > 0 {
-		return n
-	}
-	return 80
 }
 
 // suggest returns the candidate closest to word, if it is close enough to
