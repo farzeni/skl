@@ -96,17 +96,21 @@ func TestNotRepo(t *testing.T) {
 func TestUnreachable(t *testing.T) {
 	isolate(t)
 	missing := filepath.Join(t.TempDir(), "nope.git")
+	clone := filepath.Join(t.TempDir(), "clone")
 	tests := []struct {
-		name, url string
-		reasons   []string // curl's wording depends on its version
+		name    string
+		args    []string
+		reasons []string // curl's wording depends on its version
 	}{
-		{"connection refused", "http://127.0.0.1:1/someone/agent-skills", []string{"Connection refused", "Failed to connect"}},
-		{"ssh refused", "ssh://git@127.0.0.1:1/someone/agent-skills", []string{"Connection refused"}},
-		{"missing local repo", missing, []string{"does not appear to be a git repository"}},
+		{"connection refused", []string{"ls-remote", "http://127.0.0.1:1/someone/agent-skills"}, []string{"Connection refused", "Failed to connect"}},
+		{"ssh refused", []string{"ls-remote", "ssh://git@127.0.0.1:1/someone/agent-skills"}, []string{"Connection refused"}},
+		{"missing local repo", []string{"ls-remote", missing}, []string{"does not appear to be a git repository"}},
+		{"clone missing local repo", []string{"clone", "--quiet", missing, clone}, []string{"does not exist"}},
+		{"clone missing file:// repo", []string{"clone", "--quiet", "file://" + filepath.ToSlash(missing), clone}, []string{"does not appear to be a git repository"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := New(nil).Run(t.Context(), "", "ls-remote", tt.url)
+			_, err := New(nil).Run(t.Context(), "", tt.args...)
 			var e *Error
 			if !errors.Is(err, ErrUnreachable) || !errors.As(err, &e) {
 				t.Fatalf("err = %v, want ErrUnreachable", err)
@@ -115,10 +119,34 @@ func TestUnreachable(t *testing.T) {
 				t.Errorf("Reason() = %q, stderr %q; want one of %q", e.Reason(), e.Stderr, tt.reasons)
 			}
 			// git's own line, carrying the reason.
-			if !strings.Contains(err.Error(), e.Reason()) || !strings.HasPrefix(err.Error(), "git ls-remote: ") {
+			if !strings.Contains(err.Error(), e.Reason()) || !strings.HasPrefix(err.Error(), "git "+tt.args[0]+": ") {
 				t.Errorf("Error() = %q, want git's message", err)
 			}
 		})
+	}
+}
+
+// A local disk problem is git's error, not an unreachable remote.
+func TestLocalPermissionDenied(t *testing.T) {
+	isolate(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	g := New(nil)
+	src := newRepo(t, g)
+	ro := t.TempDir()
+	if err := os.Chmod(ro, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(ro, 0o755) })
+	for _, args := range [][]string{
+		{"init", "--quiet", filepath.Join(ro, "x")},
+		{"clone", "--quiet", src, filepath.Join(ro, "y")},
+	} {
+		_, err := g.Run(t.Context(), "", args...)
+		if err == nil || errors.Is(err, ErrUnreachable) || !strings.Contains(err.Error(), "Permission denied") {
+			t.Errorf("git %s: err = %v, want git's Permission denied, not ErrUnreachable", args[0], err)
+		}
 	}
 }
 
@@ -417,6 +445,11 @@ func TestClassify(t *testing.T) {
 		{"fatal: Authentication failed for 'https://github.com/you/skills/'\n", ErrUnreachable, "Authentication failed"},
 		{"fatal: not a git repository (or any of the parent directories): .git\n", ErrNotRepo, ""},
 		{"fatal: bad revision 'nope'\n", nil, ""},
+		{"fatal: repository '/home/you/agent-skills' does not exist\n", ErrUnreachable, "does not exist"},
+		// Local problems are not an unreachable remote.
+		{"fatal: cannot mkdir /ro/x: Permission denied\n", nil, ""},
+		{"Cloning into '/ro/y'...\nfatal: could not create work tree dir '/ro/y': Permission denied\n", nil, ""},
+		{"fatal: path 'x' does not exist in 'HEAD'\n", nil, ""},
 	}
 	for _, tt := range tests {
 		reason, _, kind := classify(tt.stderr)

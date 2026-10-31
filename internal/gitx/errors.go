@@ -82,36 +82,51 @@ func Message(stderr string) string {
 }
 
 // unreachable lists the phrases git, curl and ssh use when a remote can't be
-// reached, most specific first. Each one is also the reason shown to the
-// user.
-var unreachable = []string{
-	"Could not resolve host", // curl, and ssh's "Could not resolve hostname"
-	"Connection refused",
-	"Connection timed out",
-	"Operation timed out",
-	"Network is unreachable",
-	"No route to host",
-	"Failed to connect",
-	"terminal prompts disabled", // a password was needed
-	"Authentication failed",
-	"Permission denied",
-	"Host key verification failed",
-	"Repository not found",
-	"does not appear to be a git repository",
-	"The requested URL returned error",
-	"Could not read from remote repository",
-	"unable to access",
+// reached, most specific first, with the reason shown to the user (the
+// phrase itself when reason is "").
+var unreachable = []struct{ phrase, reason string }{
+	{"Could not resolve host", ""}, // curl, and ssh's "Could not resolve hostname"
+	{"Connection refused", ""},
+	{"Connection timed out", ""},
+	{"Operation timed out", ""},
+	{"Network is unreachable", ""},
+	{"No route to host", ""},
+	{"Failed to connect", ""},
+	{"terminal prompts disabled", ""}, // a password was needed
+	{"Authentication failed", ""},
+	// ssh's "Permission denied (publickey)."; a bare "Permission denied" is
+	// a local file, such as "cannot mkdir x: Permission denied".
+	{"Permission denied (", "Permission denied"},
+	{"Host key verification failed", ""},
+	{"Repository not found", ""},
+	{"does not appear to be a git repository", ""},
+	{"The requested URL returned error", ""},
+	{"Could not read from remote repository", ""},
+	{"unable to access", ""},
 }
 
 // classify reads git's standard error and returns the reason for an
 // unreachable remote, the message to show (the line naming the reason, else
 // git's last fatal or error line) and the sentinel it matches.
 func classify(stderr string) (reason, msg string, kind error) {
-	for _, p := range unreachable {
-		if before, _, ok := strings.Cut(stderr, p); ok {
+	for _, u := range unreachable {
+		if before, _, ok := strings.Cut(stderr, u.phrase); ok {
 			start := strings.LastIndexByte(before, '\n') + 1
 			line, _, _ := strings.Cut(stderr[start:], "\n")
-			return p, Message(line), ErrUnreachable
+			reason = u.reason
+			if reason == "" {
+				reason = u.phrase
+			}
+			return reason, Message(line), ErrUnreachable
+		}
+	}
+	// git clone of a local path that isn't there: "fatal: repository
+	// '/x' does not exist". Other "'…' does not exist" lines, such as
+	// "path 'x' does not exist in 'HEAD'", are not about a remote.
+	for line := range strings.Lines(stderr) {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "fatal: repository '") && strings.HasSuffix(line, "' does not exist") {
+			return "does not exist", Message(line), ErrUnreachable
 		}
 	}
 	if strings.Contains(stderr, "not a git repository") {
