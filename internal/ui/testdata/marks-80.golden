@@ -1,0 +1,13 @@
+→ copy into someone/pdf
+◇ saved      pr-review → review/pr-review
+◇ committed  sets/backend.toml
+◇ pushed
++ pdf
+~ pr-review   someone/pr-review replaces review/pr-review
+− writing/changelog
+! 2 changes not pushed · skl sync
+! pdf   hidden in opencode by ~/.agents/skills/pdf · skl drop someone/pdf
+✗ someone/agent-skills/pdf is someone else's skill
+  · skl learn someone/agent-skills/pdf
+✗ can't reach github.com (Could not resolve host)
+✓ generation 14 · skl rollback to undo

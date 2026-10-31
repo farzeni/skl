@@ -124,8 +124,7 @@ A question shows its answers; the first one is the default, taken with Enter. sk
 Without a terminal and without `--yes`, a question stops the command before it changes anything:
 
 ```
-✗ Add it? needs an answer
-  · skl learn someone/agent-skills/pdf --yes
+✗ Add it? needs an answer · skl learn someone/agent-skills/pdf --yes
 ```
 
 Two things always need a terminal, because the [engine](../guide/learn#who-does-the-thinking) asks you questions in them: a [lesson](../guide/learn#how-a-lesson-works) and a [sync conflict resolved with Claude](../guide/sync#with-claude). `--yes` doesn't answer them. Without a terminal, `skl learn` stops before the engine runs. `skl sync` undoes the merge, keeps your local commits, and stops:
@@ -149,13 +148,13 @@ Every command uses the same marks:
 | `✗` | An error, with the command to run | `✗ someone/agent-skills/pdf is someone else's skill · skl learn someone/agent-skills/pdf` |
 | `✓` | The result, last; for a change, its generation | `✓ generation 14 · skl rollback to undo` |
 
-A command that doesn't fit on the line moves to the next one, after `·`.
+A command that doesn't fit on the line moves to the next one, after `·`; one that fits stays on the line.
 
 A command that changes nothing makes no generation and ends with `✓ nothing to change`. Running it again is always safe.
 
 **Where output goes.** What you asked for goes to standard output: the report of `skl status`, the list of `skl history`, the URL of `skl open`, a `--dry-run` plan, and `--json`. Everything else, the marks of a running command and its questions, goes to standard error. So `skl open review/pr-review | pbcopy` copies only the URL, and `skl status > status.txt` saves the report.
 
-**Color.** skl colors its marks only when the output is a terminal. Setting `NO_COLOR` (to any value) or `TERM=dumb` turns color off. The marks themselves stay the same.
+**Color.** skl colors its marks only when the output is a terminal. Setting `NO_COLOR` to a non-empty value or `TERM=dumb` turns color off. The marks themselves stay the same. With `TERM=dumb`, a question is a plain line, `? Add it?  yes / no:`: type an answer, or press Enter for the first one.
 
 ### JSON
 
@@ -236,8 +235,7 @@ The errors any command can meet:
 Every command except `init`, `help`, `completion` and `open` with someone else's repo needs your vault.
 
 ```
-✗ another skl is running (pid 4182)
-  · skl sync, once it's done
+✗ another skl is running (pid 4182) · skl sync, once it's done
 ```
 
 One skl runs at a time on a machine, so two commands never change your vault or your loaded skills at once.
@@ -249,8 +247,7 @@ One skl runs at a time on a machine, so two commands never change your vault or 
 While a merge you resolve [by hand](../guide/sync#by-hand) is open, only `status`, `history`, `open`, `help` and `sync --continue` or `--abort` run.
 
 ```
-✗ can't reach github.com (Could not resolve host)
-  · skl sync
+✗ can't reach github.com (Could not resolve host) · skl sync
 ```
 
 When the network or the remote fails, skl shows git's error and stops. `skl sync` keeps what it did locally first: your changes are saved and committed, and `skl status` lists them as not pushed. `skl learn` and `skl init` change nothing. Access problems fail the same way, without asking for a password: see [Authentication](./repos#authentication).

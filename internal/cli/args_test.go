@@ -113,27 +113,3 @@ func TestSuggest(t *testing.T) {
 		}
 	}
 }
-
-func TestErrorLine(t *testing.T) {
-	tests := []struct {
-		msg, hint string
-		width     int
-		want      string
-	}{
-		{"unknown command stauts", "skl status", 80, "✗ unknown command stauts · skl status\n"},
-		{"boom", "", 80, "✗ boom\n"},
-		// commands.md "Output": "A command that doesn't fit on the line moves
-		// to the next one, after ·."
-		{
-			"another skl is running (pid 4182)", "skl sync, once it's done", 40,
-			"✗ another skl is running (pid 4182)\n  · skl sync, once it's done\n",
-		},
-		{"abc", "skl x", 13, "✗ abc · skl x\n"},
-		{"abc", "skl x", 12, "✗ abc\n  · skl x\n"},
-	}
-	for _, tt := range tests {
-		if got := errorLine(tt.msg, tt.hint, tt.width); got != tt.want {
-			t.Errorf("errorLine(%q, %q, %d) = %q, want %q", tt.msg, tt.hint, tt.width, got, tt.want)
-		}
-	}
-}

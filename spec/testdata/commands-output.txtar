@@ -1,0 +1,43 @@
+# docs/reference/commands.md "Output"
+# The marks and questions themselves are checked in internal/ui, until a
+# command prints them; here, what any command line shows today.
+
+# "✗ An error, with the command to run"
+exitcode 2 skl stauts
+cmp stderr stauts-80.txt
+
+# "A command that doesn't fit on the line moves to the next one, after ·; one
+# that fits stays on the line."
+env COLUMNS=30
+exitcode 2 skl stauts
+cmp stderr stauts-30.txt
+env COLUMNS=80
+exitcode 2 skl stauts
+cmp stderr stauts-80.txt
+
+# "What you asked for goes to standard output … Everything else, the marks
+# of a running command and its questions, goes to standard error."
+exec skl help
+stdout '^Usage$'
+! stderr .
+exitcode 2 skl stauts
+! stdout .
+stderr '^✗ '
+
+# "skl colors its marks only when the output is a terminal."
+# Here stderr is a file, so no escapes, even when the environment asks for color.
+env TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1
+exitcode 2 skl stauts
+cmp stderr stauts-80.txt
+
+# "Setting NO_COLOR to a non-empty value or TERM=dumb turns color off. The marks
+# themselves stay the same." (On a terminal: internal/ui and the card's pty proofs.)
+env NO_COLOR=yes TERM=dumb
+exitcode 2 skl stauts
+cmp stderr stauts-80.txt
+
+-- stauts-80.txt --
+✗ unknown command stauts · skl help
+-- stauts-30.txt --
+✗ unknown command stauts
+  · skl help

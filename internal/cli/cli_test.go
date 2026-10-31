@@ -66,6 +66,13 @@ func TestExitCodes(t *testing.T) {
 		{[]string{"help", "--group=w"}, 2, "✗ skl help doesn't take --group · skl help help\n"},
 		{[]string{"import", "x", "--version"}, 2, "✗ skl import doesn't take --version · skl help import\n"},
 		{[]string{"--group=w"}, 2, "✗ unknown flag --group · skl help\n"},
+		// Two flags the command doesn't take: the first on the line is named.
+		{[]string{"help", "--group=w", "--version"}, 2, "✗ skl help doesn't take --group · skl help help\n"},
+		{[]string{"help", "--version", "--group=w"}, 2, "✗ skl help doesn't take --version · skl help help\n"},
+		{[]string{"help", "--version", "--group=w", "--version"}, 2, "✗ skl help doesn't take --version · skl help help\n"},
+		// An empty or spaced command is named, quoted.
+		{[]string{""}, 2, "✗ unknown command \"\" · skl help\n"},
+		{[]string{"st atus"}, 2, "✗ unknown command \"st atus\" · skl help\n"},
 	}
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
