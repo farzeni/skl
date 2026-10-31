@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strconv"
@@ -70,7 +71,7 @@ func Run() int {
 
 // Main runs one command line and returns its exit code.
 func Main(ctx context.Context, args []string, st Streams, getenv func(string) string) int {
-	c := &cli{st: st, getenv: getenv}
+	c := &cli{st: st, getenv: getenv, log: debugLogger(st.Stderr, getenv)}
 	c.cmds = c.commands()
 	return c.run(ctx, args)
 }
@@ -79,6 +80,7 @@ type cli struct {
 	st     Streams
 	getenv func(string) string
 	cmds   []*Command
+	log    *slog.Logger // for gitx: debug lines only with SKL_DEBUG=1
 }
 
 func (c *cli) run(ctx context.Context, args []string) int {
