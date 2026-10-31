@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -29,6 +30,8 @@ type Question struct {
 //   - On a terminal, ← → or Tab move and Enter picks; the line then collapses
 //     to "? <prompt>   › <answer>". Ctrl-C, or a cancelled ctx, picks the
 //     last answer and returns context.Canceled with it.
+//   - With TERM=dumb, which can't redraw a line, it asks on a plain line
+//     instead: see askLine.
 func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 	if len(q.Answers) == 0 {
 		return 0, fmt.Errorf("question %q has no answers", q.Prompt)
@@ -38,6 +41,9 @@ func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 	}
 	if !u.interactive {
 		return 0, errs.Hint(fmt.Errorf("%s %w", q.Prompt, ErrNeedsAnswer), u.command+" --yes")
+	}
+	if u.dumb {
+		return u.askLine(ctx, q)
 	}
 	m := newQuestion(q, u.width)
 	p := tea.NewProgram(m,
@@ -139,4 +145,48 @@ func (m question) View() tea.View {
 	}
 	b.WriteString("\n" + line)
 	return tea.NewView(b.String())
+}
+
+// askLine asks on one plain line, "? Add it?  yes / no: ", and reads the
+// answer from stdin: an empty line takes the first answer, and an answer
+// that isn't one of them asks again. Ctrl-C (SIGINT in cooked mode cancels
+// ctx) takes the last answer and returns context.Canceled.
+func (u *UI) askLine(ctx context.Context, q Question) (int, error) {
+	type read struct {
+		line string
+		err  error
+	}
+	lines := make(chan read, 1) // a read still pending after Ctrl-C never blocks
+	r := bufio.NewReader(u.stdin)
+	next := func() {
+		go func() {
+			s, err := r.ReadString('\n')
+			lines <- read{s, err}
+		}()
+	}
+	last := len(q.Answers) - 1
+	for {
+		fmt.Fprintf(u.stderr, "%s %s  %s: ", markAsk, q.Prompt, strings.Join(q.Answers, " / "))
+		next()
+		var got read
+		select {
+		case <-ctx.Done():
+			fmt.Fprintln(u.stderr, q.Answers[last])
+			return last, context.Canceled
+		case got = <-lines:
+		}
+		answer := strings.TrimSpace(got.line)
+		if got.err != nil && answer == "" {
+			fmt.Fprintln(u.stderr)
+			return 0, fmt.Errorf("ask %q: %w", q.Prompt, got.err)
+		}
+		if answer == "" {
+			return 0, nil
+		}
+		for i, a := range q.Answers {
+			if strings.EqualFold(answer, a) {
+				return i, nil
+			}
+		}
+	}
 }

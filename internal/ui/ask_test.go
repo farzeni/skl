@@ -1,8 +1,13 @@
 package ui
 
 import (
+	"context"
+	"errors"
+	"io"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/colorprofile"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -93,4 +98,63 @@ func TestQuestionView(t *testing.T) {
 	m, _ = press(newQuestion(landIt, 40), ctrlC)
 	view("Land it after Ctrl-C", m)
 	golden(t, "question", b.String())
+}
+
+// commands.md "Output": "With TERM=dumb, a question is a plain line, `? Add it?
+// yes / no:`: type an answer, or press Enter for the first one." Read
+// from stdin. "the first one is the default, taken with Enter"; an answer
+// that isn't one of them asks again.
+func TestAskDumb(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
+		want        int
+		prompts     int
+	}{
+		{"enter takes the first", "\n", 0, 1},
+		{"an answer", "no\n", 1, 1},
+		{"any case, spaces", "  No \n", 1, 1},
+		{"unknown asks again", "maybe\nyes\n", 0, 2},
+		{"a long answer", "maybe\n\nx\nsave as review/pr-review-sec\n", 0, 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var stderr strings.Builder
+			u := newUI(Options{Stdin: strings.NewReader(tt.input), Stdout: io.Discard, Stderr: &stderr},
+				colorprofile.NoTTY, 80, true)
+			u.dumb = true
+			q := addIt
+			if tt.name == "a long answer" {
+				q = landIt
+			}
+			i, err := u.Ask(context.Background(), q)
+			if err != nil || i != tt.want {
+				t.Errorf("Ask = %d, %v; want %d", i, err, tt.want)
+			}
+			if n := strings.Count(stderr.String(), "? "+q.Prompt); n != tt.prompts {
+				t.Errorf("asked %d times, want %d: %q", n, tt.prompts, stderr.String())
+			}
+		})
+	}
+	var stderr strings.Builder
+	u := newUI(Options{Stdin: strings.NewReader("maybe\n"), Stdout: io.Discard, Stderr: &stderr}, colorprofile.NoTTY, 80, true)
+	u.dumb = true
+	if _, err := u.Ask(context.Background(), addIt); !errors.Is(err, io.EOF) {
+		t.Errorf("EOF: err %v", err)
+	}
+	golden(t, "question-dumb", stderr.String())
+}
+
+// "Ctrl-C at a question takes its last answer": in cooked mode Ctrl-C is
+// SIGINT, which cancels ctx.
+func TestAskDumbCanceled(t *testing.T) {
+	var stderr strings.Builder
+	pr, pw := io.Pipe()
+	defer func() { _ = pw.Close() }()
+	u := newUI(Options{Stdin: pr, Stdout: io.Discard, Stderr: &stderr}, colorprofile.NoTTY, 80, true)
+	u.dumb = true
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	i, err := u.Ask(ctx, landIt)
+	if i != 3 || !errors.Is(err, context.Canceled) {
+		t.Errorf("Ask = %d, %v; want 3, context.Canceled", i, err)
+	}
 }

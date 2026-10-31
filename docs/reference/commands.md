@@ -155,7 +155,7 @@ A command that changes nothing makes no generation and ends with `✓ nothing to
 
 **Where output goes.** What you asked for goes to standard output: the report of `skl status`, the list of `skl history`, the URL of `skl open`, a `--dry-run` plan, and `--json`. Everything else, the marks of a running command and its questions, goes to standard error. So `skl open review/pr-review | pbcopy` copies only the URL, and `skl status > status.txt` saves the report.
 
-**Color.** skl colors its marks only when the output is a terminal. Setting `NO_COLOR` (to any value) or `TERM=dumb` turns color off. The marks themselves stay the same.
+**Color.** skl colors its marks only when the output is a terminal. Setting `NO_COLOR` (to any value) or `TERM=dumb` turns color off. The marks themselves stay the same. With `TERM=dumb`, a question is a plain line, `? Add it?  yes / no:`: type an answer, or press Enter for the first one.
 
 ### JSON
 

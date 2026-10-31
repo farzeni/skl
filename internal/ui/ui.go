@@ -37,14 +37,17 @@ type UI struct {
 	profile     colorprofile.Profile
 	width       int
 	interactive bool // stdin and stderr are terminals
+	dumb        bool // TERM=dumb: questions are plain lines, no Bubble Tea
 	yes         bool
 	command     string
 }
 
 // New returns the UI for the given streams and environment.
 func New(o Options) *UI {
-	return newUI(o, pickProfile(o.Stderr, o.Getenv), pickWidth(o.Stderr, o.Getenv),
+	u := newUI(o, pickProfile(o.Stderr, o.Getenv), pickWidth(o.Stderr, o.Getenv),
 		isTerminal(o.Stdin) && isTerminal(o.Stderr))
+	u.dumb = o.Getenv("TERM") == "dumb"
+	return u
 }
 
 func newUI(o Options, profile colorprofile.Profile, width int, interactive bool) *UI {
