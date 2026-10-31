@@ -151,19 +151,72 @@ func TestNoPasswordPrompt(t *testing.T) {
 // GIT_TERMINAL_PROMPT=0 and GIT_SSH_COMMAND="ssh -o BatchMode=yes"".
 func TestEnv(t *testing.T) {
 	isolate(t)
-	g := New(nil)
-	printenv := []string{"-c", "alias.env=!printenv GIT_TERMINAL_PROMPT GIT_SSH_COMMAND", "env"}
-	out, err := g.Run(t.Context(), "", printenv...)
-	if want := "0\nssh -o BatchMode=yes\n"; err != nil || out != want {
-		t.Errorf("env = %q, %v, want %q", out, err, want)
+	// One name per printenv: BSD printenv (macOS) reads only the first.
+	printenv := []string{"-c", "alias.env=!printenv GIT_TERMINAL_PROMPT; printenv GIT_SSH_COMMAND", "env"}
+	env := func(g *Git, dir string) string {
+		t.Helper()
+		out, err := g.Run(t.Context(), dir, printenv...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	if got, want := env(New(nil), ""), "0\nssh -o BatchMode=yes\n"; got != want {
+		t.Errorf("env = %q, want %q", got, want)
 	}
 
-	// The user's own ssh command is kept, in batch mode.
-	t.Setenv("GIT_SSH_COMMAND", "ssh -i ~/.ssh/work")
-	out, err = g.Run(t.Context(), "", printenv...)
-	if want := "0\nssh -i ~/.ssh/work -o BatchMode=yes\n"; err != nil || out != want {
-		t.Errorf("env = %q, %v, want %q", out, err, want)
-	}
+	// docs/design/architecture.md "Fetching from remotes": "Your own
+	// GIT_SSH_COMMAND or core.sshCommand is kept, with -o BatchMode=yes
+	// added."
+	t.Run("core.sshCommand", func(t *testing.T) {
+		g := New(nil)
+		if _, err := g.Run(t.Context(), "", "config", "--global", "core.sshCommand", "ssh -i ~/.ssh/work"); err != nil {
+			t.Fatal(err)
+		}
+		g = New(nil) // read once per dir: a fresh Git sees the new value
+		if got, want := env(g, ""), "0\nssh -i ~/.ssh/work -o BatchMode=yes\n"; got != want {
+			t.Errorf("env = %q, want %q", got, want)
+		}
+		// A repo's own core.sshCommand wins over the global one, as in git.
+		repo := newRepo(t, g)
+		if _, err := g.Run(t.Context(), repo, "config", "core.sshCommand", "ssh -i ~/.ssh/repo"); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := env(New(nil), repo), "0\nssh -i ~/.ssh/repo -o BatchMode=yes\n"; got != want {
+			t.Errorf("env in repo = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ssh runs", func(t *testing.T) {
+		// git really runs the user's ssh, in batch mode (a fake ssh, offline).
+		bin := t.TempDir()
+		args := filepath.Join(bin, "args")
+		script := "#!/bin/sh\necho \"$@\" > '" + args + "'\nexit 255\n"
+		if err := os.WriteFile(filepath.Join(bin, "myssh"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		g := New(nil)
+		if _, err := g.Run(t.Context(), "", "config", "--global", "core.sshCommand", filepath.Join(bin, "myssh")); err != nil {
+			t.Fatal(err)
+		}
+		g = New(nil)
+		if _, err := g.Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills"); err == nil {
+			t.Fatal("ls-remote through a failing ssh succeeded")
+		}
+		b, err := os.ReadFile(args)
+		if err != nil || !strings.HasPrefix(string(b), "-o BatchMode=yes ") {
+			t.Errorf("ssh args = %q, %v, want -o BatchMode=yes first", b, err)
+		}
+	})
+
+	t.Run("GIT_SSH_COMMAND", func(t *testing.T) {
+		// GIT_SSH_COMMAND wins over the global core.sshCommand set above,
+		// as in git.
+		t.Setenv("GIT_SSH_COMMAND", "ssh -i ~/.ssh/env")
+		if got, want := env(New(nil), ""), "0\nssh -i ~/.ssh/env -o BatchMode=yes\n"; got != want {
+			t.Errorf("env = %q, want %q", got, want)
+		}
+	})
 }
 
 // The spec harness maps https://github.com/ to local repos with
@@ -301,8 +354,8 @@ func TestVersionCheckedOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if n := count(); n != 4 {
-		t.Errorf("git ran %d times, want 1 version check and 3 calls", n)
+	if n := count(); n != 5 {
+		t.Errorf("git ran %d times, want 1 version check, 1 core.sshCommand read and 3 calls", n)
 	}
 }
 
@@ -313,7 +366,9 @@ func TestNoGit(t *testing.T) {
 	if !errors.Is(err, ErrOldGit) || !errors.As(err, &h) {
 		t.Fatalf("err = %v, want ErrOldGit with a hint", err)
 	}
-	if got := err.Error() + " · " + h.Hint; got != "skl needs git 2.38 or later (found none) · install git" {
+	// docs/guide/getting-started.md "Install": "without git, it stops with
+	// ✗ skl needs git · install git 2.38 or later".
+	if got := err.Error() + " · " + h.Hint; got != "skl needs git · install git 2.38 or later" {
 		t.Errorf("error = %q", got)
 	}
 }

@@ -15,7 +15,9 @@ func TestDebugLogger(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	dir := t.TempDir()
 	for _, tt := range []struct{ debug, want string }{
-		{"1", "level=DEBUG msg=\"git version\"\nlevel=DEBUG msg=\"git init --quiet\" dir=" + dir + "\n"},
+		{"1", "level=DEBUG msg=\"git version\"\n" +
+			"level=DEBUG msg=\"git config --get core.sshCommand\" dir=" + dir + "\n" +
+			"level=DEBUG msg=\"git init --quiet\" dir=" + dir + "\n"},
 		{"", ""},
 		{"0", ""},
 		{"true", ""},

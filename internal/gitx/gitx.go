@@ -33,6 +33,9 @@ type Git struct {
 	mu      sync.Mutex
 	checked bool
 	verErr  error
+
+	sshMu  sync.Mutex
+	sshCfg map[string]string // dir → core.sshCommand there, "" if unset
 }
 
 // New returns a Git that logs each command to log at debug level before it
@@ -57,6 +60,11 @@ func (g *Git) Run(ctx context.Context, dir string, args ...string) (string, erro
 }
 
 func (g *Git) run(ctx context.Context, dir string, args []string) (string, error) {
+	return g.exec(ctx, dir, args, append(baseEnv(), "GIT_SSH_COMMAND="+g.sshCommand(ctx, dir)))
+}
+
+// exec runs git with env as its whole environment.
+func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string, error) {
 	timeout := g.Timeout
 	if timeout == 0 {
 		timeout = DefaultTimeout
@@ -72,7 +80,7 @@ func (g *Git) run(ctx context.Context, dir string, args []string) (string, error
 
 	cmd := exec.CommandContext(tctx, "git", args...)
 	cmd.Dir = dir
-	cmd.Env = environ()
+	cmd.Env = env
 	// A child git started, such as ssh or a hook, may keep the pipes open
 	// after git is killed; stop waiting for it.
 	cmd.WaitDelay = time.Second
@@ -101,18 +109,39 @@ func (g *Git) run(ctx context.Context, dir string, args []string) (string, error
 	return "", e
 }
 
-// environ is the process's environment plus the variables that keep git
-// from waiting for input: a missing credential or an unknown host key fails
-// at once. LC_ALL=C keeps git's messages in English, so classify can read
-// them.
-func environ() []string {
-	ssh := "ssh -o BatchMode=yes"
+// baseEnv is the process's environment plus GIT_TERMINAL_PROMPT=0, so a
+// missing credential fails at once instead of waiting for input. LC_ALL=C
+// keeps git's messages in English, so classify can read them.
+func baseEnv() []string {
+	return append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
+}
+
+// sshCommand is the ssh command git would use in dir, in batch mode, so an
+// unknown host key fails at once: the user's GIT_SSH_COMMAND, else their
+// core.sshCommand (which a GIT_SSH_COMMAND set by skl would override), else
+// plain ssh. core.sshCommand is read once per dir.
+func (g *Git) sshCommand(ctx context.Context, dir string) string {
+	const batch = " -o BatchMode=yes"
 	if own := os.Getenv("GIT_SSH_COMMAND"); own != "" {
-		ssh = own + " -o BatchMode=yes"
+		return own + batch
 	}
-	return append(os.Environ(),
-		"GIT_TERMINAL_PROMPT=0",
-		"GIT_SSH_COMMAND="+ssh,
-		"LC_ALL=C",
-	)
+	g.sshMu.Lock()
+	defer g.sshMu.Unlock()
+	cfg, ok := g.sshCfg[dir]
+	if !ok {
+		// Exit 1 means unset. Any other failure, such as a dir that doesn't
+		// exist, is the main call's to report.
+		out, _ := g.exec(ctx, dir, []string{"config", "--get", "core.sshCommand"}, baseEnv())
+		cfg = strings.TrimSpace(out)
+		if ctx.Err() == nil {
+			if g.sshCfg == nil {
+				g.sshCfg = map[string]string{}
+			}
+			g.sshCfg[dir] = cfg
+		}
+	}
+	if cfg == "" {
+		cfg = "ssh"
+	}
+	return cfg + batch
 }

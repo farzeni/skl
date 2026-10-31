@@ -67,7 +67,7 @@ skl runs git and behaves the same on every host.
 - Local repos are cloned through `file://`, because git ignores filters for plain paths.
 - Merge bases for a lesson are fetched by commit, only when needed.
 - The cache lives at `~/.skl/cache/<host>/<path>`. Only `learn` and the update check read it; nothing loaded points into it, so deleting it costs one fetch.
-- Git runs with `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential or an unknown host key fails at once instead of waiting for input.
+- Git runs with `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential or an unknown host key fails at once instead of waiting for input. Your own `GIT_SSH_COMMAND` or `core.sshCommand` is kept, with `-o BatchMode=yes` added.
 - The update check reads at most 8 repos at once, and each git call times out after 30 seconds. A source that can't be reached is a `!` line, and the check goes on with the others.
 - [`SKL_DEBUG=1`](../reference/config#environment-variables) prints each git and engine command before it runs.
 

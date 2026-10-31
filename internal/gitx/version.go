@@ -34,11 +34,10 @@ type VersionError struct {
 }
 
 func (e *VersionError) Error() string {
-	found := e.Found
-	if found == "" {
-		found = "none"
+	if e.Found == "" {
+		return "skl needs git"
 	}
-	return fmt.Sprintf("skl needs git %s or later (found %s)", MinVersion, found)
+	return fmt.Sprintf("skl needs git %s or later (found %s)", MinVersion, e.Found)
 }
 
 // Is makes every VersionError match ErrOldGit.
@@ -73,7 +72,7 @@ func (g *Git) checkVersion(ctx context.Context) error {
 	if g.checked {
 		return g.verErr
 	}
-	out, err := g.run(ctx, "", []string{"version"})
+	out, err := g.exec(ctx, "", []string{"version"}, baseEnv())
 	if err != nil {
 		if ctx.Err() != nil {
 			return err
@@ -92,7 +91,8 @@ func (g *Git) checkVersion(ctx context.Context) error {
 	return g.verErr
 }
 
-// notFound is the error for a git that isn't on PATH.
+// notFound is the error for a git that isn't on PATH: "✗ skl needs git ·
+// install git 2.38 or later" (docs/guide/getting-started.md "Install").
 func (g *Git) notFound() error {
-	return errs.Hint(&VersionError{}, "install git")
+	return errs.Hint(&VersionError{}, "install git "+MinVersion.String()+" or later")
 }
