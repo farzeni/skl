@@ -122,6 +122,7 @@ Never synced.
 ├── cache/          # sparse clones for learn, by host and path
 ├── state.json      # what's loaded where, update check results
 ├── generations/    # one snapshot per change
+├── staging/        # new copies, before they replace the loaded ones
 └── lock            # held while a command changes something
 ```
 
