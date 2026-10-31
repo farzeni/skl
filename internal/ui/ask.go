@@ -40,7 +40,7 @@ func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 		return 0, nil
 	}
 	if !u.interactive {
-		return 0, errs.Hint(fmt.Errorf("%s %w", q.Prompt, ErrNeedsAnswer), u.command+" --yes")
+		return 0, u.needsAnswer(q)
 	}
 	if u.dumb {
 		return u.askLine(ctx, q)
@@ -65,7 +65,7 @@ func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 		fmt.Fprint(u.stderr, m.View().Content)
 		return last, context.Canceled
 	case err != nil:
-		return 0, fmt.Errorf("ask %q: %w", q.Prompt, err)
+		return 0, errs.Hint(fmt.Errorf("ask %q: %w", q.Prompt, err), u.command+" --yes")
 	}
 	m = final.(question)
 	if m.canceled {
@@ -177,8 +177,9 @@ func (u *UI) askLine(ctx context.Context, q Question) (int, error) {
 		}
 		answer := strings.TrimSpace(got.line)
 		if got.err != nil && answer == "" {
+			// Ctrl-D or a closed stdin: no answer is coming.
 			fmt.Fprintln(u.stderr)
-			return 0, fmt.Errorf("ask %q: %w", q.Prompt, got.err)
+			return 0, u.needsAnswer(q)
 		}
 		if answer == "" {
 			return 0, nil
@@ -189,4 +190,9 @@ func (u *UI) askLine(ctx context.Context, q Question) (int, error) {
 			}
 		}
 	}
+}
+
+// needsAnswer is "✗ <prompt> needs an answer · <command> --yes".
+func (u *UI) needsAnswer(q Question) error {
+	return errs.Hint(fmt.Errorf("%s %w", q.Prompt, ErrNeedsAnswer), u.command+" --yes")
 }

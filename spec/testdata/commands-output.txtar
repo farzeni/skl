@@ -6,11 +6,14 @@
 exitcode 2 skl stauts
 cmp stderr stauts-80.txt
 
-# "A command that doesn't fit on the line moves to the next one, after ·."
+# "A command that doesn't fit on the line moves to the next one, after ·; one
+# that fits stays on the line."
 env COLUMNS=30
 exitcode 2 skl stauts
 cmp stderr stauts-30.txt
 env COLUMNS=80
+exitcode 2 skl stauts
+cmp stderr stauts-80.txt
 
 # "What you asked for goes to standard output … Everything else, the marks
 # of a running command and its questions, goes to standard error."
@@ -27,7 +30,7 @@ env TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1
 exitcode 2 skl stauts
 cmp stderr stauts-80.txt
 
-# "Setting NO_COLOR (to any value) or TERM=dumb turns color off. The marks
+# "Setting NO_COLOR to a non-empty value or TERM=dumb turns color off. The marks
 # themselves stay the same." (On a terminal: internal/ui and the card's pty proofs.)
 env NO_COLOR=yes TERM=dumb
 exitcode 2 skl stauts

@@ -116,7 +116,7 @@ func TestReportIsStdout(t *testing.T) {
 }
 
 // commands.md "Color": "skl colors its marks only when the output is a
-// terminal. Setting NO_COLOR (to any value) or TERM=dumb turns color off."
+// terminal. Setting NO_COLOR to a non-empty value or TERM=dumb turns color off."
 // A buffer is never a terminal; the terminal cases run in a pty, in the
 // card's proofs.
 func TestPickProfile(t *testing.T) {
@@ -201,7 +201,8 @@ func TestCommandLine(t *testing.T) {
 }
 
 // commands.md "Output": "A command that doesn't fit on the line moves to
-// the next one, after ·." Width counts columns, not bytes.
+// the next one, after ·; one that fits stays on the line." Width counts
+// columns, not bytes.
 func TestHinted(t *testing.T) {
 	for _, tt := range []struct {
 		msg, hint string

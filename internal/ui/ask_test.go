@@ -9,6 +9,8 @@ import (
 
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/farzeni/skl/internal/errs"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -107,39 +109,45 @@ func TestQuestionView(t *testing.T) {
 func TestAskDumb(t *testing.T) {
 	for _, tt := range []struct {
 		name, input string
+		q           Question
 		want        int
 		prompts     int
 	}{
-		{"enter takes the first", "\n", 0, 1},
-		{"an answer", "no\n", 1, 1},
-		{"any case, spaces", "  No \n", 1, 1},
-		{"unknown asks again", "maybe\nyes\n", 0, 2},
-		{"a long answer", "maybe\n\nx\nsave as review/pr-review-sec\n", 0, 2},
+		{"enter takes the first", "\n", addIt, 0, 1},
+		{"an answer", "no\n", addIt, 1, 1},
+		{"any case, spaces", "  No \n", addIt, 1, 1},
+		{"unknown asks again", "maybe\nyes\n", addIt, 0, 2},
+		{"a long answer", "maybe\nx\nsave as review/pr-review-sec\n", landIt, 2, 3},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var stderr strings.Builder
 			u := newUI(Options{Stdin: strings.NewReader(tt.input), Stdout: io.Discard, Stderr: &stderr},
 				colorprofile.NoTTY, 80, true)
 			u.dumb = true
-			q := addIt
-			if tt.name == "a long answer" {
-				q = landIt
-			}
-			i, err := u.Ask(context.Background(), q)
+			i, err := u.Ask(context.Background(), tt.q)
 			if err != nil || i != tt.want {
 				t.Errorf("Ask = %d, %v; want %d", i, err, tt.want)
 			}
-			if n := strings.Count(stderr.String(), "? "+q.Prompt); n != tt.prompts {
+			if n := strings.Count(stderr.String(), "? "+tt.q.Prompt); n != tt.prompts {
 				t.Errorf("asked %d times, want %d: %q", n, tt.prompts, stderr.String())
 			}
 		})
 	}
+}
+
+// Ctrl-D, or a stdin that ends, is no answer: "✗ <question> needs an
+// answer · <command> --yes", as without a terminal.
+func TestAskDumbEOF(t *testing.T) {
 	var stderr strings.Builder
-	u := newUI(Options{Stdin: strings.NewReader("maybe\n"), Stdout: io.Discard, Stderr: &stderr}, colorprofile.NoTTY, 80, true)
+	u := newUI(Options{Stdin: strings.NewReader("maybe\n"), Stdout: io.Discard, Stderr: &stderr, Command: "skl learn x"},
+		colorprofile.NoTTY, 80, true)
 	u.dumb = true
-	if _, err := u.Ask(context.Background(), addIt); !errors.Is(err, io.EOF) {
-		t.Errorf("EOF: err %v", err)
+	_, err := u.Ask(context.Background(), addIt)
+	var h *errs.Hinted
+	if !errors.Is(err, ErrNeedsAnswer) || !errors.As(err, &h) || h.Hint != "skl learn x --yes" {
+		t.Fatalf("EOF: err %v, want ErrNeedsAnswer · skl learn x --yes", err)
 	}
+	u.Error(err.Error(), h.Hint)
 	golden(t, "question-dumb", stderr.String())
 }
 

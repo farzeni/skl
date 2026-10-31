@@ -41,6 +41,13 @@ The value is one of `github`, `gitlab`, `bitbucket`, `gitea` (also Forgejo), `so
 
 Every key above the `[web]` table can be set with an environment variable: `SKL_DEFAULT_HOST`, `SKL_PROTOCOL`, `SKL_SCOPE`, `SKL_TARGETS` (comma-separated, such as `claude,agents`), `SKL_ENGINE`, `SKL_LICENSE`.
 
+A variable with a value skl can't use stops the command, naming the variable:
+
+```
+✗ config: SKL_TARGETS can only hold claude and agents, not "cursor"
+  · unset SKL_TARGETS
+```
+
 skl also reads:
 
 | Variable | Effect |
