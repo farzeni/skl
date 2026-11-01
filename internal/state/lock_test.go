@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -501,5 +502,34 @@ func TestLockCreatesTheFolder(t *testing.T) {
 	t.Cleanup(func() { _ = l.Release() })
 	if _, err := os.Stat(p.Lock); err != nil {
 		t.Error(err)
+	}
+}
+
+// Changing state goes through the lock: once released, it can't.
+func TestReleasedLockChangesNothing(t *testing.T) {
+	s, p := testStore(t)
+	ctx := context.Background()
+	l, err := s.Lock(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Save(ctx, &State{}); err != nil {
+		t.Errorf("Save while held: %v", err)
+	}
+	g, err := l.AddGeneration(ctx, Generation{Time: genTime})
+	if err != nil || g.N != 1 {
+		t.Errorf("AddGeneration while held: %+v, %v", g, err)
+	}
+	if err := l.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Save(ctx, &State{}); !errors.Is(err, ErrReleased) {
+		t.Errorf("Save after Release: %v", err)
+	}
+	if _, err := l.AddGeneration(ctx, Generation{Time: genTime}); !errors.Is(err, ErrReleased) {
+		t.Errorf("AddGeneration after Release: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(p.Generations, "2.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("generation 2: %v", err)
 	}
 }

@@ -429,35 +429,6 @@ func TestChangingStateNeedsTheLock(t *testing.T) {
 	}
 }
 
-// Once released, a lock changes nothing.
-func TestReleasedLockChangesNothing(t *testing.T) {
-	s, p := testStore(t)
-	ctx := context.Background()
-	l, err := s.Lock(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := l.Save(ctx, &State{}); err != nil {
-		t.Errorf("Save while held: %v", err)
-	}
-	g, err := l.AddGeneration(ctx, Generation{Time: genTime})
-	if err != nil || g.N != 1 {
-		t.Errorf("AddGeneration while held: %+v, %v", g, err)
-	}
-	if err := l.Release(); err != nil {
-		t.Fatal(err)
-	}
-	if err := l.Save(ctx, &State{}); !errors.Is(err, ErrReleased) {
-		t.Errorf("Save after Release: %v", err)
-	}
-	if _, err := l.AddGeneration(ctx, Generation{Time: genTime}); !errors.Is(err, ErrReleased) {
-		t.Errorf("AddGeneration after Release: %v", err)
-	}
-	if exists(filepath.Join(p.Generations, "2.json")) {
-		t.Error("generation 2 was written")
-	}
-}
-
 // docs/reference/files.md "Local state": "If skl can't use state.json, it stops
 // instead of overwriting it". A damaged file comes through the lock and its
 // cleanup as it was, and Load names it.
