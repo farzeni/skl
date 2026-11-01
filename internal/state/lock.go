@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -32,7 +33,10 @@ func (e *LockedError) Error() string {
 }
 
 // Lock is the held lock: one skl changes things at a time on a machine.
-type Lock struct{ f *os.File }
+type Lock struct {
+	f *os.File
+	s *Store
+}
 
 // Lock takes the lock without waiting for its holder, or returns a
 // *LockedError. Commands that change something hold it until they're done.
@@ -42,11 +46,13 @@ type Lock struct{ f *os.File }
 // killed skl is free, even if the system has given its pid to another process,
 // and two skls can't both take over a stale lock. The file is opened
 // close-on-exec, so git or an engine that outlives skl doesn't keep it.
+//
+// Taking it also removes the temp files a killed skl left.
 func (s *Store) Lock(ctx context.Context) (*Lock, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(s.lockPath), 0o755); err != nil {
+	if err := s.mkdirAll(filepath.Dir(s.lockPath)); err != nil {
 		return nil, fmt.Errorf("lock: %w", err)
 	}
 	f, err := os.OpenFile(s.lockPath, os.O_RDWR|os.O_CREATE, 0o600)
@@ -82,7 +88,70 @@ func (s *Store) Lock(ctx context.Context) (*Lock, error) {
 		_ = f.Close() // closing drops the flock
 		return nil, fmt.Errorf("lock %s: %w", s.lockPath, err)
 	}
-	return &Lock{f: f}, nil
+	s.removeLeftovers()
+	return &Lock{f: f, s: s}, nil
+}
+
+// removeLeftovers removes the temp files writeAtomic left when a skl was killed
+// in the middle of a write. Only the lock's holder writes, and that is us now,
+// so no live skl owns one. A file from after this skl's start is left alone all
+// the same, for the next skl to judge. Nothing depends on this working, so a
+// failure doesn't stop the command.
+func (s *Store) removeLeftovers() {
+	stateFile := filepath.Base(s.statePath)
+	s.removeTemps(filepath.Dir(s.statePath), func(target string) bool { return target == stateFile })
+	s.removeTemps(s.generations, func(target string) bool {
+		_, ok := generationNumber(target)
+		return ok
+	})
+}
+
+func (s *Store) removeTemps(dir string, isTarget func(string) bool) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			s.log.Debug("can't look for temp files", "dir", dir, "err", err)
+		}
+		return
+	}
+	for _, e := range entries {
+		target, ok := tempTarget(e.Name())
+		if !ok || !isTarget(target) || !e.Type().IsRegular() {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		info, err := e.Info()
+		if err != nil || !info.ModTime().Before(s.started) {
+			continue
+		}
+		if err := os.Remove(path); err != nil {
+			s.log.Debug("can't remove temp file", "path", path, "err", err)
+			continue
+		}
+		s.log.Debug("removed temp file", "path", path)
+	}
+}
+
+// tempTarget returns the file a temp file of writeAtomic was going to replace:
+// "state.json" for ".state.json.123.tmp". os.CreateTemp puts digits in the
+// middle. Any other name isn't one of skl's temp files.
+func tempTarget(name string) (string, bool) {
+	rest, ok := strings.CutPrefix(name, ".")
+	if !ok {
+		return "", false
+	}
+	rest, ok = strings.CutSuffix(rest, ".tmp")
+	if !ok {
+		return "", false
+	}
+	i := strings.LastIndexByte(rest, '.')
+	if i < 0 {
+		return "", false
+	}
+	if _, err := strconv.ParseUint(rest[i+1:], 10, 64); err != nil {
+		return "", false
+	}
+	return rest[:i], true
 }
 
 // Release gives the lock up. Calling it again does nothing. The file stays:

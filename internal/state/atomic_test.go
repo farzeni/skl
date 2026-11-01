@@ -26,7 +26,7 @@ func bigScope(tag string) Scope {
 func TestSaveIsAtomicForReaders(t *testing.T) {
 	s, p := testStore(t)
 	ctx := context.Background()
-	if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope("a")}}); err != nil {
+	if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope("a")}}); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error)
@@ -34,7 +34,7 @@ func TestSaveIsAtomicForReaders(t *testing.T) {
 	go func() {
 		for i := 0; time.Now().Before(stop); i++ {
 			tag := string(rune('a' + i%2))
-			if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope(tag)}}); err != nil {
+			if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope(tag)}}); err != nil {
 				done <- err
 				return
 			}
@@ -62,7 +62,7 @@ func TestSaveIsAtomicForReaders(t *testing.T) {
 func TestSaveFailureKeepsTheOldFile(t *testing.T) {
 	s, p := testStore(t)
 	ctx := context.Background()
-	if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@old"}}}}); err != nil {
+	if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@old"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	before, err := os.ReadFile(p.State)
@@ -76,7 +76,7 @@ func TestSaveFailureKeepsTheOldFile(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(blocked, "x"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeAtomic(blocked, []byte("new")); err == nil {
+	if err := s.writeAtomic(blocked, []byte("new")); err == nil {
 		t.Fatal("rename over a directory worked")
 	}
 	entries, err := os.ReadDir(filepath.Dir(blocked))
@@ -93,7 +93,7 @@ func TestSaveFailureKeepsTheOldFile(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(p.Home, 0o700) })
 	if os.Geteuid() != 0 {
-		if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@new"}}}}); err == nil {
+		if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@new"}}}}); err == nil {
 			t.Error("Save in a read-only folder worked")
 		}
 	}
@@ -110,11 +110,11 @@ func TestSaveFailureKeepsTheOldFile(t *testing.T) {
 func TestSaveSurvivesKill(t *testing.T) {
 	s, p := testStore(t)
 	ctx := context.Background()
-	if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope("a")}}); err != nil {
+	if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope("a")}}); err != nil {
 		t.Fatal(err)
 	}
 	for range 5 {
-		cmd, _ := startHelper(t, p, "save-loop")
+		cmd := startHelper(t, p, "save-loop")
 		time.Sleep(30 * time.Millisecond)
 		if err := cmd.Process.Signal(syscall.SIGKILL); err != nil {
 			t.Fatal(err)

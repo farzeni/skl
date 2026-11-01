@@ -10,9 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/farzeni/skl/internal/config"
 )
@@ -28,6 +31,8 @@ var (
 	// ErrNewerState is a state.json from a newer skl. Rewriting it could lose
 	// what this skl doesn't know about, so it stops.
 	ErrNewerState = errors.New("written by a newer skl")
+	// ErrReleased is a change attempted through a lock already given up.
+	ErrReleased = errors.New("the lock was released")
 )
 
 // ScopeKey names a scope in state.json: User, or Project for one repo.
@@ -81,16 +86,31 @@ type file struct {
 //
 // Reading needs no lock: writes are atomic, so a reader sees the old file or
 // the new one. status and history rely on that. Changing state, adding
-// generations included, is for the holder of the lock.
+// generations included, is for the holder of the lock, so those are methods of
+// *Lock: the compiler sees to it that a caller has taken one.
 type Store struct {
 	statePath   string
 	generations string
 	lockPath    string
+	log         *slog.Logger
+	started     time.Time            // this skl's start: a temp file older than it isn't ours
+	syncFile    func(*os.File) error // (*os.File).Sync; tests replace it
 }
 
-// New returns the store for p.
-func New(p config.Paths) *Store {
-	return &Store{statePath: p.State, generations: p.Generations, lockPath: p.Lock}
+// New returns the store for p. log gets debug lines only; nil discards them.
+// Call it when skl starts: what it finds older than that is left from before.
+func New(p config.Paths, log *slog.Logger) *Store {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	return &Store{
+		statePath:   p.State,
+		generations: p.Generations,
+		lockPath:    p.Lock,
+		log:         log,
+		started:     time.Now(),
+		syncFile:    (*os.File).Sync,
+	}
 }
 
 // Load reads state.json. A missing file is an empty state: nothing is loaded.
@@ -118,9 +138,17 @@ func (s *Store) Load(ctx context.Context) (*State, error) {
 	return &State{Scopes: f.Scopes}, nil
 }
 
-// Save writes state.json atomically. Run it under context.WithoutCancel when
-// the change it records has already happened.
-func (s *Store) Save(ctx context.Context, st *State) error {
+// Save writes state.json atomically. Holding the lock is how you get to call
+// it. Run it under context.WithoutCancel when the change it records has already
+// happened.
+func (l *Lock) Save(ctx context.Context, st *State) error {
+	if l.f == nil {
+		return ErrReleased
+	}
+	return l.s.save(ctx, st)
+}
+
+func (s *Store) save(ctx context.Context, st *State) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -128,7 +156,7 @@ func (s *Store) Save(ctx context.Context, st *State) error {
 	if err != nil {
 		return fmt.Errorf("state: %w", err)
 	}
-	if err := writeAtomic(s.statePath, data); err != nil {
+	if err := s.writeAtomic(s.statePath, data); err != nil {
 		return fmt.Errorf("state: %w", err)
 	}
 	return nil
@@ -144,10 +172,11 @@ func marshal(v any) ([]byte, error) {
 
 // writeAtomic replaces path with data: a temp file in the same folder, synced,
 // then renamed over it. A crash at any point leaves the old file or the new
-// one. A temp file left by a crash starts with a dot and is never read.
-func writeAtomic(path string, data []byte) error {
+// one. A temp file left by a crash starts with a dot and is never read; the
+// next skl to take the lock removes it (see removeLeftovers).
+func (s *Store) writeAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := s.mkdirAll(dir); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
@@ -162,7 +191,7 @@ func writeAtomic(path string, data []byte) error {
 		_ = os.Remove(tmp.Name())
 		return err
 	}
-	return syncDir(dir)
+	return s.syncDir(dir)
 }
 
 func writeAndClose(f *os.File, data []byte) error {
@@ -173,11 +202,42 @@ func writeAndClose(f *os.File, data []byte) error {
 	return errors.Join(err, f.Close())
 }
 
-// syncDir makes the rename survive a power cut.
-func syncDir(dir string) error {
+// mkdirAll is os.MkdirAll that also syncs the parent of every folder it
+// creates, so a power cut can't lose the folder and what's in it.
+func (s *Store) mkdirAll(dir string) error {
+	var missing []string
+	for d := dir; ; d = filepath.Dir(d) {
+		if _, err := os.Stat(d); !errors.Is(err, fs.ErrNotExist) {
+			break // it exists, or MkdirAll will say what's wrong with it
+		}
+		missing = append(missing, d)
+		if filepath.Dir(d) == d {
+			break
+		}
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for _, d := range missing {
+		if err := s.syncDir(filepath.Dir(d)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// syncDir makes a rename or a new folder in dir survive a power cut. Some
+// filesystems, such as some network ones, can't sync a folder at all. There is
+// nothing more to do on those, so it isn't an error.
+func (s *Store) syncDir(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
 		return err
 	}
-	return errors.Join(d.Sync(), d.Close())
+	err = s.syncFile(d)
+	if errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOTSUP) {
+		s.log.Debug("folder sync not supported", "dir", dir, "err", err)
+		err = nil
+	}
+	return errors.Join(err, d.Close())
 }

@@ -29,7 +29,7 @@ func TestGenerationRoundTrip(t *testing.T) {
 		},
 		Changed: []ScopeKey{repo},
 	}
-	added, err := s.AddGeneration(ctx, want)
+	added, err := s.addGeneration(ctx, want)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestGenerationNumbering(t *testing.T) {
 	}
 	// Past 9, so numeric order and file-name order differ.
 	for want := 1; want <= 12; want++ {
-		g, err := s.AddGeneration(ctx, Generation{Time: genTime, Command: "use"})
+		g, err := s.addGeneration(ctx, Generation{Time: genTime, Command: "use"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestGenerationNumberingIgnoresOtherFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(p.Generations, "4.json"), []byte(`{"n":4,"command":"use"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	g, err := s.AddGeneration(ctx, Generation{Time: genTime})
+	g, err := s.addGeneration(ctx, Generation{Time: genTime})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/farzeni/skl/internal/config"
-	"github.com/farzeni/skl/internal/ui"
 )
 
 // TestMain lets the test binary act as a second skl process: with
@@ -37,7 +36,7 @@ func helper(name string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 3
 	}
-	s := New(p)
+	s := New(p, nil)
 	switch name {
 	case "hold": // take the lock, say so, hold it until stdin closes
 		l, err := s.Lock(ctx)
@@ -65,7 +64,7 @@ func helper(name string) int {
 		fmt.Println("locked", child.Process.Pid)
 		_, _ = io.Copy(io.Discard, os.Stdin)
 		return 0
-	case "try": // what the frame of a changing command does: print the ✗ line
+	case "try": // say whether we got the lock, and from whom we didn't
 		l, err := s.Lock(ctx)
 		if err != nil {
 			var held *LockedError
@@ -73,8 +72,7 @@ func helper(name string) int {
 				fmt.Fprintln(os.Stderr, err)
 				return 3
 			}
-			u := ui.New(ui.Options{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Getenv: os.Getenv})
-			u.Error(err.Error(), "skl sync, once it's done")
+			fmt.Println("refused", held.PID)
 			return 1
 		}
 		fmt.Println("locked")
@@ -86,7 +84,7 @@ func helper(name string) int {
 	case "save-loop": // write state.json until killed
 		for i := 0; ; i++ {
 			tag := string(rune('a' + i%2))
-			if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope(tag)}}); err != nil {
+			if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope(tag)}}); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				return 3
 			}
@@ -104,20 +102,15 @@ func helperCmd(t *testing.T, p config.Paths, name string) *exec.Cmd {
 	}
 	cmd := exec.Command(exe)
 	cmd.Env = append(os.Environ(),
-		"SKL_STATE_HELPER="+name, "SKL_HOME="+p.Home, "COLUMNS=80", "NO_COLOR=1",
+		"SKL_STATE_HELPER="+name, "SKL_HOME="+p.Home,
 		"GORACE=atexit_sleep_ms=0") // under -race a process otherwise sleeps 1 s as it exits
 	return cmd
 }
 
-// startHelper starts a helper that runs until killed or until its stdin is
-// closed. The returned stdin closes the helper's end.
-func startHelper(t *testing.T, p config.Paths, name string) (*exec.Cmd, io.WriteCloser) {
+// startHelper starts a helper that runs until killed.
+func startHelper(t *testing.T, p config.Paths, name string) *exec.Cmd {
 	t.Helper()
 	cmd := helperCmd(t, p, name)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
 	cmd.Stdout = io.Discard
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -126,7 +119,7 @@ func startHelper(t *testing.T, p config.Paths, name string) (*exec.Cmd, io.Write
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 	})
-	return cmd, stdin
+	return cmd
 }
 
 // startHolder starts a helper that holds the lock and returns once it does,
@@ -163,10 +156,9 @@ func startHolder(t *testing.T, p config.Paths, name string) (*exec.Cmd, io.Write
 }
 
 // runTry runs a one-shot skl that tries to take the lock.
-func runTry(t *testing.T, p config.Paths, env ...string) (stdout, stderr string, code int) {
+func runTry(t *testing.T, p config.Paths) (stdout, stderr string, code int) {
 	t.Helper()
 	cmd := helperCmd(t, p, "try")
-	cmd.Env = append(cmd.Env, env...)
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()
@@ -181,9 +173,9 @@ func runTry(t *testing.T, p config.Paths, env ...string) (stdout, stderr string,
 	return out.String(), errb.String(), code
 }
 
-// docs/reference/commands.md "Errors": "✗ another skl is running (pid 4182)
-// · skl sync, once it's done"; "One skl runs at a time on a machine".
-// docs/design/architecture.md "Safety": the lock "records its pid".
+// docs/reference/commands.md "Errors": "One skl runs at a time on a machine".
+// docs/design/architecture.md "Safety": the lock "records its pid". The refusal
+// is a *LockedError naming the holder; the ✗ line it becomes is for ui and cli.
 func TestLockContentionBetweenProcesses(t *testing.T) {
 	_, p := testStore(t)
 	holder, stdin, _ := startHolder(t, p, "hold")
@@ -201,15 +193,8 @@ func TestLockContentionBetweenProcesses(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("second skl: exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
-	want := fmt.Sprintf("✗ another skl is running (pid %d) · skl sync, once it's done\n", pid)
-	if stderr != want {
-		t.Errorf("stderr = %q, want %q", stderr, want)
-	}
-	// Where it doesn't fit, the two lines commands.md shows.
-	_, stderr, _ = runTry(t, p, "COLUMNS=50")
-	want = fmt.Sprintf("✗ another skl is running (pid %d)\n  · skl sync, once it's done\n", pid)
-	if stderr != want {
-		t.Errorf("at 50 columns: stderr = %q, want %q", stderr, want)
+	if want := fmt.Sprintf("refused %d\n", pid); stdout != want {
+		t.Errorf("stdout = %q, want %q", stdout, want)
 	}
 
 	// Once the first one is done, the next one runs.
@@ -316,10 +301,10 @@ func TestChildDoesNotInheritLock(t *testing.T) {
 func TestReadingNeedsNoLock(t *testing.T) {
 	s, p := testStore(t)
 	ctx := context.Background()
-	if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@base"}}}}); err != nil {
+	if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@base"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AddGeneration(ctx, Generation{Time: genTime, Command: "use @base"}); err != nil {
+	if _, err := s.addGeneration(ctx, Generation{Time: genTime, Command: "use @base"}); err != nil {
 		t.Fatal(err)
 	}
 	startHolder(t, p, "hold")

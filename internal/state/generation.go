@@ -36,8 +36,15 @@ type NoGenerationError struct{ N int }
 func (e *NoGenerationError) Error() string { return fmt.Sprintf("no generation %d", e.N) }
 
 // AddGeneration writes g as the next generation and returns it with its
-// number. The caller holds the lock and sets everything but N.
-func (s *Store) AddGeneration(ctx context.Context, g Generation) (Generation, error) {
+// number. The caller sets everything but N.
+func (l *Lock) AddGeneration(ctx context.Context, g Generation) (Generation, error) {
+	if l.f == nil {
+		return Generation{}, ErrReleased
+	}
+	return l.s.addGeneration(ctx, g)
+}
+
+func (s *Store) addGeneration(ctx context.Context, g Generation) (Generation, error) {
 	if err := ctx.Err(); err != nil {
 		return Generation{}, err
 	}
@@ -53,7 +60,7 @@ func (s *Store) AddGeneration(ctx context.Context, g Generation) (Generation, er
 	if err != nil {
 		return Generation{}, fmt.Errorf("generations: %w", err)
 	}
-	if err := writeAtomic(s.generationPath(g.N), data); err != nil {
+	if err := s.writeAtomic(s.generationPath(g.N), data); err != nil {
 		return Generation{}, fmt.Errorf("generations: %w", err)
 	}
 	return g, nil
@@ -118,13 +125,18 @@ func (s *Store) numbers() ([]int, error) {
 	}
 	var numbers []int
 	for _, e := range entries {
-		stem, ok := strings.CutSuffix(e.Name(), ".json")
-		if !ok || !e.Type().IsRegular() {
-			continue
-		}
-		if n, err := strconv.Atoi(stem); err == nil && n > 0 && strconv.Itoa(n) == stem {
+		if n, ok := generationNumber(e.Name()); ok && e.Type().IsRegular() {
 			numbers = append(numbers, n)
 		}
 	}
 	return numbers, nil
+}
+
+func generationNumber(name string) (int, bool) {
+	stem, ok := strings.CutSuffix(name, ".json")
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(stem)
+	return n, err == nil && n > 0 && strconv.Itoa(n) == stem
 }
