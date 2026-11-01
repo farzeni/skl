@@ -4,7 +4,7 @@ The docs in `docs/` are the spec. A behavior is written there first, from the us
 
 ## Setup
 
-You need Go 1.26 (the latest patch), git 2.38 or later, and for the docs pnpm.
+You need Go 1.26, git 2.38 or later, and for the docs pnpm. On an older patch, Go downloads the one `go.mod` names on its `toolchain` line, which has the standard library's security fixes.
 
 ```sh
 go run ./cmd/skl --help   # run skl from the checkout
