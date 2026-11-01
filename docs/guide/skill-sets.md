@@ -208,7 +208,7 @@ skl copies a skill as it is. Frontmatter fields that only Claude Code knows, suc
 
 ## Names and clashes
 
-Claude Code reads skills from one flat folder, so skl copies each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`, and `~/.agents/skills/pr-review` for the `agents` target. A skill's names are its folder name and the `name` in its `SKILL.md` frontmatter. Two skills clash when they share a name, so `a/x` and `b/y` with `name: x` clash.
+Claude Code reads skills from one flat folder, so skl copies each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`, and `~/.agents/skills/pr-review` for the `agents` target. A skill's names are its folder name and the `name` in its `SKILL.md` frontmatter. Two skills clash when they share a name, so `a/x` and `b/y` with `name: x` clash. Names that differ only by case clash too: `low/PDF2` and `Up/pdf2` would be one folder on a case-insensitive disk, the macOS default.
 
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
