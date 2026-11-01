@@ -22,12 +22,15 @@ import (
 const schemaVersion = 1
 
 var (
-	// ErrCorrupt is a state.json or generation file that isn't valid JSON.
-	// skl writes them atomically, so this comes from a hand edit or a bad disk.
+	// ErrCorrupt is a state.json or generation file that can't be read or isn't
+	// valid JSON. skl writes them atomically, so this comes from a hand edit,
+	// permissions or a bad disk.
 	ErrCorrupt = errors.New("can't read")
 	// ErrNewerState is a state.json from a newer skl. Rewriting it could lose
 	// what this skl doesn't know about, so it stops.
 	ErrNewerState = errors.New("written by a newer skl")
+	// ErrReleased is a change attempted through a lock already given up.
+	ErrReleased = errors.New("the lock was released")
 )
 
 // ScopeKey names a scope in state.json: User, or Project for one repo.
@@ -81,7 +84,8 @@ type file struct {
 //
 // Reading needs no lock: writes are atomic, so a reader sees the old file or
 // the new one. status and history rely on that. Changing state, adding
-// generations included, is for the holder of the lock.
+// generations included, is for the holder of the lock, so those are methods of
+// *Lock: the compiler sees to it that a caller has taken one.
 type Store struct {
 	statePath   string
 	generations string
@@ -103,14 +107,14 @@ func (s *Store) Load(ctx context.Context) (*State, error) {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:
-		return nil, fmt.Errorf("state: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrCorrupt, s.statePath, osReason(err))
 	default:
 		if err := json.Unmarshal(data, &f); err != nil {
 			return nil, fmt.Errorf("%w %s: %w", ErrCorrupt, s.statePath, err)
 		}
 	}
 	if f.Version > schemaVersion {
-		return nil, fmt.Errorf("%s: %w", s.statePath, ErrNewerState)
+		return nil, fmt.Errorf("%s was %w", s.statePath, ErrNewerState)
 	}
 	if f.Scopes == nil {
 		f.Scopes = map[ScopeKey]Scope{}
@@ -118,9 +122,25 @@ func (s *Store) Load(ctx context.Context) (*State, error) {
 	return &State{Scopes: f.Scopes}, nil
 }
 
-// Save writes state.json atomically. Run it under context.WithoutCancel when
-// the change it records has already happened.
-func (s *Store) Save(ctx context.Context, st *State) error {
+// osReason is err without the operation and path os puts around it.
+func osReason(err error) error {
+	if pe, ok := errors.AsType[*fs.PathError](err); ok {
+		return pe.Err
+	}
+	return err
+}
+
+// Save writes state.json atomically. Holding the lock is how you get to call
+// it. Run it under context.WithoutCancel when the change it records has already
+// happened.
+func (l *Lock) Save(ctx context.Context, st *State) error {
+	if l.f == nil {
+		return ErrReleased
+	}
+	return l.s.save(ctx, st)
+}
+
+func (s *Store) save(ctx context.Context, st *State) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rogpeppe/go-internal/testscript"
 )
@@ -43,6 +44,7 @@ func params(dir string) testscript.Params {
 		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){
 			"remote":   cmdRemote,
 			"exitcode": cmdExitcode,
+			"waitfile": cmdWaitfile,
 		},
 	}
 }
@@ -63,6 +65,10 @@ func setup(e *testscript.Env) error {
 	e.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	e.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(home, ".gitconfig"))
 	e.Setenv("COLUMNS", "80")
+	// testscript puts the folder holding skl first on PATH. A script that takes
+	// git away keeps skl with PATH=$SKLBIN.
+	bin, _, _ := strings.Cut(e.Getenv("PATH"), string(os.PathListSeparator))
+	e.Setenv("SKLBIN", bin)
 	gitconfig := "[user]\n\tname = Test\n\temail = test@example.com\n" +
 		"[init]\n\tdefaultBranch = main\n" +
 		"[uploadpack]\n\tallowFilter = true\n" +
@@ -107,4 +113,19 @@ func cmdExitcode(ts *testscript.TestScript, neg bool, args []string) {
 	if got != want {
 		ts.Fatalf("%s exited with code %d, want %d", args[1], got, want)
 	}
+}
+
+// cmdWaitfile is "waitfile <path>": it waits for a background command to
+// create path, and fails after 30 seconds.
+func cmdWaitfile(ts *testscript.TestScript, neg bool, args []string) {
+	if neg || len(args) != 1 {
+		ts.Fatalf("usage: waitfile <path>")
+	}
+	path := ts.MkAbs(args[0])
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+	}
+	ts.Fatalf("%s didn't appear", path)
 }

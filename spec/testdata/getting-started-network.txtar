@@ -1,0 +1,90 @@
+# docs/reference/commands.md "Errors": "When the network or the remote fails, skl
+# shows git's error and stops, and the hint is the command you ran"
+# docs/guide/getting-started.md: "a missing repo or denied access stops init"
+#
+# bin/git answers ls-remote with what a real host's failure looks like, from the
+# file named by $ANSWER.
+chmod 755 bin/git
+env PATH=$WORK/bin:$PATH
+
+env ANSWER=$WORK/http-502
+exitcode 1 skl init you/skills
+cmp stderr want-502.txt
+exitcode 1 skl init you/skills --dry-run
+cmp stderr want-502.txt
+
+env ANSWER=$WORK/ssh-closed
+exitcode 1 skl init you/skills
+cmp stderr want-closed.txt
+
+env ANSWER=$WORK/tls
+exitcode 1 skl init you/skills
+cmp stderr want-tls.txt
+
+# git's last word with nothing to go on isn't a denial: the line before it is the reason.
+env ANSWER=$WORK/ssh-other
+exitcode 1 skl init you/skills
+cmp stderr want-other.txt
+
+# Only not-found and denied say "create it or check access".
+env ANSWER=$WORK/http-404
+exitcode 1 skl init you/skills
+cmp stderr want-missing.txt
+
+env ANSWER=$WORK/http-403
+exitcode 1 skl init you/skills
+cmp stderr want-missing.txt
+
+env ANSWER=$WORK/github-404
+exitcode 1 skl init you/skills
+cmp stderr want-missing.txt
+
+env ANSWER=$WORK/ssh-denied
+exitcode 1 skl init you/skills
+cmp stderr want-missing.txt
+
+! exists $HOME/.skl/vault
+! exists $HOME/.skl/generations
+
+-- bin/git --
+#!/bin/sh
+PATH=${PATH#*:}
+if [ "$1" = ls-remote ]; then
+	cat "$ANSWER" >&2
+	exit 128
+fi
+exec git "$@"
+-- http-502 --
+fatal: unable to access 'https://github.com/you/skills/': The requested URL returned error: 502
+-- http-404 --
+fatal: unable to access 'https://github.com/you/skills/': The requested URL returned error: 404
+-- http-403 --
+fatal: unable to access 'https://github.com/you/skills/': The requested URL returned error: 403
+-- github-404 --
+remote: Repository not found.
+fatal: repository 'https://github.com/you/skills/' not found
+-- ssh-closed --
+Connection closed by remote host
+fatal: Could not read from remote repository.
+-- ssh-denied --
+git@github.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+-- ssh-other --
+fatal: protocol error: bad line length character: Welc
+fatal: Could not read from remote repository.
+-- tls --
+fatal: unable to access 'https://github.com/you/skills/': SSL certificate problem: unable to get local issuer certificate
+-- want-502.txt --
+✗ can't reach github.com (The requested URL returned error: 502)
+  · skl init you/skills
+-- want-closed.txt --
+✗ can't reach github.com (Connection closed by remote host)
+  · skl init you/skills
+-- want-tls.txt --
+✗ can't reach github.com (SSL certificate problem: unable to get local issuer certificate)
+  · skl init you/skills
+-- want-other.txt --
+✗ can't reach github.com (protocol error: bad line length character: Welc)
+  · skl init you/skills
+-- want-missing.txt --
+✗ can't reach you/skills · create it or check access, then skl init you/skills

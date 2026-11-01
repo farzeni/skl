@@ -59,6 +59,12 @@ A repo with commits but no skills, such as one with only a README, is cloned too
   · set one on your git host, then skl init you/skills
 ```
 
+A repo with only tags stops too:
+
+```
+✗ you/skills has no branches · push a branch, then skl init you/skills
+```
+
 skl never creates a repo, so a missing repo or denied access stops init:
 
 ```

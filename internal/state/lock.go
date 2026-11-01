@@ -32,7 +32,10 @@ func (e *LockedError) Error() string {
 }
 
 // Lock is the held lock: one skl changes things at a time on a machine.
-type Lock struct{ f *os.File }
+type Lock struct {
+	f *os.File
+	s *Store
+}
 
 // Lock takes the lock without waiting for its holder, or returns a
 // *LockedError. Commands that change something hold it until they're done.
@@ -82,7 +85,7 @@ func (s *Store) Lock(ctx context.Context) (*Lock, error) {
 		_ = f.Close() // closing drops the flock
 		return nil, fmt.Errorf("lock %s: %w", s.lockPath, err)
 	}
-	return &Lock{f: f}, nil
+	return &Lock{f: f, s: s}, nil
 }
 
 // Release gives the lock up. Calling it again does nothing. The file stays:

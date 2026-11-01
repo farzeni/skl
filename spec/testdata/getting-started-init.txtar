@@ -1,0 +1,352 @@
+# docs/guide/getting-started.md "Make your vault"
+
+# "Only a repo with no commits at all is empty and becomes a new vault."
+remote you/skills
+exec skl init you/skills
+cmp stderr new-vault.txt
+! stdout .
+exec git -C $HOME/.skl/vault log --format=%an%x20%ae
+stdout '^Test test@example.com$'
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+exec git -C $HOME/.skl/vault ls-files
+cmp stdout only-license.txt
+exec git -C $HOME/.skl/vault config --get remote.origin.url
+stdout '^https://github.com/you/skills$'
+exists $HOME/.skl/generations/1.json
+grep '"command": "init you/skills"' $HOME/.skl/generations/1.json
+
+# docs/guide/learn.md "Licenses": "skl init writes a LICENSE file when it creates a vault: MIT"
+grep '^MIT License$' $HOME/.skl/vault/LICENSE
+grep '^Copyright \(c\) [0-9]{4} Test$' $HOME/.skl/vault/LICENSE
+grep 'THE SOFTWARE IS PROVIDED "AS IS"' $HOME/.skl/vault/LICENSE
+
+# "! 1 change not pushed · skl sync": the commit is local, the remote is still empty.
+exec git ls-remote https://github.com/you/skills
+! stdout .
+
+# "Running skl init again with the same repo only loads the selectors you give it."
+exec skl init you/skills
+cmp stderr nothing.txt
+! exists $HOME/.skl/generations/2.json
+# Written another way, it's the same repo.
+exec skl init https://github.com/you/skills.git
+cmp stderr nothing.txt
+env SKL_PROTOCOL=ssh
+exec skl init you/skills
+cmp stderr nothing.txt
+env SKL_PROTOCOL=
+
+# "A machine has one vault, so a different repo stops"
+remote team/skills
+exitcode 1 skl init team/skills
+cmp stderr holds.txt
+! stdout .
+exec git -C $HOME/.skl/vault config --get remote.origin.url
+stdout '^https://github.com/you/skills$'
+
+# "SKL_HOME keeps a second setup apart."
+env SKL_HOME=$HOME/.skl-team
+exec skl init team/skills
+stderr '^→ new vault team/skills$'
+exists $HOME/.skl-team/vault/LICENSE
+exitcode 1 skl init you/skills
+cmp stderr holds-team.txt
+env SKL_HOME=
+
+# docs/guide/learn.md "Licenses": "MIT, unless the license setting says otherwise"
+# docs/reference/config.md: "an SPDX id such as Apache-2.0, or none"
+remote none/skills
+env SKL_HOME=$HOME/.skl-none SKL_LICENSE=none
+exec skl init none/skills
+cmp stderr no-license.txt
+! exists $HOME/.skl-none/vault/LICENSE
+exec git -C $HOME/.skl-none/vault rev-parse --verify HEAD
+
+remote apache/skills
+env SKL_HOME=$HOME/.skl-apache SKL_LICENSE=Apache-2.0
+exec skl init apache/skills
+stderr '^◇ LICENSE    Apache-2.0, for the skills you write · edit LICENSE to change it$'
+grep 'Apache License' $HOME/.skl-apache/vault/LICENSE
+grep 'Version 2.0, January 2004' $HOME/.skl-apache/vault/LICENSE
+
+remote other/skills
+env SKL_HOME=$HOME/.skl-other SKL_LICENSE=CC0-1.0
+exec skl init other/skills
+grep '^SPDX-License-Identifier: CC0-1.0$' $HOME/.skl-other/vault/LICENSE
+env SKL_LICENSE=
+
+# An empty folder at the vault's path is no vault, and in nobody's way.
+remote you/in-empty
+mkdir $HOME/.skl-empty/vault
+env SKL_HOME=$HOME/.skl-empty
+exec skl init you/in-empty
+exists $HOME/.skl-empty/vault/LICENSE
+env SKL_HOME=
+
+# A folder that holds something else is never overwritten.
+mkdir $HOME/.skl-full/vault
+cp readme/README.md $HOME/.skl-full/vault/mine
+env SKL_HOME=$HOME/.skl-full
+exitcode 1 skl init you/in-empty
+stderr '^✗ ~/.skl-full/vault isn''t a git repo · move it aside, then skl init you/in-empty$'
+exists $HOME/.skl-full/vault/mine
+env SKL_HOME=
+
+# "A repo with commits is cloned as your vault, with no identity needed. Its
+# groups are the folders that hold skills"
+# docs/guide/learn.md "Licenses": "An existing vault's LICENSE is never touched."
+remote you/seeded seeded
+env SKL_HOME=$HOME/.skl-seeded
+exec skl init you/seeded
+cmp stderr clone.txt
+! stdout .
+cmp $HOME/.skl-seeded/vault/LICENSE seeded/LICENSE
+exists $HOME/.skl-seeded/vault/review/pr-review/SKILL.md
+exec git -C $HOME/.skl-seeded/vault rev-list --count HEAD
+stdout '^1$'
+exec git -C $HOME/.skl-seeded/vault status --porcelain
+! stdout .
+
+# "A repo with commits but no skills, such as one with only a README, is cloned
+# too. skl prints ◇ cloned     no skills yet and adds no LICENSE."
+remote you/readme readme
+env SKL_HOME=$HOME/.skl-readme
+exec skl init you/readme
+cmp stderr clone-empty.txt
+! exists $HOME/.skl-readme/vault/LICENSE
+
+# "A repo with branches but no default branch stops"; it leaves nothing behind.
+remote you/nohead
+exec git clone -q https://github.com/you/nohead nohead-work
+exec git -C nohead-work commit -q --allow-empty -m one
+exec git -C nohead-work push -q origin HEAD:refs/heads/dev
+env SKL_HOME=$HOME/.skl-nohead
+exitcode 1 skl init you/nohead
+cmp stderr no-head.txt
+! exists $HOME/.skl-nohead/vault
+exitcode 1 skl init you/nohead --dry-run
+cmp stderr no-head.txt
+! stdout .
+
+# "A repo with only tags stops too"
+remote you/tagsonly
+exec git -C nohead-work tag v1
+exec git -C nohead-work push -q https://github.com/you/tagsonly v1
+env SKL_HOME=$HOME/.skl-tags
+exitcode 1 skl init you/tagsonly
+cmp stderr tags-only.txt
+! exists $HOME/.skl-tags/vault
+exitcode 1 skl init you/tagsonly --dry-run
+cmp stderr tags-only.txt
+
+# "skl never creates a repo, so a missing repo or denied access stops init"
+env SKL_HOME=$HOME/.skl-missing
+exitcode 1 skl init you/missing
+cmp stderr unreachable.txt
+! stdout .
+! exists $HOME/.skl-missing/vault
+! exists $HOME/.skl-missing/generations
+
+# docs/reference/commands.md "Dry run": "Nothing is written, cloned, created or committed"
+# "Whether it would clone or create the repo (→ clone you/skills or → new vault you/skills)"
+# "What you asked for goes to standard output: ... a --dry-run plan"
+env SKL_HOME=$HOME/.skl-dry
+exitcode 1 skl init you/empty-dry --dry-run
+stderr '^✗ can''t reach you/empty-dry$'
+remote you/empty-dry
+exec skl init you/empty-dry --dry-run
+cmp stdout dry-new.txt
+! stderr .
+! exists $HOME/.skl-dry
+exec skl --dry-run init you/seeded
+cmp stdout dry-clone.txt
+! stderr .
+! exists $HOME/.skl-dry
+exec git ls-remote https://github.com/you/empty-dry
+! stdout .
+# With a vault already there.
+env SKL_HOME=
+exec skl init you/skills --dry-run
+cmp stderr nothing.txt
+! stdout .
+! exists $HOME/.skl/generations/2.json
+exitcode 1 skl init team/skills --dry-run
+cmp stderr holds.txt
+
+# docs/reference/repos.md "Repos": "Every command that takes a repo accepts the same forms."
+# "For owner/repo and host/path forms, skl picks SSH or HTTPS from the protocol setting."
+remote you/forms
+exec git config --global --add url.file://$REMOTES/github.com/.insteadOf git@github.com:
+env SKL_HOME=$HOME/.skl-ssh SKL_PROTOCOL=ssh
+exec skl init you/forms
+exec git -C $HOME/.skl-ssh/vault config --get remote.origin.url
+stdout '^git@github.com:you/forms.git$'
+env SKL_PROTOCOL=
+
+# "https://git.example.com/team/skills.git: Any HTTPS URL, used as given"
+env SKL_HOME=$HOME/.skl-https
+exec skl init https://github.com/you/forms.git
+stderr '^→ new vault https://github.com/you/forms.git$'
+exec git -C $HOME/.skl-https/vault config --get remote.origin.url
+stdout '^https://github.com/you/forms.git$'
+
+# "git@git.example.com:team/skills.git: Any SSH URL, used as given"
+env SKL_HOME=$HOME/.skl-scp
+exec skl init git@github.com:you/forms.git
+exec git -C $HOME/.skl-scp/vault config --get remote.origin.url
+stdout '^git@github.com:you/forms.git$'
+
+# "gitlab.com/team/skills: A repo on another host. A first part containing a dot is a host."
+exec git config --global url.file://$REMOTES/gitlab.com/.insteadOf https://gitlab.com/
+exec git init -q --bare $REMOTES/gitlab.com/team/skills.git
+env SKL_HOME=$HOME/.skl-gitlab
+exec skl init gitlab.com/team/skills
+exec git -C $HOME/.skl-gitlab/vault config --get remote.origin.url
+stdout '^https://gitlab.com/team/skills$'
+
+# docs/reference/config.md: "default_host: The host that owner/repo refers to."
+env SKL_HOME=$HOME/.skl-host SKL_DEFAULT_HOST=gitlab.com
+exec skl init team/skills
+exec git -C $HOME/.skl-host/vault config --get remote.origin.url
+stdout '^https://gitlab.com/team/skills$'
+env SKL_DEFAULT_HOST=
+
+# "~/code/skills: A repo on this machine"
+exec git init -q --bare $HOME/code/skills.git
+env SKL_HOME=$HOME/.skl-local
+exec skl init ~/code/skills.git
+stderr '^→ new vault ~/code/skills.git$'
+exec git -C $HOME/.skl-local/vault config --get remote.origin.url
+stdout '/home/code/skills.git$'
+exec skl init ~/code/skills
+cmp stderr nothing.txt
+
+# docs/reference/commands.md "Errors": "the hint is the command you ran: a host that
+# skl init you/skills can't resolve, or that refuses or times out, ends · skl init you/skills"
+env SKL_HOME=$HOME/.skl-dns
+exitcode 1 skl init nonexistent.invalid/team/skills
+cmp stderr no-dns.txt
+! exists $HOME/.skl-dns/vault
+
+# docs/reference/commands.md "Exit codes": "2: A usage error: ... a missing argument,
+# or a selector or reference that can't be parsed. Nothing changed."
+env SKL_HOME=$HOME/.skl-usage
+exitcode 2 skl init
+stderr '^✗ skl init needs <repo> · skl help init$'
+exitcode 2 skl init skills
+stderr '^✗ skills isn''t a repo: use owner/repo, host/path, a URL or a path$'
+stderr '· skl help init$'
+exitcode 2 skl init someone/agent-skills/pdf
+stderr 'isn''t a repo'
+! exists $HOME/.skl-usage
+
+# docs/reference/commands.md "Errors": a bad setting names itself.
+env SKL_PROTOCOL=carrier-pigeon
+exitcode 1 skl init you/skills
+stderr '^✗ config: SKL_PROTOCOL must be ssh or https, not "carrier-pigeon"$'
+stderr '· unset SKL_PROTOCOL$'
+env SKL_PROTOCOL=
+
+# If no generation can be written, the vault is taken back, so init can run again.
+env SKL_HOME=$HOME/.skl-nogen
+mkdir $HOME/.skl-nogen
+cp readme/README.md $HOME/.skl-nogen/generations
+exitcode 1 skl init you/in-empty
+stderr '· skl init you/in-empty$'
+! exists $HOME/.skl-nogen/vault
+rm $HOME/.skl-nogen/generations
+exec skl init you/in-empty
+stderr '^✓ generation 1 · skl rollback to undo$'
+env SKL_HOME=
+
+# A password in a URL reaches git, but no line skl prints and no file it writes
+# but git's own config.
+remote you/secret
+exec git config --global --add url.file://$REMOTES/github.com/.insteadOf https://you:s3cret@github.com/
+env SKL_HOME=$HOME/.skl-pw
+exec skl init https://you:s3cret@github.com/you/secret
+! stderr s3cret
+stderr '^→ new vault https://you:xxxxx@github.com/you/secret$'
+! grep s3cret $HOME/.skl-pw/generations/1.json
+grep 'init https://you:xxxxx@github.com/you/secret' $HOME/.skl-pw/generations/1.json
+exec skl init https://you:s3cret@github.com/you/secret
+cmp stderr nothing.txt
+exitcode 1 skl init https://you:s3cret@github.com/team/skills --dry-run
+! stderr s3cret
+env SKL_HOME=
+
+# docs/reference/config.md: "So does a config file skl can't read"
+env SKL_HOME=$HOME/.skl-badconfig
+mkdir $HOME/.skl-badconfig/config.toml
+exitcode 1 skl init you/skills
+stderr '^✗ can''t read ~/.skl-badconfig/config.toml: is a directory$'
+stderr '^  · check its permissions$'
+! exists $HOME/.skl-badconfig/vault
+env SKL_HOME=
+
+-- new-vault.txt --
+→ new vault you/skills
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo
+-- only-license.txt --
+LICENSE
+-- nothing.txt --
+✓ nothing to change
+-- holds.txt --
+✗ ~/.skl/vault already holds you/skills
+  · SKL_HOME=~/.skl-team skl init team/skills
+-- holds-team.txt --
+✗ ~/.skl-team/vault already holds team/skills
+  · SKL_HOME=~/.skl-you skl init you/skills
+-- no-license.txt --
+→ new vault none/skills
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo
+-- clone.txt --
+→ clone you/seeded
+◇ cloned     2 groups · 3 skills · 1 skill set
+✓ generation 1 · skl rollback to undo
+-- clone-empty.txt --
+→ clone you/readme
+◇ cloned     no skills yet
+✓ generation 1 · skl rollback to undo
+-- no-head.txt --
+✗ you/nohead has branches but no default branch
+  · set one on your git host, then skl init you/nohead
+-- tags-only.txt --
+✗ you/tagsonly has no branches · push a branch, then skl init you/tagsonly
+-- unreachable.txt --
+✗ can't reach you/missing · create it or check access, then skl init you/missing
+-- no-dns.txt --
+✗ can't reach nonexistent.invalid (Could not resolve host)
+  · skl init nonexistent.invalid/team/skills
+-- dry-new.txt --
+→ new vault you/empty-dry
+-- dry-clone.txt --
+→ clone you/seeded
+-- seeded/LICENSE --
+Their own license.
+-- seeded/README.md --
+Not a group: a file.
+-- seeded/review/pr-review/SKILL.md --
+---
+name: pr-review
+---
+-- seeded/review/test-gaps/SKILL.md --
+---
+name: test-gaps
+---
+-- seeded/data/sql-explain/SKILL.md --
+---
+name: sql-explain
+---
+-- seeded/docs/guide.md --
+A folder without skills isn't a group.
+-- seeded/sets/backend.toml --
+select = ["review"]
+-- seeded/lessons/review/SKILL.md --
+Reserved: not a group.
+-- readme/README.md --
+Nothing here yet.

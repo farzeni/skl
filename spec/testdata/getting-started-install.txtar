@@ -1,0 +1,24 @@
+# docs/guide/getting-started.md "Install"
+
+remote you/skills
+
+# "It needs git 2.38 or later"
+chmod 755 oldbin/git
+env PATH=$WORK/oldbin:$PATH
+exitcode 1 skl init you/skills
+cmp stderr old-git.txt
+! exists $HOME/.skl/vault
+
+# "without git, it stops with ✗ skl needs git · install git 2.38 or later"
+env PATH=$SKLBIN
+exitcode 1 skl init you/skills
+cmp stderr no-git.txt
+! exists $HOME/.skl/vault
+
+-- old-git.txt --
+✗ skl needs git 2.38 or later (found 2.30.1) · update git
+-- no-git.txt --
+✗ skl needs git · install git 2.38 or later
+-- oldbin/git --
+#!/bin/sh
+echo git version 2.30.1
