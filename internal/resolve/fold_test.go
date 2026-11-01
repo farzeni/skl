@@ -2,7 +2,9 @@ package resolve
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -17,7 +19,11 @@ func TestResolveFoldedClash(t *testing.T) {
 	}{
 		{"case", "low/PDF2 Up/pdf2", []string{"Up/pdf2"}, []string{"Up/pdf2 replaces low/PDF2"}, []string{"low/PDF2", "Up/pdf2"}},
 		{"form", "a/caf\u00e9 b/cafe\u0301", []string{"b/cafe\u0301"}, []string{"b/cafe\u0301 replaces a/caf\u00e9"}, []string{"a/caf\u00e9", "b/cafe\u0301"}},
-		{"NFD folder, NFC frontmatter name", "a/cafe\u0301 b/x", []string{"b/x"}, []string{"b/x replaces a/cafe\u0301"}, []string{"a/cafe\u0301=caf\u00e9", "b/x=CAFÉ"}},
+		{"NFD folder, NFC frontmatter name", "a/cafe\u0301 b/x", []string{"b/x"}, []string{"b/x replaces a/cafe\u0301"}, []string{"a/cafe\u0301=CAFÉ", "b/x=CAFÉ"}},
+		{"frontmatter names differ by case", "a/y b/x", []string{"b/x"}, []string{"b/x replaces a/y"}, []string{"a/y=CAFÉ", "b/x=caf\u00e9"}},
+		{"a folder and a frontmatter name differ by case", "a/caf\u00e9 b/x", []string{"b/x"}, []string{"b/x replaces a/caf\u00e9"}, []string{"a/caf\u00e9", "b/x=CAFÉ"}},
+		{"a frontmatter name and a folder differ by case", "b/x a/caf\u00e9", []string{"a/caf\u00e9"}, []string{"a/caf\u00e9 replaces b/x"}, []string{"a/caf\u00e9", "b/x=CAFÉ"}},
+		{"a whole group with one name twice", "g", []string{"g/pdf"}, []string{"g/pdf replaces g/PDF"}, []string{"g/PDF", "g/pdf"}},
 		{"ß and SS", "a/straße b/STRASSE", []string{"b/STRASSE"}, []string{"b/STRASSE replaces a/straße"}, []string{"a/straße", "b/STRASSE"}},
 		{"dotless i is its own letter", "a/ı b/I", []string{"a/ı", "b/I"}, nil, []string{"a/ı", "b/I"}},
 		{"a removal comes before the clash", "low/PDF2 Up/pdf2 -up/PDF2", []string{"low/PDF2"}, nil, []string{"low/PDF2", "Up/pdf2"}},
@@ -84,5 +90,109 @@ func TestResolveAmbiguousGroup(t *testing.T) {
 	}
 	if _, err := Resolve(parse(t, "other"), idx); err != nil {
 		t.Errorf("an unrelated group: %v", err)
+	}
+}
+
+// Card #94, item 3: skill-sets.md's rule for groups, for two skills in one group.
+// An exact folder name always names one skill, so each one can still be selected.
+func TestResolveAmbiguousSkill(t *testing.T) {
+	idx := index{
+		skills: []string{"g/PDF", "g/pdf", "g/caf\u00e9", "g/cafe\u0301", "g/x", "g/y=X", "n/a=Nom", "n/b=nom", "n/c=same", "n/d=same"},
+		sets:   map[string][]string{"s": {"g/Pdf"}},
+	}
+	tests := []struct {
+		words string
+		typed string
+		found []Skill
+		msg   string
+	}{
+		{"g/Pdf", "g/Pdf", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "g/Pdf matches 2 skills: g/PDF, g/pdf"},
+		{"-G/pDF", "G/pDF", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "G/pDF matches 2 skills: g/PDF, g/pdf"},
+		{"g/CAF\u00c9", "g/CAF\u00c9", []Skill{{Group: "g", Folder: "caf\u00e9"}, {Group: "g", Folder: "cafe\u0301"}}, "g/CAF\u00c9 matches 2 skills: g/caf\u00e9, g/cafe\u0301"},
+		{"n/NOM", "n/NOM", []Skill{{Group: "n", Folder: "a", Name: "Nom"}, {Group: "n", Folder: "b", Name: "nom"}}, "n/NOM matches 2 skills: n/a, n/b"},
+		{"n/nom", "n/nom", []Skill{{Group: "n", Folder: "a", Name: "Nom"}, {Group: "n", Folder: "b", Name: "nom"}}, "n/nom matches 2 skills: n/a, n/b"},
+		{"n/same", "n/same", []Skill{{Group: "n", Folder: "c", Name: "same"}, {Group: "n", Folder: "d", Name: "same"}}, "n/same matches 2 skills: n/c, n/d"},
+		{"@s", "g/Pdf", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "g/Pdf matches 2 skills: g/PDF, g/pdf"},
+		{"-@s", "g/Pdf", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "g/Pdf matches 2 skills: g/PDF, g/pdf"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.words, func(t *testing.T) {
+			_, err := Resolve(parse(t, tt.words), idx)
+			var amb *AmbiguousSkillError
+			if !errors.As(err, &amb) {
+				t.Fatalf("Resolve(%q) = %v, want an AmbiguousSkillError", tt.words, err)
+			}
+			if amb.Name != tt.typed || !reflect.DeepEqual(amb.Skills, tt.found) {
+				t.Errorf("Resolve(%q) = %+v, want %q and %+v", tt.words, amb, tt.typed, tt.found)
+			}
+			if err.Error() != tt.msg {
+				t.Errorf("message = %q, want %q", err, tt.msg)
+			}
+		})
+	}
+
+	// One match is no ambiguity.
+	for words, want := range map[string]string{
+		"g/PDF":        "g/PDF",
+		"g/pdf":        "g/pdf",
+		"-g/pdf g/pdf": "g/pdf",
+		"g/caf\u00e9":  "g/caf\u00e9",
+		"g/cafe\u0301": "g/cafe\u0301",
+		"n/c":          "n/c",
+		// A folder in any case comes before another skill's frontmatter name.
+		"g/X": "g/x",
+	} {
+		res, err := Resolve(parse(t, words), idx)
+		if err != nil || len(res.Skills) != 1 || res.Skills[0].String() != want {
+			t.Errorf("Resolve(%q) = %+v, %v, want %s", words, res.Skills, err, want)
+		}
+	}
+}
+
+// A one-word name that isn't a group only warns, so two matches don't stop it.
+// The suggestion is a folder name as written, which an exact match can follow.
+func TestResolveSuggestAmbiguous(t *testing.T) {
+	idx := index{skills: []string{"g/PDF", "g/pdf", "n/a=Nom", "n/b=nom"}}
+	for word, want := range map[string]string{"Pdf": "g/PDF", "nom": "n/a"} {
+		res, err := Resolve(parse(t, word), idx)
+		if err != nil || len(res.Warnings) != 1 || res.Warnings[0].Suggest != want {
+			t.Errorf("Resolve(%q) = %+v, %v, want the suggestion %s", word, res, err, want)
+			continue
+		}
+		if _, err := Resolve(parse(t, want), idx); err != nil {
+			t.Errorf("following the suggestion %s: %v", want, err)
+		}
+	}
+}
+
+// Card #94, item 2. Worst cases for clashes: nothing clashes, so settling compares
+// every pair. "groups" is a whole vault by group; "skills" names each skill, and
+// "folded" does so in another case, so that each lookup folds its whole group.
+func BenchmarkResolve(b *testing.B) {
+	const skills, groups = 1000, 20
+	idx := index{}
+	var byGroup, bySkill, byFolded []string
+	for i := range groups {
+		byGroup = append(byGroup, fmt.Sprintf("g%02d", i))
+	}
+	for i := range skills {
+		s := fmt.Sprintf("g%02d/skill-name-%d", i*groups/skills, i)
+		idx.skills = append(idx.skills, s)
+		bySkill = append(bySkill, s)
+		byFolded = append(byFolded, strings.ToUpper(s))
+	}
+	for _, bench := range []struct {
+		name  string
+		words []string
+	}{{"groups", byGroup}, {"skills", bySkill}, {"folded", byFolded}} {
+		b.Run(bench.name, func(b *testing.B) {
+			sels := parse(b, strings.Join(bench.words, " "))
+			for b.Loop() {
+				res, err := Resolve(sels, idx)
+				if err != nil || len(res.Skills) != skills {
+					b.Fatalf("Resolve: %d skills, %v", len(res.Skills), err)
+				}
+			}
+		})
 	}
 }
