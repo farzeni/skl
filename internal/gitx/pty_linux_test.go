@@ -64,6 +64,9 @@ func TestPtyChild(t *testing.T) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	if os.Getenv("GITX_PTY_NOCANCEL") != "" {
+		ctx = context.WithoutCancel(ctx) //nolint:fatcontext // a step that must not stop
+	}
 	g := New(nil)
 	g.Timeout, _ = time.ParseDuration(timeout)
 	args := strings.Split(os.Getenv("GITX_PTY_ARGS"), "\x1f")
@@ -127,8 +130,9 @@ func underPty(t *testing.T, dir string, timeout time.Duration, onPrompt func(ter
 	return report
 }
 
-// A local command keeps the terminal: gpg's pinentry for commit.gpgsign=true
-// asks the user on /dev/tty, however long they take.
+// docs/design/architecture.md "Fetching from remotes": "A git that may sign or
+// run a hook, such as `git commit`, keeps your terminal, so gpg can ask for a
+// passphrase, and it has no timeout".
 func TestCommitSignsOnTerminal(t *testing.T) {
 	isolate(t)
 	g := New(nil)
@@ -154,9 +158,18 @@ func TestCommitSignsOnTerminal(t *testing.T) {
 	}
 }
 
-// Ctrl-C at a pinentry reaches it through the terminal: gpg stops, git removes
-// its lock, and skl gets context.Canceled.
+// docs/design/architecture.md "Fetching from remotes": "Ctrl-C reaches it
+// through the terminal": gpg stops, git removes its lock, and skl gets
+// context.Canceled, under context.WithoutCancel too, so that step must undo.
 func TestCommitCtrlCOnTerminal(t *testing.T) {
+	t.Run("cancelable", testCommitCtrlC)
+	t.Run("WithoutCancel", func(t *testing.T) {
+		t.Setenv("GITX_PTY_NOCANCEL", "1")
+		testCommitCtrlC(t)
+	})
+}
+
+func testCommitCtrlC(t *testing.T) {
 	isolate(t)
 	g := New(nil)
 	dir := newRepo(t, g)
@@ -199,5 +212,57 @@ func TestNetworkTTYReaderTimesOut(t *testing.T) {
 	}
 	if _, err := os.Stat(answer); err == nil {
 		t.Error("the child read the terminal from a background group")
+	}
+}
+
+// quietRepo is a repo whose reference-transaction hook prints "passphrase: " on
+// the terminal, as underPty waits for, then sleeps, so update-ref is running
+// when ^C comes.
+func quietRepo(t *testing.T) (dir string, args []string) {
+	t.Helper()
+	g := New(nil)
+	dir = newRepo(t, g)
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "first"); err != nil {
+		t.Fatal(err)
+	}
+	hook := writeScript(t, "reference-transaction", "cat >/dev/null\n[ \"$1\" = prepared ] || exit 0\nprintf 'passphrase: ' >/dev/tty\nsleep 1\n")
+	return dir, []string{"-c", "core.hooksPath=" + filepath.Dir(hook), "update-ref", "refs/heads/x", "HEAD"}
+}
+
+// docs/design/architecture.md "Fetching from remotes": "Any other local git, such
+// as `git status`, has no timeout and doesn't share your terminal: Ctrl-C stops it
+// only if the step it's in can stop." This one can't, so ^C doesn't cut it, and it
+// takes longer than the timeout.
+func TestQuietIgnoresTerminalCtrlC(t *testing.T) {
+	isolate(t)
+	t.Setenv("GITX_PTY_NOCANCEL", "1")
+	dir, args := quietRepo(t)
+	report := underPty(t, dir, 100*time.Millisecond, func(term io.Writer) {
+		_, _ = term.Write([]byte{3})
+	}, args...)
+	if !strings.HasSuffix(report, "err=<nil>") {
+		t.Fatalf("^C during update-ref under WithoutCancel: %s", report)
+	}
+	if _, err := New(nil).Run(t.Context(), dir, "rev-parse", "--verify", "refs/heads/x"); err != nil {
+		t.Errorf("the ref didn't land: %v", err)
+	}
+}
+
+// The same step when it can stop: ^C reaches skl, skl interrupts git, and git
+// removes its lock.
+func TestQuietStopsThroughContext(t *testing.T) {
+	isolate(t)
+	dir, args := quietRepo(t)
+	report := underPty(t, dir, 100*time.Millisecond, func(term io.Writer) {
+		_, _ = term.Write([]byte{3})
+	}, args...)
+	if !strings.Contains(report, "canceled=true") {
+		t.Fatalf("^C during update-ref: %s", report)
+	}
+	if _, err := New(nil).Run(t.Context(), dir, "rev-parse", "--verify", "--quiet", "refs/heads/x"); err == nil {
+		t.Error("the ref landed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "refs", "heads", "x.lock")); err == nil {
+		t.Error("git left x.lock behind")
 	}
 }

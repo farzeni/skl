@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"slices"
@@ -322,7 +323,8 @@ func TestSSHPrecedence(t *testing.T) {
 }
 
 // docs/design/architecture.md "Fetching from remotes": "Ctrl-C or a timeout
-// stops the running git and everything it started, such as ssh."
+// stops a git that may contact a remote and everything it started, such as
+// ssh."
 func TestStopKillsChildren(t *testing.T) {
 	tests := []struct {
 		name string
@@ -612,13 +614,27 @@ func TestClassify(t *testing.T) {
 		// docs/reference/commands.md "Errors": "✗ can't reach github.com (Could not resolve host)"
 		{"fatal: unable to access 'https://github.com/you/skills/': Could not resolve host: github.com\n", ErrUnreachable, "Could not resolve host"},
 		{"ssh: Could not resolve hostname github.com: Name or service not known\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Could not resolve host"},
-		{"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Permission denied"},
-		{"Host key verification failed.\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Host key verification failed"},
-		{"remote: Repository not found.\nfatal: repository 'https://github.com/you/nope/' not found\n", ErrUnreachable, "Repository not found"},
-		{"fatal: Authentication failed for 'https://github.com/you/skills/'\n", ErrUnreachable, "Authentication failed"},
+		{"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n", ErrNoAccess, "Permission denied"},
+		{"Host key verification failed.\nfatal: Could not read from remote repository.\n", ErrNoAccess, "Host key verification failed"},
+		{"remote: Repository not found.\nfatal: repository 'https://github.com/you/nope/' not found\n", ErrNoAccess, "Repository not found"},
+		{"fatal: Authentication failed for 'https://github.com/you/skills/'\n", ErrNoAccess, "Authentication failed"},
 		{"fatal: not a git repository (or any of the parent directories): .git\n", ErrNotRepo, ""},
 		{"fatal: bad revision 'nope'\n", nil, ""},
-		{"fatal: repository '/home/you/agent-skills' does not exist\n", ErrUnreachable, "does not exist"},
+		{"fatal: repository '/home/you/agent-skills' does not exist\n", ErrNoAccess, "does not exist"},
+		// A host answering 404, in git's words (TestHTTPAnswers runs it).
+		{"fatal: repository 'https://git.example.com/you/nope/' not found\n", ErrNoAccess, "Repository not found"},
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 403\n", ErrNoAccess, "The requested URL returned error: 403"},
+		{"remote: \nremote: ERROR: The project you were looking for could not be found.\nremote: \nfatal: Could not read from remote repository.\n", ErrNoAccess, "Could not read from remote repository"},
+		// The network or the server failed: app shows git's reason.
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 500\n", ErrUnreachable, "The requested URL returned error: 500"},
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 503\n", ErrUnreachable, "The requested URL returned error: 503"},
+		{"Connection closed by remote host\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection closed by remote host"},
+		{"Connection closed by 192.0.2.1 port 22\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection closed by remote host"},
+		{"Connection reset by 192.0.2.1 port 22\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection reset"},
+		{"fatal: unable to access 'https://x/y/': SSL certificate problem: self-signed certificate\n", ErrUnreachable, "SSL certificate problem: self-signed certificate"},
+		// Other lines that say "not found" are not about a remote repo.
+		{"warning: Could not find remote branch nope to clone.\nfatal: Remote branch nope not found in upstream origin\n", nil, ""},
+		{"fatal: pathspec 'x' not found\n", nil, ""},
 		// Local problems are not an unreachable remote.
 		{"fatal: cannot mkdir /ro/x: Permission denied\n", nil, ""},
 		{"Cloning into '/ro/y'...\nfatal: could not create work tree dir '/ro/y': Permission denied\n", nil, ""},
@@ -626,7 +642,8 @@ func TestClassify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		reason, _, kind := classify(tt.stderr)
-		if !errors.Is(kind, tt.kind) || reason != tt.reason {
+		// Both ways: ErrNoAccess also matches ErrUnreachable.
+		if !errors.Is(kind, tt.kind) || !errors.Is(tt.kind, kind) || reason != tt.reason {
 			t.Errorf("classify(%q) = %v, %q; want %v, %q", tt.stderr, kind, reason, tt.kind, tt.reason)
 		}
 	}
@@ -779,9 +796,11 @@ func commitWithHook(t *testing.T, g *Git, body string) string {
 	return dir
 }
 
-// A local command stays in skl's process group, where the terminal can reach
-// it, and has no timeout, so a pinentry can wait for the user. A command that
-// may contact a remote leads its own group, with the timeout.
+// docs/design/architecture.md "Fetching from remotes": "A git that may sign or
+// run a hook, such as `git commit`, keeps your terminal" stays in skl's process
+// group. "Any other local git, such as `git status`, ... doesn't share your
+// terminal", and neither does a command that may contact a remote: each leads
+// its own group.
 func TestProcessGroup(t *testing.T) {
 	isolate(t)
 	g := New(nil)
@@ -808,6 +827,18 @@ func TestProcessGroup(t *testing.T) {
 		t.Errorf("commit ran in group %d, want skl's, %d", got, want)
 	}
 
+	// The reference-transaction hook runs under update-ref.
+	hooks := t.TempDir()
+	if err := os.WriteFile(filepath.Join(hooks, "reference-transaction"), []byte("#!/bin/sh\ncat >/dev/null\n"+report), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+hooks, "update-ref", "refs/heads/x", "HEAD"); err != nil {
+		t.Fatal(err)
+	}
+	if got := pgid(); got == syscall.Getpgrp() {
+		t.Errorf("update-ref ran in skl's group %d, want its own", got)
+	}
+
 	ssh := writeScript(t, "ssh", report+"exit 255\n")
 	t.Setenv("GIT_SSH", ssh)
 	if _, err := g.Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills"); err == nil {
@@ -818,6 +849,8 @@ func TestProcessGroup(t *testing.T) {
 	}
 }
 
+// docs/design/architecture.md "Fetching from remotes": "it has no timeout";
+// "Any other local git, such as `git status`, has no timeout".
 func TestLocalHasNoTimeout(t *testing.T) {
 	isolate(t)
 	g := New(nil)
@@ -825,6 +858,13 @@ func TestLocalHasNoTimeout(t *testing.T) {
 	dir := commitWithHook(t, New(nil), "sleep 1\n")
 	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "slow"); err != nil {
 		t.Fatalf("a commit slower than the timeout: %v", err)
+	}
+	hooks := t.TempDir()
+	if err := os.WriteFile(filepath.Join(hooks, "reference-transaction"), []byte("#!/bin/sh\ncat >/dev/null\nsleep 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+hooks, "update-ref", "refs/heads/slow", "HEAD"); err != nil {
+		t.Fatalf("an update-ref slower than the timeout: %v", err)
 	}
 }
 
@@ -878,51 +918,202 @@ func TestLocalCancelLeavesNoLock(t *testing.T) {
 	}
 }
 
-func TestMayUseRemote(t *testing.T) {
+func TestModeOf(t *testing.T) {
 	tests := []struct {
 		args []string
-		want bool
+		want mode
 	}{
-		{[]string{"clone", "x"}, true},
-		{[]string{"fetch"}, true},
-		{[]string{"pull"}, true},
-		{[]string{"push"}, true},
-		{[]string{"ls-remote", "x"}, true},
-		{[]string{"remote", "update"}, true},
-		{[]string{"submodule", "update"}, true},
-		// These fetch missing blobs in a partial clone.
-		{[]string{"cat-file", "-p", "x"}, true},
-		{[]string{"checkout", "main"}, true},
-		{[]string{"sparse-checkout", "set", "x"}, true},
-		{[]string{"diff"}, true},
-		{[]string{"show", "x"}, true},
+		{[]string{"clone", "x"}, modeRemote},
+		{[]string{"fetch"}, modeRemote},
+		{[]string{"pull"}, modeRemote},
+		{[]string{"push"}, modeRemote},
+		{[]string{"ls-remote", "x"}, modeRemote},
+		{[]string{"remote", "update"}, modeRemote},
+		{[]string{"submodule", "update"}, modeRemote},
+		// These fetch missing blobs in a partial clone, so a dead remote could
+		// hang them: they keep the timeout, and their own group, like plumbing.
+		{[]string{"cat-file", "-p", "x"}, modeRemote},
+		{[]string{"checkout", "main"}, modeRemote},
+		{[]string{"switch", "main"}, modeRemote},
+		{[]string{"sparse-checkout", "set", "x"}, modeRemote},
+		{[]string{"diff"}, modeRemote},
+		{[]string{"show", "x"}, modeRemote},
 		// A command not listed as local may contact a remote.
-		{[]string{"something-new"}, true},
-		{[]string{"-c", "a=b", "fetch"}, true},
+		{[]string{"something-new"}, modeRemote},
+		{[]string{"-c", "a=b", "fetch"}, modeRemote},
 
-		{[]string{"commit", "-S", "-m", "x"}, false},
-		{[]string{"merge", "x"}, false},
-		{[]string{"merge-tree", "--write-tree", "a", "b"}, false},
-		{[]string{"read-tree", "x"}, false},
-		{[]string{"tag", "-s", "x"}, false},
-		{[]string{"revert", "x"}, false},
-		{[]string{"commit-tree", "x"}, false},
-		{[]string{"status"}, false},
-		{[]string{"rev-parse", "HEAD"}, false},
-		{[]string{"add", "--all"}, false},
-		{[]string{"init"}, false},
-		{[]string{"version"}, false},
-		{[]string{"config", "--get", "x"}, false},
+		{[]string{"commit", "-S", "-m", "x"}, modeTerminal},
+		{[]string{"commit-tree", "-S", "x"}, modeTerminal},
+		{[]string{"tag", "-s", "x"}, modeTerminal},
+		{[]string{"merge", "x"}, modeTerminal},
+		{[]string{"rebase", "x"}, modeTerminal},
+		{[]string{"am"}, modeTerminal},
+		{[]string{"cherry-pick", "x"}, modeTerminal},
+		{[]string{"revert", "x"}, modeTerminal},
+		{[]string{"worktree", "add", "x"}, modeTerminal},
+
+		{[]string{"merge-tree", "--write-tree", "a", "b"}, modeQuiet},
+		{[]string{"read-tree", "x"}, modeQuiet},
+		{[]string{"write-tree"}, modeQuiet},
+		{[]string{"update-ref", "x", "y"}, modeQuiet},
+		{[]string{"status"}, modeQuiet},
+		{[]string{"rev-parse", "HEAD"}, modeQuiet},
+		{[]string{"rev-list", "HEAD"}, modeQuiet},
+		{[]string{"ls-tree", "HEAD"}, modeQuiet},
+		{[]string{"ls-files"}, modeQuiet},
+		{[]string{"hash-object", "x"}, modeQuiet},
+		{[]string{"var", "GIT_EDITOR"}, modeQuiet},
+		{[]string{"add", "--all"}, modeQuiet},
+		{[]string{"init"}, modeQuiet},
+		{[]string{"version"}, modeQuiet},
+		{[]string{"config", "--get", "x"}, modeQuiet},
 		// git's own options don't hide the command.
-		{[]string{"-c", "a=b", "commit"}, false},
-		{[]string{"-C", "dir", "commit"}, false},
-		{[]string{"--git-dir", "commit.git", "--work-tree", "x", "commit"}, false},
-		{[]string{"--git-dir=x", "commit"}, false},
-		{[]string{"--git-dir", "fetch", "commit"}, false},
+		{[]string{"-c", "a=b", "commit"}, modeTerminal},
+		{[]string{"-C", "dir", "commit"}, modeTerminal},
+		{[]string{"--git-dir", "commit.git", "--work-tree", "x", "commit"}, modeTerminal},
+		{[]string{"--git-dir=x", "commit"}, modeTerminal},
+		{[]string{"--git-dir", "fetch", "commit"}, modeTerminal},
 	}
 	for _, tt := range tests {
-		if got := mayUseRemote(tt.args); got != tt.want {
-			t.Errorf("mayUseRemote(%q) = %v, want %v", tt.args, got, tt.want)
+		if got := modeOf(tt.args); got != tt.want {
+			t.Errorf("modeOf(%q) = %v, want %v", tt.args, got, tt.want)
 		}
+	}
+}
+
+// docs/design/architecture.md "Fetching from remotes": "Git works only on the
+// folder skl names. `GIT_DIR`, `GIT_WORK_TREE` and the other variables that point
+// git at a repo are dropped".
+func TestRepoEnvDropped(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	dir, other := newRepo(t, g), newRepo(t, g)
+	gitDir := filepath.Join(other, ".git")
+	for name, value := range map[string]string{
+		"GIT_DIR":              gitDir,
+		"GIT_WORK_TREE":        other,
+		"GIT_INDEX_FILE":       filepath.Join(gitDir, "index"),
+		"GIT_OBJECT_DIRECTORY": filepath.Join(gitDir, "objects"),
+		"GIT_COMMON_DIR":       gitDir,
+		"GIT_NAMESPACE":        "other",
+		"GIT_PREFIX":           "sub/",
+	} {
+		t.Setenv(name, value)
+	}
+
+	// The calibration: plain git with this environment goes to the other repo.
+	plain := exec.Command("git", "rev-parse", "--absolute-git-dir")
+	plain.Dir = dir
+	if out, err := plain.Output(); err != nil || strings.TrimSpace(string(out)) != gitDir {
+		t.Fatalf("plain git in dir = %q, %v; want the other repo, %s", out, err, gitDir)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("# pdf\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "SKILL.md"}, {"commit", "--quiet", "-m", "first"}} {
+		if _, err := g.Run(t.Context(), dir, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := g.Run(t.Context(), dir, "ls-tree", "--name-only", "HEAD"); err != nil || out != "SKILL.md\n" {
+		t.Errorf("dir's HEAD = %q, %v; want the commit", out, err)
+	}
+	if _, err := g.Run(t.Context(), other, "rev-parse", "--verify", "--quiet", "HEAD"); err == nil {
+		t.Error("the commit landed in the repo GIT_DIR names")
+	}
+	if out, err := g.Run(t.Context(), other, "ls-files"); err != nil || out != "" {
+		t.Errorf("the other repo's index = %q, %v; want it empty", out, err)
+	}
+}
+
+// Every variable git calls local to a repo is dropped, or kept on purpose. A
+// new git that adds one fails here, so it gets a decision.
+func TestRepoEnvCoversGit(t *testing.T) {
+	isolate(t)
+	out, err := New(nil).Run(t.Context(), "", "rev-parse", "--local-env-vars")
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := []string{"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT"}
+	for name := range strings.Lines(out) {
+		name = strings.TrimSpace(name)
+		if !slices.Contains(repoEnv, name) && !slices.Contains(kept, name) {
+			t.Errorf("%s: not in repoEnv, and not kept on purpose", name)
+		}
+	}
+}
+
+// What git needs from the user's environment stays: the spec harness depends on
+// GIT_CONFIG_GLOBAL, and users on the rest.
+func TestBaseEnvKeeps(t *testing.T) {
+	keep := []string{"GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_SSH", "GIT_SSH_COMMAND", "GIT_CEILING_DIRECTORIES", "GIT_AUTHOR_NAME"}
+	for _, name := range keep {
+		t.Setenv(name, "x")
+	}
+	for _, name := range repoEnv {
+		t.Setenv(name, "x")
+	}
+	env := baseEnv()
+	for _, name := range keep {
+		if !slices.Contains(env, name+"=x") {
+			t.Errorf("baseEnv dropped %s", name)
+		}
+	}
+	for _, name := range repoEnv {
+		if slices.Contains(env, name+"=x") {
+			t.Errorf("baseEnv kept %s", name)
+		}
+	}
+}
+
+// docs/reference/commands.md "Errors": "When the network or the remote fails, skl
+// shows git's error and stops." Real git against a real server: app tells a
+// missing or forbidden repo from a server failure with ErrNoAccess.
+func TestHTTPAnswers(t *testing.T) {
+	isolate(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		code, _ := strconv.Atoi(strings.Split(r.URL.Path, "/")[1])
+		w.WriteHeader(code)
+	}))
+	defer srv.Close()
+	t.Setenv("NO_PROXY", "*")
+	tests := []struct {
+		code     string
+		noAccess bool
+		reason   string
+	}{
+		{"404", true, "Repository not found"},
+		{"403", true, "The requested URL returned error: 403"},
+		{"401", true, "terminal prompts disabled"},
+		{"500", false, "The requested URL returned error: 500"},
+		{"502", false, "The requested URL returned error: 502"},
+		{"503", false, "The requested URL returned error: 503"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			_, err := New(nil).Run(t.Context(), "", "ls-remote", srv.URL+"/"+tt.code+"/you/skills.git")
+			e, ok := errors.AsType[*Error](err)
+			if !ok || !errors.Is(err, ErrUnreachable) {
+				t.Fatalf("err = %v, want ErrUnreachable", err)
+			}
+			if errors.Is(err, ErrNoAccess) != tt.noAccess || e.Reason() != tt.reason {
+				t.Errorf("noAccess = %v, Reason() = %q; want %v, %q (stderr %q)", errors.Is(err, ErrNoAccess), e.Reason(), tt.noAccess, tt.reason, e.Stderr)
+			}
+		})
+	}
+}
+
+// ssh's own failure, through real git: not the host saying no.
+func TestSSHConnectionClosed(t *testing.T) {
+	isolate(t)
+	t.Setenv("GIT_SSH", writeScript(t, "ssh", "echo 'Connection closed by remote host' >&2\nexit 255\n"))
+	_, err := New(nil).Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills")
+	e, ok := errors.AsType[*Error](err)
+	if !ok || !errors.Is(err, ErrUnreachable) || errors.Is(err, ErrNoAccess) {
+		t.Fatalf("err = %v, want ErrUnreachable and not ErrNoAccess", err)
+	}
+	if e.Reason() != "Connection closed by remote host" {
+		t.Errorf("Reason() = %q", e.Reason())
 	}
 }

@@ -3,9 +3,11 @@
 // mode), logged before it runs when SKL_DEBUG=1, and with git's error turned
 // into an *Error (docs/design/architecture.md "Fetching from remotes").
 //
-// A command that may contact a remote has a timeout and leads its own process
-// group, so stopping it stops all it started. A local command keeps the
-// terminal, for a pinentry, and has no timeout (see mayUseRemote).
+// git runs in one of three ways (see modeOf). A command that may contact a
+// remote has a timeout and leads its own process group, so stopping it stops
+// all it started. A command that may sign or run a hook keeps the terminal, for
+// a pinentry, and has no timeout. Other local commands have no timeout and lead
+// their own group, so only ctx can stop them, not Ctrl-C on the terminal.
 package gitx
 
 import (
@@ -61,8 +63,11 @@ func New(log *slog.Logger) *Git {
 // Run runs git with args in dir ("" for the current directory) and returns
 // its standard output. The first call checks git's version once for the
 // whole Git. A failure is an *Error; an unreachable remote or a timeout also
-// matches ErrUnreachable, and a dir outside a repo ErrNotRepo. If ctx is
-// canceled, the error matches ctx's error.
+// matches ErrUnreachable (and ErrNoAccess if the repo isn't there or access is
+// denied), and a dir outside a repo ErrNotRepo. If ctx is canceled, the error
+// matches ctx's error. A git that may sign or run a hook shares the terminal, so
+// Ctrl-C can stop it even under context.WithoutCancel: the error then matches
+// context.Canceled while ctx is live, and the caller undoes its step.
 func (g *Git) Run(ctx context.Context, dir string, args ...string) (string, error) {
 	if err := g.checkVersion(ctx); err != nil {
 		return "", err
@@ -90,7 +95,8 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	}
 
 	runCtx, timeout := ctx, time.Duration(0)
-	if mayUseRemote(args) {
+	mode := modeOf(args)
+	if mode == modeRemote {
 		timeout = g.Timeout
 		if timeout == 0 {
 			timeout = DefaultTimeout
@@ -103,19 +109,27 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	cmd := exec.CommandContext(runCtx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = env
-	if timeout != 0 {
+	// Interrupted, git removes its lock files; killed, it would leave index.lock
+	// in the way of the next commit. WaitDelay kills a git that ignores the
+	// interrupt.
+	switch mode {
+	case modeRemote:
 		// git leads its own process group, so stopping it stops what it
 		// started, such as ssh or a credential helper, which would otherwise
 		// outlive skl. A background group can't read the terminal: a child that
 		// tries stops, until the timeout.
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		cmd.Cancel = func() error { return killGroup(cmd.Process.Pid) }
-	} else {
+		cmd.Cancel = func() error { return signalGroup(cmd.Process.Pid, syscall.SIGKILL) }
+	case modeTerminal:
 		// git stays in skl's group, in the terminal's foreground, where Ctrl-C
-		// reaches all of it. Interrupted, git removes its lock files; killed,
-		// it would leave index.lock in the way of the next commit. WaitDelay
-		// kills a git that ignores the interrupt.
+		// reaches all of it.
 		cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
+	case modeQuiet:
+		// The terminal's Ctrl-C doesn't reach a background group, so a step
+		// under context.WithoutCancel finishes. A hook here that reads the
+		// terminal stops until ctx ends or a second Ctrl-C kills skl.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Cancel = func() error { return signalGroup(cmd.Process.Pid, syscall.SIGINT) }
 	}
 	// A child that left the group, such as an ssh ControlMaster, may keep the
 	// pipes open; stop waiting for it.
@@ -141,8 +155,8 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	case ctx.Err() != nil:
 		e.err = ctx.Err()
 	case interrupted(err):
-		// Ctrl-C reached git through the terminal before skl's own signal
-		// handler canceled ctx.
+		// Ctrl-C reached a git in modeTerminal through the terminal, before
+		// skl's own signal handler canceled ctx, or under WithoutCancel.
 		e.err = context.Canceled
 	case errors.Is(context.Cause(runCtx), errTimeout):
 		e.err, e.kind, e.reason = errTimeout, ErrUnreachable, "timed out"
@@ -165,49 +179,95 @@ func interrupted(err error) bool {
 	return ok && status.Signaled() && status.Signal() == syscall.SIGINT
 }
 
-// localCommands don't contact a remote in the way skl runs them. They include
-// every command that signs or runs a hook, so a pinentry or a slow hook can take
-// its time, except push and pull, which contact a remote anyway.
+// mode is how a git command runs.
+type mode int
+
+const (
+	// modeRemote may contact a remote: its own group, a timeout, killed when
+	// stopped.
+	modeRemote mode = iota
+	// modeTerminal is local and may sign or run a hook, so a pinentry or a slow
+	// hook can take its time: skl's group, no timeout, interrupted when stopped.
+	modeTerminal
+	// modeQuiet is any other local command: its own group, no timeout,
+	// interrupted when ctx ends.
+	modeQuiet
+)
+
+// terminalCommands may sign or run a hook that talks to the user. checkout and
+// switch run post-checkout too, but they can also fetch blobs, so they count as
+// remote: see quietCommands.
+var terminalCommands = map[string]bool{
+	"am": true, "cherry-pick": true, "commit": true, "commit-tree": true,
+	"merge": true, "rebase": true, "revert": true, "tag": true, "worktree": true,
+}
+
+// quietCommands are the other commands that don't contact a remote in the way
+// skl runs them.
 //
-// checkout, switch, restore, reset, sparse-checkout, cat-file, show, diff,
-// grep, blame and archive are left out on purpose: in a partial clone, as in
-// skl's source cache, they fetch missing blobs from the remote.
-var localCommands = map[string]bool{
-	"add": true, "am": true, "apply": true, "branch": true, "check-attr": true,
-	"check-ignore": true, "cherry-pick": true, "commit": true, "commit-tree": true,
-	"config": true, "diff-index": true, "for-each-ref": true, "hash-object": true,
-	"init": true, "log": true, "ls-files": true, "ls-tree": true, "merge": true,
+// checkout, switch, restore, reset, sparse-checkout, cat-file, show, diff, grep,
+// blame and archive are left out on purpose: in a partial clone, as in skl's
+// source cache, they fetch missing blobs from the remote, and with no timeout a
+// dead remote could hang them for good. So they count as remote.
+var quietCommands = map[string]bool{
+	"add": true, "apply": true, "branch": true, "check-attr": true,
+	"check-ignore": true, "config": true, "diff-index": true, "for-each-ref": true,
+	"hash-object": true, "init": true, "log": true, "ls-files": true, "ls-tree": true,
 	"merge-base": true, "merge-file": true, "merge-tree": true, "mktree": true,
-	"mv": true, "read-tree": true, "rebase": true, "reflog": true, "rev-list": true,
-	"rev-parse": true, "revert": true, "rm": true, "show-ref": true, "stash": true,
-	"status": true, "symbolic-ref": true, "tag": true, "update-index": true,
-	"update-ref": true, "var": true, "version": true, "worktree": true,
+	"mv": true, "read-tree": true, "reflog": true, "rev-list": true, "rev-parse": true,
+	"rm": true, "show-ref": true, "stash": true, "status": true, "symbolic-ref": true,
+	"update-index": true, "update-ref": true, "var": true, "version": true,
 	"write-tree": true,
 }
 
-// mayUseRemote reports whether git with args may contact a remote. What isn't
-// listed as local counts as remote: clone, fetch, pull, push and ls-remote, but
-// also a command skl starts using later. Wrongly remote, it gets a timeout and
-// loses the terminal; wrongly local, a dead remote could hang it for good.
-func mayUseRemote(args []string) bool {
-	return !localCommands[subcommand(args)]
+// modeOf says how git with args runs. What isn't listed counts as remote: clone,
+// fetch, pull, push and ls-remote, but also a command skl starts using later.
+// Wrongly remote, it gets a timeout and loses the terminal; wrongly local, a dead
+// remote could hang it for good.
+func modeOf(args []string) mode {
+	sub := subcommand(args)
+	switch {
+	case terminalCommands[sub]:
+		return modeTerminal
+	case quietCommands[sub]:
+		return modeQuiet
+	}
+	return modeRemote
 }
 
-// killGroup kills the process group that pid leads. A group with nothing
-// left to kill is ESRCH, or EPERM on macOS when only zombies remain.
-func killGroup(pid int) error {
-	err := syscall.Kill(-pid, syscall.SIGKILL)
+// signalGroup sends sig to the process group that pid leads. A group with
+// nothing left to signal is ESRCH, or EPERM on macOS when only zombies remain.
+func signalGroup(pid int, sig syscall.Signal) error {
+	err := syscall.Kill(-pid, sig)
 	if errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.EPERM) {
 		return os.ErrProcessDone
 	}
 	return err
 }
 
-// baseEnv is the process's environment plus GIT_TERMINAL_PROMPT=0, so a
-// missing credential fails at once instead of waiting for input. LC_ALL=C
-// keeps git's messages in English, so classify can read them.
+// repoEnv names the variables that point git at a repo or at parts of one: `git
+// rev-parse --local-env-vars`, plus GIT_NAMESPACE. Inside a git hook they are
+// set for the repo the hook runs in, and they would send skl's git calls there
+// instead of to the dir skl names. git's other local variables,
+// GIT_CONFIG_PARAMETERS and GIT_CONFIG_COUNT, carry settings, not a location, and
+// stay. So does GIT_CEILING_DIRECTORIES: it can stop git looking upward, but
+// never points it elsewhere.
+var repoEnv = []string{
+	"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_CONFIG", "GIT_DIR",
+	"GIT_GRAFT_FILE", "GIT_IMPLICIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_NAMESPACE",
+	"GIT_NO_REPLACE_OBJECTS", "GIT_OBJECT_DIRECTORY", "GIT_PREFIX",
+	"GIT_REPLACE_REF_BASE", "GIT_SHALLOW_FILE", "GIT_WORK_TREE",
+}
+
+// baseEnv is the process's environment without repoEnv, plus
+// GIT_TERMINAL_PROMPT=0, so a missing credential fails at once instead of waiting
+// for input. LC_ALL=C keeps git's messages in English, so classify can read them.
 func baseEnv() []string {
-	return append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
+	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		name, _, _ := strings.Cut(kv, "=")
+		return slices.Contains(repoEnv, name)
+	})
+	return append(env, "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
 }
 
 // sshCommand is the ssh command git would use in dir, in batch mode, so an

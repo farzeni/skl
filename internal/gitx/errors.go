@@ -2,6 +2,7 @@ package gitx
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -10,21 +11,26 @@ var (
 	// resolve or refuses, access is denied, the repo isn't there, or the
 	// call timed out (docs/reference/commands.md "Errors").
 	ErrUnreachable = errors.New("can't reach the remote")
+	// ErrNoAccess is the kind of ErrUnreachable where the repo isn't there or
+	// access is denied, as opposed to a network or server failure. Hosts answer
+	// those two alike, so skl can't tell them apart. It also matches
+	// ErrUnreachable.
+	ErrNoAccess = fmt.Errorf("%w: not there or access denied", ErrUnreachable)
 	// ErrNotRepo is a directory that isn't in a git repository.
 	ErrNotRepo = errors.New("not a git repository")
 
 	errTimeout = errors.New("timed out")
 )
 
-// Error is a git call that failed. It matches ErrUnreachable or ErrNotRepo
-// with errors.Is when git's message says so, and ctx's error when the call
-// was canceled.
+// Error is a git call that failed. It matches ErrUnreachable, ErrNoAccess or
+// ErrNotRepo with errors.Is when git's message says so, and ctx's error when the
+// call was canceled.
 type Error struct {
 	Args   []string // the arguments after "git"
 	Stderr string   // all of git's standard error
 	Code   int      // git's exit code; -1 if git didn't exit on its own
 
-	kind   error  // ErrUnreachable, ErrNotRepo or nil
+	kind   error  // ErrUnreachable, ErrNoAccess, ErrNotRepo or nil
 	reason string // the short cause, for an unreachable remote
 	msg    string // git's message, or what went wrong when git said nothing
 	err    error  // what exec or the context returned
@@ -65,7 +71,8 @@ func (e *Error) Unwrap() []error {
 
 // Reason is the short cause of an unreachable remote, in git's words, such
 // as "Could not resolve host", for "✗ can't reach github.com (Could not
-// resolve host)". It is "" for other failures.
+// resolve host)", or "The requested URL returned error: 500". It is "" for other
+// failures.
 func (e *Error) Reason() string { return e.reason }
 
 // Message returns git's own message from its standard error: the last line
@@ -84,51 +91,85 @@ func Message(stderr string) string {
 }
 
 // unreachable lists the phrases git, curl and ssh use when a remote can't be
-// reached, most specific first, with the reason shown to the user (the
-// phrase itself when reason is "").
-var unreachable = []struct{ phrase, reason string }{
-	{"Could not resolve host", ""}, // curl, and ssh's "Could not resolve hostname"
-	{"Connection refused", ""},
-	{"Connection timed out", ""},
-	{"Operation timed out", ""},
-	{"Network is unreachable", ""},
-	{"No route to host", ""},
-	{"Failed to connect", ""},
-	{"terminal prompts disabled", ""}, // a password was needed
-	{"Authentication failed", ""},
+// reached, most specific first, with the reason shown to the user (the phrase
+// itself when reason is "") and whether the remote answered no, rather than the
+// network or the server failing.
+var unreachable = []struct {
+	phrase, reason string
+	noAccess       bool
+}{
+	{phrase: "Could not resolve host"}, // curl, and ssh's "Could not resolve hostname"
+	{phrase: "Connection refused"},
+	{phrase: "Connection timed out"},
+	{phrase: "Operation timed out"},
+	{phrase: "Network is unreachable"},
+	{phrase: "No route to host"},
+	{phrase: "Failed to connect"},
+	{phrase: "Connection closed by", reason: "Connection closed by remote host"}, // or "by 192.0.2.1 port 22"
+	{phrase: "Connection reset"},
+	{phrase: "terminal prompts disabled", noAccess: true}, // a password was needed
+	{phrase: "Authentication failed", noAccess: true},
 	// ssh's "Permission denied (publickey)."; a bare "Permission denied" is
 	// a local file, such as "cannot mkdir x: Permission denied".
-	{"Permission denied (", "Permission denied"},
-	{"Host key verification failed", ""},
-	{"Repository not found", ""},
-	{"does not appear to be a git repository", ""},
-	{"The requested URL returned error", ""},
-	{"Could not read from remote repository", ""},
-	{"unable to access", ""},
+	{phrase: "Permission denied (", reason: "Permission denied", noAccess: true},
+	{phrase: "Host key verification failed", noAccess: true},
+	{phrase: "Repository not found", noAccess: true},
+	{phrase: "does not appear to be a git repository", noAccess: true},
+	{phrase: urlError},
+	// ssh's own failures are listed above, so this is the host saying no in its
+	// own words, as GitLab and Bitbucket do.
+	{phrase: "Could not read from remote repository", noAccess: true},
+	{phrase: "unable to access"},
 }
+
+const urlError = "The requested URL returned error"
 
 // classify reads git's standard error and returns the reason for an
 // unreachable remote, the message to show (the line naming the reason, else
 // git's last fatal or error line) and the sentinel it matches.
 func classify(stderr string) (reason, msg string, kind error) {
 	for _, u := range unreachable {
-		if before, _, ok := strings.Cut(stderr, u.phrase); ok {
-			start := strings.LastIndexByte(before, '\n') + 1
-			line, _, _ := strings.Cut(stderr[start:], "\n")
-			reason = u.reason
-			if reason == "" {
-				reason = u.phrase
-			}
-			return reason, Message(line), ErrUnreachable
+		before, _, ok := strings.Cut(stderr, u.phrase)
+		if !ok {
+			continue
 		}
+		start := strings.LastIndexByte(before, '\n') + 1
+		line, _, _ := strings.Cut(stderr[start:], "\n")
+		reason = u.reason
+		if reason == "" {
+			reason = u.phrase
+		}
+		noAccess := u.noAccess
+		switch u.phrase {
+		case urlError:
+			// "… returned error: 500": the code decides.
+			_, code, _ := strings.Cut(line, u.phrase+": ")
+			code = strings.TrimSpace(code)
+			reason += ": " + code
+			noAccess = code == "401" || code == "403" || code == "404"
+		case "unable to access":
+			// "unable to access 'url': <curl's reason>", such as an SSL problem.
+			if _, why, ok := strings.Cut(line, "': "); ok {
+				reason = strings.TrimSpace(why)
+			}
+		}
+		if noAccess {
+			return reason, Message(line), ErrNoAccess
+		}
+		return reason, Message(line), ErrUnreachable
 	}
-	// git clone of a local path that isn't there: "fatal: repository
-	// '/x' does not exist". Other "'…' does not exist" lines, such as
-	// "path 'x' does not exist in 'HEAD'", are not about a remote.
+	// Other "'…' does not exist" or "not found" lines, such as "path 'x' does
+	// not exist in 'HEAD'", are not about a remote.
 	for line := range strings.Lines(stderr) {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "fatal: repository '") && strings.HasSuffix(line, "' does not exist") {
-			return "does not exist", Message(line), ErrUnreachable
+		if !strings.HasPrefix(line, "fatal: repository '") {
+			continue
+		}
+		switch {
+		case strings.HasSuffix(line, "' does not exist"): // git clone of a local path
+			return "does not exist", Message(line), ErrNoAccess
+		case strings.HasSuffix(line, "' not found"): // a host answering 404
+			return "Repository not found", Message(line), ErrNoAccess
 		}
 	}
 	if strings.Contains(stderr, "not a git repository") {
