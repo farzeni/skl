@@ -69,6 +69,20 @@ cmp stderr set-ambiguous.txt
 exists $HOME/.claude/skills/a
 ! exists $HOME/.claude/skills/b
 
+# docs/reference/files.md: "hidden folders are skipped at both levels"
+# docs/reference/files.md: "A skill folder loads with its whole group, or through a valid frontmatter name."
+exec skl add names --dry-run
+cmp stdout outside-grammar.txt
+! stdout hidden
+exec skl add names/valid --dry-run
+stdout '^\+ a\.b$'
+# docs/reference/files.md: "A group folder can't be selected at all, so its skills never load."
+exitcode 2 skl add a.b --dry-run
+stderr 'someone else''s skill'
+# docs/reference/files.md: "A set file can't be loaded."
+exitcode 2 skl add @x.y
+stderr '^✗ @x.y is not a valid selector'
+
 # A one-word skill name. The word is replaced in the command as typed.
 exec skl add b --dry-run
 cmp stderr suggest-add.txt
@@ -178,6 +192,9 @@ stderr '^✗ can''t read '
   · edit sets/hasref.toml
 -- set-ambiguous.txt --
 ✗ @hasamb: data/Pdf matches 2 skills: data/PDF, data/pdf · edit sets/hasamb.toml
+-- outside-grammar.txt --
+→ add names
++ a.b
 -- suggest-add.txt --
 ! b   matches no group · skl add other/b
 -- drop-suggest.txt --
@@ -260,6 +277,20 @@ Just text.
 ---
 description: x
 ---
+-- seed/names/.hidden/SKILL.md --
+---
+description: hidden
+---
+-- seed/names/a.b/SKILL.md --
+---
+name: valid
+---
+-- seed/a.b/x/SKILL.md --
+---
+description: x
+---
+-- seed/sets/x.y.toml --
+select = ["review/a"]
 -- seed/sets/hasdata.toml --
 select = ["data"]
 -- seed/sets/base.toml --

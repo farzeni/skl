@@ -71,9 +71,9 @@ func (e *AmbiguousSetError) Error() string {
 
 // Index reads the vault's folder: every top-level folder except the reserved
 // and hidden ones is a group, and every folder in a group that holds a SKILL.md
-// is a skill. Set files are listed here and read by Set, so a broken one stops
-// only what uses it. A folder that can't be listed is an error; anything else
-// wrong is a warning.
+// is a skill; a hidden folder is neither. Set files are listed here and read by
+// Set, so a broken one stops only what uses it. A folder that can't be listed is
+// an error; anything else wrong is a warning.
 func (v *Vault) Index(ctx context.Context) (*Index, error) {
 	top, err := os.ReadDir(v.dir)
 	if err != nil {
@@ -169,7 +169,7 @@ func (i *Index) readGroup(group string) error {
 	}
 	i.groups = append(i.groups, group)
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
 			i.readSkill(group, e.Name())
 		}
 	}
