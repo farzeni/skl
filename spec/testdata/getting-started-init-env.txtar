@@ -1,5 +1,4 @@
 # docs/guide/getting-started.md "Make your vault"
-skip 'pending: gitx fixes in #90'
 
 # "skl never creates a repo, so a missing repo or denied access stops init": git's
 # own line for a host's 404, without GitHub's extra one.

@@ -97,56 +97,10 @@ func (a *App) stateError(err error) error {
 // that's missing or denied, which a host doesn't tell apart.
 func networkReason(err error) string {
 	ge, ok := errors.AsType[*gitx.Error](err)
-	if !ok || !errors.Is(err, gitx.ErrUnreachable) {
+	if !ok || !errors.Is(err, gitx.ErrUnreachable) || errors.Is(err, gitx.ErrNoAccess) {
 		return ""
 	}
-	switch reason := ge.Reason(); reason {
-	case "Could not resolve host", "Connection refused", "Connection timed out", "Operation timed out",
-		"Network is unreachable", "No route to host", "Failed to connect", "timed out":
-		return reason
-	case "The requested URL returned error":
-		return httpReason(reason, ge.Stderr)
-	case "unable to access":
-		return curlReason(ge.Stderr)
-	case "Could not read from remote repository":
-		return sshReason(ge.Stderr)
-	}
-	return ""
-}
-
-// httpReason is "The requested URL returned error: 502", or "" for the codes a
-// missing repo or denied access gets.
-func httpReason(phrase, stderr string) string {
-	_, after, _ := strings.Cut(stderr, phrase+": ")
-	code, _, _ := strings.Cut(after, "\n")
-	switch code = strings.TrimSpace(code); code {
-	case "", "401", "403", "404":
-		return ""
-	}
-	return phrase + ": " + code
-}
-
-// curlReason is what git says after "unable to access '<url>': ", which leaves
-// out the URL and any password in it.
-func curlReason(stderr string) string {
-	_, after, _ := strings.Cut(stderr, "unable to access '")
-	line, _, _ := strings.Cut(after, "\n")
-	if i := strings.LastIndex(line, "': "); i >= 0 {
-		return strings.TrimSpace(line[i+len("': "):])
-	}
-	return ""
-}
-
-// sshReason is ssh's line about a connection that ended, from the phrase on.
-// ssh says nothing of the kind when the server turned the repo down.
-func sshReason(stderr string) string {
-	for _, phrase := range []string{"Connection closed by", "Connection reset by"} {
-		if _, after, ok := strings.Cut(stderr, phrase); ok {
-			rest, _, _ := strings.Cut(after, "\n")
-			return phrase + strings.TrimRight(rest, " \r")
-		}
-	}
-	return ""
+	return gitx.Message(ge.Reason()) // a reason can be a whole line of git's, "fatal: " and all
 }
 
 // shownError is an error with its text rewritten for the user.

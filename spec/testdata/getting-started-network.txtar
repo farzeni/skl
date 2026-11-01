@@ -21,6 +21,11 @@ env ANSWER=$WORK/tls
 exitcode 1 skl init you/skills
 cmp stderr want-tls.txt
 
+# git's last word with nothing to go on isn't a denial: the line before it is the reason.
+env ANSWER=$WORK/ssh-other
+exitcode 1 skl init you/skills
+cmp stderr want-other.txt
+
 # Only not-found and denied say "create it or check access".
 env ANSWER=$WORK/http-404
 exitcode 1 skl init you/skills
@@ -64,6 +69,9 @@ fatal: Could not read from remote repository.
 -- ssh-denied --
 git@github.com: Permission denied (publickey).
 fatal: Could not read from remote repository.
+-- ssh-other --
+fatal: protocol error: bad line length character: Welc
+fatal: Could not read from remote repository.
 -- tls --
 fatal: unable to access 'https://github.com/you/skills/': SSL certificate problem: unable to get local issuer certificate
 -- want-502.txt --
@@ -74,6 +82,9 @@ fatal: unable to access 'https://github.com/you/skills/': SSL certificate proble
   · skl init you/skills
 -- want-tls.txt --
 ✗ can't reach github.com (SSL certificate problem: unable to get local issuer certificate)
+  · skl init you/skills
+-- want-other.txt --
+✗ can't reach github.com (protocol error: bad line length character: Welc)
   · skl init you/skills
 -- want-missing.txt --
 ✗ can't reach you/skills · create it or check access, then skl init you/skills
