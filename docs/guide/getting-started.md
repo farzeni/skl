@@ -29,8 +29,7 @@ skl init you/skills
 ? Import the 3 skills in ~/.claude/skills into you/?
   › yes   choose   no
 ◇ imported   pr-review, my-notes, sql-explain → you/
-◇ LICENSE    MIT, for the skills you write
-  · edit LICENSE to change it
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
 ! 1 change not pushed · skl sync
 ✓ generation 1 · skl rollback to undo
 ```
@@ -40,8 +39,7 @@ Your skills stay where Claude Code reads them. They're now versioned, and they g
 If the repo already holds skills, skl clones it as your vault instead: its groups are the folders that hold skills. An empty repo becomes a new vault. skl never creates a repo, so one it can't reach stops init:
 
 ```
-✗ can't reach you/skills
-  · create it or check access, then skl init you/skills
+✗ can't reach you/skills · create it or check access, then skl init you/skills
 ```
 
 Any git remote works: see [Selectors and references](../reference/repos). To pick which skills to import, answer `choose`: skl asks about each one.

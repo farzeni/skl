@@ -1,14 +1,18 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/farzeni/skl/internal/ui"
 )
 
 // env returns a getenv over a fixed map.
@@ -35,7 +39,7 @@ func load(t *testing.T, body string, vars map[string]string) (Config, error) {
 	}
 	all := map[string]string{"HOME": home}
 	maps.Copy(all, vars)
-	return Load(context.Background(), p, env(all))
+	return Load(context.Background(), p, env(all), Flags{})
 }
 
 // config.md: "without it, skl uses the defaults below".
@@ -131,16 +135,21 @@ func TestPrecedence(t *testing.T) {
 			}
 		})
 	}
-	// The flag is applied by the caller: --scope is the only flag with a key.
-	got, err := load(t, "scope = \"user\"\n", map[string]string{"SKL_SCOPE": "user"})
+	// --scope is the only flag with a key.
+	home := t.TempDir()
+	vars := env(map[string]string{"HOME": home, "SKL_SCOPE": "user"})
+	p, err := NewPaths(vars)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := ParseScope("project")
+	flag, err := ParseScope("project")
 	if err != nil {
 		t.Fatal(err)
 	}
-	got.Scope = s
+	got, err := Load(context.Background(), p, vars, Flags{Scope: flag})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got.Scope != Project {
 		t.Errorf("flag over env: scope = %v", got.Scope)
 	}
@@ -237,7 +246,7 @@ func TestLoadFollowsSKLHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := Load(context.Background(), p, e)
+	c, err := Load(context.Background(), p, e, Flags{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,14 +365,6 @@ func TestInvalid(t *testing.T) {
 			`config: ~/.skl/config.toml line 1: expected value but found "ssh" instead`, "edit ~/.skl/config.toml",
 		},
 		{
-			"targets not a list", `targets = "claude"`, nil, "targets",
-			`config: targets must be a list such as ["claude", "agents"], not "claude"`, "edit targets in ~/.skl/config.toml",
-		},
-		{
-			"targets not strings", `targets = ["claude", 1]`, nil, "targets",
-			`config: targets must be a list such as ["claude", "agents"], not ["claude", 1]`, "edit targets in ~/.skl/config.toml",
-		},
-		{
 			"not a string", `protocol = 22`, nil, "protocol",
 			`config: protocol must be a string in quotes, not 22`, "edit protocol in ~/.skl/config.toml",
 		},
@@ -397,7 +398,7 @@ func TestInvalidHintFollowsSKLHome(t *testing.T) {
 	}
 	e := env(map[string]string{"HOME": home, "SKL_HOME": team})
 	p, _ := NewPaths(e)
-	_, err := Load(context.Background(), p, e)
+	_, err := Load(context.Background(), p, e, Flags{})
 	var ie *InvalidError
 	if !errors.As(err, &ie) {
 		t.Fatalf("err = %v", err)
@@ -415,7 +416,7 @@ func TestInvalidHintFollowsSKLHome(t *testing.T) {
 	}
 	e = env(map[string]string{"HOME": home, "SKL_HOME": sub})
 	p, _ = NewPaths(e)
-	_, err = Load(context.Background(), p, e)
+	_, err = Load(context.Background(), p, e, Flags{})
 	if !errors.As(err, &ie) || ie.Hint() != "edit scope in ~/skl-team/config.toml" {
 		t.Errorf("err = %v", err)
 	}
@@ -427,7 +428,7 @@ func TestLicenseIDs(t *testing.T) {
 			t.Errorf("license %q: %v", id, err)
 		}
 	}
-	for _, id := range []string{"", "MIT License", "-MIT", "MIT/Apache"} {
+	for _, id := range []string{"", "MIT License", "-MIT", "MIT/Apache", "None", "NONE", "nOnE", "NOASSERTION", "NoAssertion"} {
 		if _, err := load(t, `license = "`+id+`"`, nil); err == nil {
 			t.Errorf("license %q: no error", id)
 		}
@@ -445,24 +446,266 @@ func TestParseScope(t *testing.T) {
 	}
 }
 
-// A config file that can't be read, other than a missing one, is an error.
-func TestUnreadable(t *testing.T) {
-	home := t.TempDir()
-	e := env(map[string]string{"HOME": home})
-	p, _ := NewPaths(e)
-	if err := os.MkdirAll(p.Config, 0o755); err != nil { // a folder where the file goes
-		t.Fatal(err)
-	}
-	if _, err := Load(context.Background(), p, e); err == nil {
-		t.Error("config.toml is a folder: no error")
-	}
-}
-
 func TestLoadCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	p, _ := NewPaths(env(map[string]string{"HOME": t.TempDir()}))
-	if _, err := Load(ctx, p, env(nil)); !errors.Is(err, context.Canceled) {
+	if _, err := Load(ctx, p, env(nil), Flags{}); !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
 	}
+}
+
+// errorLine is the ✗ line skl prints for a Load error at 80 columns.
+func errorLine(t *testing.T, err error) string {
+	t.Helper()
+	h, ok := err.(interface{ Hint() string })
+	if !ok {
+		t.Fatalf("err = %#v has no hint", err)
+	}
+	var out bytes.Buffer
+	ui.New(ui.Options{
+		Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out,
+		Getenv: env(map[string]string{"COLUMNS": "80"}),
+	}).Error(err.Error(), h.Hint())
+	return out.String()
+}
+
+// config.md: "A value skl can't use stops the command, naming the variable
+// or the key", and commands.md "Output": every ✗ line ends with the command
+// to run. Card #79, items 1, 3 and 4.
+func TestInvalidLines(t *testing.T) {
+	const notNames = "✗ config: targets must be a list of target names\n  · edit targets in ~/.skl/config.toml\n"
+	tests := []struct {
+		name string
+		body string
+		vars map[string]string
+		want string
+	}{
+		// Item 1: each list element is one target name.
+		{
+			"targets element with a comma", `targets = ["claude,agents"]`, nil,
+			"✗ config: targets can only hold claude and agents, not \"claude,agents\"\n  · edit targets in ~/.skl/config.toml\n",
+		},
+		{
+			"targets element with spaces", `targets = [" claude "]`, nil,
+			"✗ config: targets can only hold claude and agents, not \" claude \"\n  · edit targets in ~/.skl/config.toml\n",
+		},
+		{
+			"targets empty element", `targets = ["claude", ""]`, nil,
+			"✗ config: targets can only hold claude and agents, not \"\"\n  · edit targets in ~/.skl/config.toml\n",
+		},
+		// Item 3: words that say there is no license.
+		{
+			"license None", `license = "None"`, nil,
+			"✗ config: license must be an SPDX id such as MIT, or none, not \"None\"\n  · edit license in ~/.skl/config.toml\n",
+		},
+		{
+			"license NONE", `license = "NONE"`, nil,
+			"✗ config: license must be an SPDX id such as MIT, or none, not \"NONE\"\n  · edit license in ~/.skl/config.toml\n",
+		},
+		{
+			"license NOASSERTION", `license = "noassertion"`, nil,
+			"✗ config: license must be an SPDX id such as MIT, or none, not \"noassertion\"\n  · edit license in ~/.skl/config.toml\n",
+		},
+		{
+			"SKL_LICENSE NONE", "-",
+			map[string]string{"SKL_LICENSE": "NONE"},
+			"✗ config: SKL_LICENSE must be an SPDX id such as MIT, or none, not \"NONE\"\n  · unset SKL_LICENSE\n",
+		},
+		// Item 4: the wrong shape says what was expected.
+		{"targets scalar", `targets = "claude"`, nil, notNames},
+		{"targets number", `targets = 1`, nil, notNames},
+		{"targets table", "[targets]\nx = 1\n", nil, notNames},
+		{"targets inline table", `targets = {x = 1}`, nil, notNames},
+		{"targets array of tables", "[[targets]]\nx = 1\n", nil, notNames},
+		{"targets list of tables", `targets = [{x = 1}]`, nil, notNames},
+		{"targets not strings", `targets = ["claude", 1]`, nil, notNames},
+		{
+			"protocol table", "[protocol]\nx = 1\n", nil,
+			"✗ config: protocol must be a string in quotes, not a table\n  · edit protocol in ~/.skl/config.toml\n",
+		},
+		{
+			"engine array of tables", "[[engine]]\nx = 1\n", nil,
+			"✗ config: engine must be a string in quotes, not a table\n  · edit engine in ~/.skl/config.toml\n",
+		},
+		{
+			"scope list", `scope = ["user"]`, nil,
+			"✗ config: scope must be a string in quotes, not [\"user\"]\n  · edit scope in ~/.skl/config.toml\n",
+		},
+		{
+			"default_host list of tables", `default_host = [{x = 1}]`, nil,
+			"✗ config: default_host must be a string in quotes, not [a table]\n  · edit default_host in ~/.skl/config.toml\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := load(t, tt.body, tt.vars)
+			if err == nil {
+				t.Fatal("no error")
+			}
+			if got := errorLine(t, err); got != tt.want {
+				t.Errorf("got  %q\nwant %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// config.md "Precedence": "Only the value that wins is checked: a bad one in
+// the file doesn't matter while a variable or a flag overrides it." Card
+// #79, item 2: for its type as well as its value.
+func TestOverriddenNotChecked(t *testing.T) {
+	tests := []struct {
+		key, envVar, good string
+		bad               []string // TOML values
+		get               func(Config) any
+		want              any
+	}{
+		{
+			"default_host", "SKL_DEFAULT_HOST", "git.example.org",
+			[]string{`"https://x"`, `22`, `{x = 1}`},
+			func(c Config) any { return c.DefaultHost }, "git.example.org",
+		},
+		{
+			"protocol", "SKL_PROTOCOL", "ssh",
+			[]string{`"ftp"`, `22`, `["ssh"]`, `{x = 1}`},
+			func(c Config) any { return c.Protocol }, SSH,
+		},
+		{
+			"scope", "SKL_SCOPE", "project",
+			[]string{`"global"`, `22`, `{x = 1}`},
+			func(c Config) any { return c.Scope }, Project,
+		},
+		{
+			"targets", "SKL_TARGETS", "agents",
+			[]string{`["cursor"]`, `"claude"`, `22`, `{x = 1}`, `[]`},
+			func(c Config) any { return c.Targets },
+			[]Target{Agents},
+		},
+		{
+			"engine", "SKL_ENGINE", "pi {prompt}",
+			[]string{`" "`, `22`, `{x = 1}`},
+			func(c Config) any { return c.Engine }, "pi {prompt}",
+		},
+		{
+			"license", "SKL_LICENSE", "MIT",
+			[]string{`"my own"`, `"None"`, `22`, `{x = 1}`},
+			func(c Config) any { return c.License }, "MIT",
+		},
+	}
+	for _, tt := range tests {
+		for _, bad := range tt.bad {
+			t.Run(tt.key+" "+bad, func(t *testing.T) {
+				body := tt.key + " = " + bad + "\n"
+				got, err := load(t, body, map[string]string{tt.envVar: tt.good})
+				if err != nil {
+					t.Fatalf("overridden by %s: %v", tt.envVar, err)
+				}
+				if v := tt.get(got); !reflect.DeepEqual(v, tt.want) {
+					t.Errorf("%s = %v, want %v", tt.key, v, tt.want)
+				}
+				// Without the variable, the same value stops the command.
+				if _, err := load(t, body, nil); err == nil {
+					t.Errorf("not overridden: no error")
+				}
+			})
+		}
+	}
+
+	// The flag overrides both, so neither is checked.
+	home := t.TempDir()
+	e := env(map[string]string{"HOME": home, "SKL_SCOPE": "global"})
+	p, err := NewPaths(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(p.Home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.Config, []byte("scope = 22\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(context.Background(), p, e, Flags{Scope: User})
+	if err != nil || got.Scope != User {
+		t.Errorf("--scope over a bad variable and file: %v, %v", got.Scope, err)
+	}
+	if _, err := Load(context.Background(), p, e, Flags{}); err == nil {
+		t.Error("no flag: a bad SKL_SCOPE was not checked")
+	}
+
+	// A file that isn't TOML has no value to override: it still stops.
+	if _, err := load(t, "protocol = ssh\n", map[string]string{"SKL_PROTOCOL": "https"}); err == nil {
+		t.Error("a file that doesn't parse: no error")
+	}
+}
+
+// Card #79, item 5: "✗ can't read ~/.skl/config.toml: <reason> · check its
+// permissions".
+func TestUnreadable(t *testing.T) {
+	setup := func(t *testing.T) (Paths, func(string) string) {
+		t.Helper()
+		e := env(map[string]string{"HOME": t.TempDir()})
+		p, err := NewPaths(e)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(p.Home, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p, e
+	}
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, p Paths)
+		want  string
+	}{
+		{
+			"a folder where the file goes",
+			func(t *testing.T, p Paths) {
+				t.Helper()
+				if err := os.Mkdir(p.Config, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			},
+			"✗ can't read ~/.skl/config.toml: is a directory · check its permissions\n",
+		},
+		{
+			"no permission",
+			func(t *testing.T, p Paths) {
+				t.Helper()
+				if os.Getuid() == 0 {
+					t.Skip("root reads everything")
+				}
+				if err := os.WriteFile(p.Config, nil, 0o000); err != nil {
+					t.Fatal(err)
+				}
+			},
+			"✗ can't read ~/.skl/config.toml: permission denied · check its permissions\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, e := setup(t)
+			tt.setup(t, p)
+			_, err := Load(context.Background(), p, e, Flags{})
+			if !errors.As(err, new(*UnreadableError)) {
+				t.Fatalf("err = %v, want *UnreadableError", err)
+			}
+			if got := errorLine(t, err); got != tt.want {
+				t.Errorf("got  %q\nwant %q", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("the cause can be checked", func(t *testing.T) {
+		if os.Getuid() == 0 {
+			t.Skip("root reads everything")
+		}
+		p, e := setup(t)
+		if err := os.WriteFile(p.Config, nil, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(context.Background(), p, e, Flags{}); !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("err = %v, want fs.ErrPermission", err)
+		}
+	})
 }

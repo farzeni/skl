@@ -6,8 +6,10 @@ GORELEASER := $(shell command -v goreleaser 2>/dev/null || echo go run github.co
 
 check: fmt-check lint test vuln release-check
 
+# Go stamps a build with the nearest .git folder, and a worktree's .git is a
+# file: inside the main checkout, it would stamp main's commit. Say which.
 build:
-	go build -o bin/skl ./cmd/skl
+	go build -ldflags "-X github.com/farzeni/skl/internal/cli.commit=$$(git rev-parse --short HEAD 2>/dev/null)" -o bin/skl ./cmd/skl
 
 test:
 	go test -race ./...

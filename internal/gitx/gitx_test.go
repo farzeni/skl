@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -27,6 +30,7 @@ func isolate(t *testing.T) string {
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(home, ".gitconfig"))
 	t.Setenv("GIT_SSH_COMMAND", "")
+	t.Setenv("GIT_SSH", "")
 	cfg := "[user]\n\tname = Test\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n"
 	if err := os.WriteFile(filepath.Join(home, ".gitconfig"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
@@ -247,6 +251,149 @@ func TestEnv(t *testing.T) {
 	})
 }
 
+// docs/design/architecture.md "Fetching from remotes": the ssh that runs,
+// in git's own order: GIT_SSH_COMMAND, core.sshCommand, GIT_SSH, ssh. "A
+// program in GIT_SSH takes no options, so if neither of those is set it runs
+// as it is."
+func TestSSHPrecedence(t *testing.T) {
+	const batch = " -o BatchMode=yes"
+	tests := []struct {
+		name                string
+		envCmd, cfg, gitSSH string
+		want                string // GIT_SSH_COMMAND as git sees it; "" if unset
+	}{
+		{"nothing", "", "", "", "ssh" + batch},
+		{"GIT_SSH", "", "", "/bin/myssh", ""},
+		{"core.sshCommand", "", "cfgssh", "", "cfgssh" + batch},
+		{"core.sshCommand over GIT_SSH", "", "cfgssh", "/bin/myssh", "cfgssh" + batch},
+		{"GIT_SSH_COMMAND", "envssh", "", "", "envssh" + batch},
+		{"GIT_SSH_COMMAND over GIT_SSH", "envssh", "", "/bin/myssh", "envssh" + batch},
+		{"GIT_SSH_COMMAND over both", "envssh", "cfgssh", "/bin/myssh", "envssh" + batch},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolate(t)
+			g := New(nil)
+			if tt.cfg != "" {
+				if _, err := g.Run(t.Context(), "", "config", "--global", "core.sshCommand", tt.cfg); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("GIT_SSH_COMMAND", tt.envCmd)
+			t.Setenv("GIT_SSH", tt.gitSSH)
+			// ${x+set} tells an unset variable from an empty one: git would
+			// run an empty GIT_SSH_COMMAND instead of GIT_SSH.
+			script := `!echo "${GIT_SSH_COMMAND+set}:$GIT_SSH_COMMAND"; printenv GIT_TERMINAL_PROMPT`
+			out, err := New(nil).Run(t.Context(), "", "-c", "alias.env="+script, "env")
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := ":\n0\n"
+			if tt.want != "" {
+				want = "set:" + tt.want + "\n0\n"
+			}
+			if out != want {
+				t.Errorf("env = %q, want %q", out, want)
+			}
+		})
+	}
+
+	// git really runs the program in GIT_SSH, with no options of skl's.
+	t.Run("GIT_SSH runs", func(t *testing.T) {
+		isolate(t)
+		bin := t.TempDir()
+		args := filepath.Join(bin, "args")
+		script := "#!/bin/sh\necho \"$@\" > '" + args + "'\nexit 255\n"
+		if err := os.WriteFile(filepath.Join(bin, "myssh"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("GIT_SSH", filepath.Join(bin, "myssh"))
+		if _, err := New(nil).Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills"); err == nil {
+			t.Fatal("ls-remote through a failing ssh succeeded")
+		}
+		b, err := os.ReadFile(args)
+		if err != nil {
+			t.Fatalf("GIT_SSH didn't run: %v", err)
+		}
+		if strings.Contains(string(b), "BatchMode") {
+			t.Errorf("ssh args = %q, want no BatchMode", b)
+		}
+	})
+}
+
+// docs/design/architecture.md "Fetching from remotes": "Ctrl-C or a timeout
+// stops the running git and everything it started, such as ssh."
+func TestStopKillsChildren(t *testing.T) {
+	tests := []struct {
+		name string
+		// set runs before git starts.
+		set func(g *Git)
+		is  error
+	}{
+		{"Ctrl-C", nil, context.Canceled},
+		{"timeout", func(g *Git) { g.Timeout = 500 * time.Millisecond }, ErrUnreachable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolate(t)
+			g := New(nil)
+			if tt.set != nil {
+				tt.set(g)
+			}
+			pidFile := filepath.Join(t.TempDir(), "pid")
+			// sleep is git's child's child, as ssh can be. It lets go of the
+			// pipes, so only the signal can stop it.
+			script := "!sleep 300 >/dev/null 2>&1 </dev/null & echo $! > '" + pidFile + "'; wait"
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			var pid int
+			ready := make(chan struct{})
+			go func() {
+				defer close(ready)
+				deadline := time.Now().Add(10 * time.Second)
+				for time.Now().Before(deadline) {
+					if b, err := os.ReadFile(pidFile); err == nil && strings.HasSuffix(string(b), "\n") {
+						pid, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+						if g.Timeout == 0 { // else the timeout stops it
+							cancel()
+						}
+						return
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				cancel()
+			}()
+
+			start := time.Now()
+			_, err := g.Run(ctx, "", "-c", "alias.hang="+script, "hang")
+			<-ready
+			if pid == 0 {
+				t.Fatal("the child never started")
+			}
+			t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+			if !errors.Is(err, tt.is) {
+				t.Errorf("err = %v, want %v", err, tt.is)
+			}
+			if d := time.Since(start); d > 5*time.Second {
+				t.Errorf("Run took %s", d)
+			}
+			// The kill is asynchronous, and init reaps the orphan.
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				err := syscall.Kill(pid, 0)
+				if errors.Is(err, syscall.ESRCH) {
+					return
+				}
+				if time.Now().After(deadline) {
+					t.Fatalf("child %d outlived git: kill(0) = %v", pid, err)
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+		})
+	}
+}
+
 // The spec harness maps https://github.com/ to local repos with
 // url.insteadOf in the user's git config: gitx must not override it.
 func TestKeepsUserConfig(t *testing.T) {
@@ -307,6 +454,24 @@ func TestCanceled(t *testing.T) {
 	_, err := g.Run(ctx, "", "-c", "alias.hang=!sleep 5", "hang")
 	if !errors.Is(err, context.Canceled) || errors.Is(err, ErrUnreachable) {
 		t.Fatalf("err = %v, want context.Canceled only", err)
+	}
+}
+
+// docs/reference/commands.md: "130: Interrupted with Ctrl-C." A real signal:
+// cli's signal.NotifyContext cancels with a cause that isn't context.Canceled,
+// and the error must still match it for cli to exit 130.
+func TestInterrupted(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	if _, err := g.Run(t.Context(), "", "version"); err != nil {
+		t.Fatal(err)
+	}
+	ctx, stop := signal.NotifyContext(t.Context(), os.Interrupt)
+	defer stop()
+	time.AfterFunc(200*time.Millisecond, func() { _ = syscall.Kill(os.Getpid(), syscall.SIGINT) })
+	_, err := g.Run(ctx, "", "-c", "alias.hang=!sleep 5", "hang")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }
 
