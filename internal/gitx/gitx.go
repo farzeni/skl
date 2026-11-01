@@ -127,9 +127,15 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	case modeQuiet:
 		// The terminal's Ctrl-C doesn't reach a background group, so a step
 		// under context.WithoutCancel finishes. A hook here that reads the
-		// terminal stops until ctx ends or a second Ctrl-C kills skl.
+		// terminal stops until ctx ends or a second Ctrl-C kills skl. SIGCONT
+		// lets a stopped hook take the interrupt: git waits for it before it
+		// removes its locks.
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		cmd.Cancel = func() error { return signalGroup(cmd.Process.Pid, syscall.SIGINT) }
+		cmd.Cancel = func() error {
+			err := signalGroup(cmd.Process.Pid, syscall.SIGINT)
+			_ = signalGroup(cmd.Process.Pid, syscall.SIGCONT)
+			return err
+		}
 	}
 	// A child that left the group, such as an ssh ControlMaster, may keep the
 	// pipes open; stop waiting for it.

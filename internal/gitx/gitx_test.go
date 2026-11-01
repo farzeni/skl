@@ -624,7 +624,7 @@ func TestClassify(t *testing.T) {
 		// A host answering 404, in git's words (TestHTTPAnswers runs it).
 		{"fatal: repository 'https://git.example.com/you/nope/' not found\n", ErrNoAccess, "Repository not found"},
 		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 403\n", ErrNoAccess, "The requested URL returned error: 403"},
-		{"remote: \nremote: ERROR: The project you were looking for could not be found.\nremote: \nfatal: Could not read from remote repository.\n", ErrNoAccess, "Could not read from remote repository"},
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 404 Not Found\n", ErrNoAccess, "The requested URL returned error: 404 Not Found"},
 		// The network or the server failed: app shows git's reason.
 		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 500\n", ErrUnreachable, "The requested URL returned error: 500"},
 		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 503\n", ErrUnreachable, "The requested URL returned error: 503"},
@@ -632,6 +632,12 @@ func TestClassify(t *testing.T) {
 		{"Connection closed by 192.0.2.1 port 22\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection closed by remote host"},
 		{"Connection reset by 192.0.2.1 port 22\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection reset"},
 		{"fatal: unable to access 'https://x/y/': SSL certificate problem: self-signed certificate\n", ErrUnreachable, "SSL certificate problem: self-signed certificate"},
+		// "Could not read" alone can't tell why: the line before it is the reason.
+		{"remote: \nremote: ERROR: The project you were looking for could not be found.\nremote: \nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n", ErrUnreachable, "ERROR: The project you were looking for could not be found."},
+		{"Bad owner or permissions on /home/you/.ssh/config\r\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Bad owner or permissions on /home/you/.ssh/config"},
+		{"sh: 1: git-upload-pack: not found\nfatal: Could not read from remote repository.\n", ErrUnreachable, "sh: 1: git-upload-pack: not found"},
+		{"Cloning into 'x'...\nWarning: Permanently added 'x' to the list of known hosts.\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Could not read from remote repository"},
+		{"fatal: Could not read from remote repository.\n", ErrUnreachable, "Could not read from remote repository"},
 		// Other lines that say "not found" are not about a remote repo.
 		{"warning: Could not find remote branch nope to clone.\nfatal: Remote branch nope not found in upstream origin\n", nil, ""},
 		{"fatal: pathspec 'x' not found\n", nil, ""},
@@ -828,11 +834,8 @@ func TestProcessGroup(t *testing.T) {
 	}
 
 	// The reference-transaction hook runs under update-ref.
-	hooks := t.TempDir()
-	if err := os.WriteFile(filepath.Join(hooks, "reference-transaction"), []byte("#!/bin/sh\ncat >/dev/null\n"+report), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+hooks, "update-ref", "refs/heads/x", "HEAD"); err != nil {
+	hook := writeScript(t, "reference-transaction", "cat >/dev/null\n"+report)
+	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+filepath.Dir(hook), "update-ref", "refs/heads/x", "HEAD"); err != nil {
 		t.Fatal(err)
 	}
 	if got := pgid(); got == syscall.Getpgrp() {
@@ -859,11 +862,8 @@ func TestLocalHasNoTimeout(t *testing.T) {
 	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "slow"); err != nil {
 		t.Fatalf("a commit slower than the timeout: %v", err)
 	}
-	hooks := t.TempDir()
-	if err := os.WriteFile(filepath.Join(hooks, "reference-transaction"), []byte("#!/bin/sh\ncat >/dev/null\nsleep 1\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+hooks, "update-ref", "refs/heads/slow", "HEAD"); err != nil {
+	hook := writeScript(t, "reference-transaction", "cat >/dev/null\nsleep 1\n")
+	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+filepath.Dir(hook), "update-ref", "refs/heads/slow", "HEAD"); err != nil {
 		t.Fatalf("an update-ref slower than the timeout: %v", err)
 	}
 }
@@ -1104,16 +1104,26 @@ func TestHTTPAnswers(t *testing.T) {
 	}
 }
 
-// ssh's own failure, through real git: not the host saying no.
-func TestSSHConnectionClosed(t *testing.T) {
-	isolate(t)
-	t.Setenv("GIT_SSH", writeScript(t, "ssh", "echo 'Connection closed by remote host' >&2\nexit 255\n"))
-	_, err := New(nil).Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills")
-	e, ok := errors.AsType[*Error](err)
-	if !ok || !errors.Is(err, ErrUnreachable) || errors.Is(err, ErrNoAccess) {
-		t.Fatalf("err = %v, want ErrUnreachable and not ErrNoAccess", err)
+// ssh's own failures, through real git: not the host saying no, and git's line
+// doesn't hide the cause.
+func TestSSHFailures(t *testing.T) {
+	tests := []struct{ name, script, reason string }{
+		{"connection closed", "echo 'Connection closed by remote host' >&2\nexit 255\n", "Connection closed by remote host"},
+		{"bad config", "echo 'Bad owner or permissions on /x/config' >&2\nexit 255\n", "Bad owner or permissions on /x/config"},
+		{"silent", "exit 255\n", "Could not read from remote repository"},
 	}
-	if e.Reason() != "Connection closed by remote host" {
-		t.Errorf("Reason() = %q", e.Reason())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolate(t)
+			t.Setenv("GIT_SSH", writeScript(t, "ssh", tt.script))
+			_, err := New(nil).Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills")
+			e, ok := errors.AsType[*Error](err)
+			if !ok || !errors.Is(err, ErrUnreachable) || errors.Is(err, ErrNoAccess) {
+				t.Fatalf("err = %v, want ErrUnreachable and not ErrNoAccess", err)
+			}
+			if e.Reason() != tt.reason || !strings.Contains(err.Error(), tt.reason) {
+				t.Errorf("Reason() = %q, Error() = %q; want %q", e.Reason(), err, tt.reason)
+			}
+		})
 	}
 }

@@ -266,3 +266,25 @@ func TestQuietStopsThroughContext(t *testing.T) {
 		t.Error("git left x.lock behind")
 	}
 }
+
+// A hook that reads the terminal in a background group stops. Stopping it through
+// ctx must still end it, so git removes its lock.
+func TestQuietStoppedHookLeavesNoLock(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	dir := newRepo(t, g)
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "first"); err != nil {
+		t.Fatal(err)
+	}
+	hook := writeScript(t, "reference-transaction", "cat >/dev/null\n[ \"$1\" = prepared ] || exit 0\nprintf 'passphrase: ' >/dev/tty\nread -r a </dev/tty\n")
+	report := underPty(t, dir, 100*time.Millisecond, func(term io.Writer) {
+		time.Sleep(200 * time.Millisecond) // the hook is stopped by now
+		_, _ = term.Write([]byte{3})
+	}, "-c", "core.hooksPath="+filepath.Dir(hook), "update-ref", "refs/heads/x", "HEAD")
+	if !strings.Contains(report, "canceled=true") {
+		t.Fatalf("^C with the hook stopped: %s", report)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "refs", "heads", "x.lock")); err == nil {
+		t.Error("git left x.lock behind")
+	}
+}

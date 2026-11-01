@@ -3,6 +3,7 @@ package gitx
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -116,13 +117,32 @@ var unreachable = []struct {
 	{phrase: "Repository not found", noAccess: true},
 	{phrase: "does not appear to be a git repository", noAccess: true},
 	{phrase: urlError},
-	// ssh's own failures are listed above, so this is the host saying no in its
-	// own words, as GitLab and Bitbucket do.
-	{phrase: "Could not read from remote repository", noAccess: true},
+	// git's last word when ssh or the remote side failed in any other way: a bad
+	// ssh config, no git-upload-pack, a host saying no in its own words. Too
+	// little to tell which, so the line before it is the reason.
+	{phrase: couldNotRead},
 	{phrase: "unable to access"},
 }
 
-const urlError = "The requested URL returned error"
+const (
+	urlError     = "The requested URL returned error"
+	couldNotRead = "Could not read from remote repository"
+)
+
+// causeBefore is the last line of stderr that says something, without the
+// "remote:" git puts before the far side's words. Progress and warnings say
+// nothing about the failure.
+func causeBefore(stderr string) string {
+	lines := strings.Split(stderr, "\n")
+	for _, line := range slices.Backward(lines) {
+		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "remote:"))
+		if line == "" || strings.HasPrefix(line, "Cloning into") || strings.HasPrefix(strings.ToLower(line), "warning:") {
+			continue
+		}
+		return line
+	}
+	return ""
+}
 
 // classify reads git's standard error and returns the reason for an
 // unreachable remote, the message to show (the line naming the reason, else
@@ -143,10 +163,15 @@ func classify(stderr string) (reason, msg string, kind error) {
 		switch u.phrase {
 		case urlError:
 			// "… returned error: 500": the code decides.
-			_, code, _ := strings.Cut(line, u.phrase+": ")
-			code = strings.TrimSpace(code)
-			reason += ": " + code
+			_, status, _ := strings.Cut(line, u.phrase+": ")
+			status = strings.TrimSpace(status)
+			reason += ": " + status
+			code, _, _ := strings.Cut(status, " ")
 			noAccess = code == "401" || code == "403" || code == "404"
+		case couldNotRead:
+			if cause := causeBefore(stderr[:start]); cause != "" {
+				return cause, cause, ErrUnreachable
+			}
 		case "unable to access":
 			// "unable to access 'url': <curl's reason>", such as an SSL problem.
 			if _, why, ok := strings.Cut(line, "': "); ok {
