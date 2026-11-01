@@ -19,6 +19,9 @@ type Change struct {
 	// Scopes are the ones the change touched: what a rollback restores. The body
 	// fills it in, and saves State through Lock if it changed it.
 	Scopes []state.ScopeKey
+	// Undo, if the body sets it, takes the change back when no generation can be
+	// made for it, so the command can simply run again.
+	Undo func()
 }
 
 // Body is a command's own work. It returns whether it changed anything: if not,
@@ -39,10 +42,20 @@ func (a *App) Changing(ctx context.Context, command string, body Body) error {
 	if err != nil {
 		return err
 	}
-	return a.locked(ctx, command, func(ctx context.Context, c *Change) (bool, error) {
+	err = a.locked(ctx, command, func(ctx context.Context, c *Change) (bool, error) {
 		c.Vault = v
 		return body(ctx, c)
 	})
+	return hinted(err, "skl "+command)
+}
+
+// hinted gives an error with no command of its own the one that tries again.
+func hinted(err error, retry string) error {
+	var h *errs.Hinted
+	if err == nil || errors.As(err, &h) || errors.Is(err, context.Canceled) {
+		return err
+	}
+	return errs.Hint(err, retry)
 }
 
 // openVault is the vault, or the ✗ line for not having one.
@@ -95,6 +108,7 @@ func (a *App) record(ctx context.Context, command string, c *Change) error {
 	ctx = context.WithoutCancel(ctx)
 	head, err := c.Vault.Head(ctx)
 	if err != nil {
+		c.undo()
 		return err
 	}
 	g, err := c.Lock.AddGeneration(ctx, state.Generation{
@@ -105,6 +119,7 @@ func (a *App) record(ctx context.Context, command string, c *Change) error {
 		Changed:     c.Scopes,
 	})
 	if err != nil {
+		c.undo()
 		return err
 	}
 	ahead, err := c.Vault.Ahead(ctx)
@@ -116,6 +131,12 @@ func (a *App) record(ctx context.Context, command string, c *Change) error {
 	}
 	a.ui.Done(fmt.Sprintf("generation %d · skl rollback to undo", g.N))
 	return nil
+}
+
+func (c *Change) undo() {
+	if c.Undo != nil {
+		c.Undo()
+	}
 }
 
 // snapshot is what a generation keeps: the user scope and every scope the

@@ -30,8 +30,8 @@ func (a *App) Init(ctx context.Context, word string, dryRun bool) error {
 	if dryRun {
 		return a.initDryRun(ctx, repo)
 	}
-	retry := initCommand(word)
-	err = a.locked(ctx, "init "+word, func(ctx context.Context, c *Change) (bool, error) {
+	retry := initCommand(repo.Input)
+	err = a.locked(ctx, "init "+repo.Input, func(ctx context.Context, c *Change) (bool, error) {
 		v, err := vault.Open(a.git, a.paths.Vault)
 		switch {
 		case err == nil:
@@ -46,6 +46,7 @@ func (a *App) Init(ctx context.Context, word string, dryRun bool) error {
 			return false, err
 		}
 		c.Vault = v
+		c.Undo = func() { _ = os.RemoveAll(a.paths.Vault) } // init made all of it just now
 		return true, nil
 	})
 	return hinted(err, retry)
@@ -89,9 +90,9 @@ func (a *App) initDryRun(ctx context.Context, repo ref.Repo) error {
 	case !errors.Is(err, vault.ErrNoVault):
 		return hinted(err, retry)
 	}
-	empty, err := vault.RemoteEmpty(ctx, a.git, repo.URL)
+	empty, err := a.remoteEmpty(ctx, repo)
 	if err != nil {
-		return hinted(a.initReachError(err, repo), retry)
+		return hinted(err, retry)
 	}
 	a.planVault(repo, empty)
 	return nil
@@ -107,15 +108,6 @@ func (a *App) planVault(repo ref.Repo, empty bool) {
 
 // initCommand is "skl init <word>", as a hint.
 func initCommand(word string) string { return ui.CommandLine([]string{"init", word}) }
-
-// hinted gives an error with no command of its own the one that tries again.
-func hinted(err error, retry string) error {
-	var h *errs.Hinted
-	if err == nil || errors.As(err, &h) || errors.Is(err, context.Canceled) {
-		return err
-	}
-	return errs.Hint(err, retry)
-}
 
 // holdsOnly is nil if the vault's origin is repo: init again is fine. A machine
 // has one vault, so any other repo stops.
@@ -165,9 +157,9 @@ func (a *App) secondSetup(repo ref.Repo) string {
 // moves it into place. Until the move, stopping leaves only staging behind, and
 // the deferred removal or the next init clears that.
 func (a *App) makeVault(ctx context.Context, repo ref.Repo) (*vault.Vault, error) {
-	empty, err := vault.RemoteEmpty(ctx, a.git, repo.URL)
+	empty, err := a.remoteEmpty(ctx, repo)
 	if err != nil {
-		return nil, a.initReachError(err, repo)
+		return nil, err
 	}
 	if empty {
 		if err := vault.CheckIdentity(ctx, a.git, ""); err != nil {
@@ -192,12 +184,8 @@ func (a *App) makeVault(ctx context.Context, repo ref.Repo) (*vault.Vault, error
 	// What the clone holds decides, not what ls-remote saw a moment ago: a
 	// repo that got its first commit since then must not get a LICENSE.
 	born, err := v.Born(ctx)
-	if errors.Is(err, vault.ErrNoDefaultBranch) {
-		return nil, errs.Hint(fmt.Errorf("%s %w", repo.Input, err),
-			"set one on your git host, then "+initCommand(repo.Input))
-	}
 	if err != nil {
-		return nil, err
+		return nil, branchError(err, repo)
 	}
 	if !born {
 		if err := v.Create(ctx, a.cfg.License, a.now()); err != nil {
@@ -210,8 +198,29 @@ func (a *App) makeVault(ctx context.Context, repo ref.Repo) (*vault.Vault, error
 	if err := v.Move(a.paths.Vault); err != nil {
 		return nil, err
 	}
-	a.reportVault(v, born)
+	a.reportVault(ctx, v, born)
 	return v, nil
+}
+
+// remoteEmpty reads the remote before anything is made, with the ✗ line for one
+// that can't be a vault.
+func (a *App) remoteEmpty(ctx context.Context, repo ref.Repo) (bool, error) {
+	empty, err := vault.RemoteEmpty(ctx, a.git, repo.URL)
+	if err != nil {
+		return false, branchError(a.initReachError(err, repo), repo)
+	}
+	return empty, nil
+}
+
+// branchError is a repo with nothing to check out, with what to do about it.
+func branchError(err error, repo ref.Repo) error {
+	switch {
+	case errors.Is(err, vault.ErrNoDefaultBranch):
+		return errs.Hint(fmt.Errorf("%s %w", repo.Input, err), "set one on your git host, then "+initCommand(repo.Input))
+	case errors.Is(err, vault.ErrNoBranches):
+		return errs.Hint(fmt.Errorf("%s %w", repo.Input, err), "push a branch, then "+initCommand(repo.Input))
+	}
+	return err
 }
 
 // identityError gives vault.ErrNoIdentity the commands that set an identity.
@@ -225,7 +234,7 @@ func identityError(err error) error {
 
 // initReachError is a repo init can't reach. skl never creates one, and hosts
 // answer "not found" for a missing repo and a private one alike, so it says
-// both. A network failure says that instead.
+// both. Any other failure of the network or the remote says that instead.
 func (a *App) initReachError(err error, repo ref.Repo) error {
 	retry := initCommand(repo.Input)
 	if !errors.Is(err, gitx.ErrUnreachable) {
@@ -239,14 +248,14 @@ func (a *App) initReachError(err error, repo ref.Repo) error {
 
 // reportVault prints what init made: "◇ LICENSE" for a new vault, what it holds
 // for a clone.
-func (a *App) reportVault(v *vault.Vault, cloned bool) {
+func (a *App) reportVault(ctx context.Context, v *vault.Vault, cloned bool) {
 	if !cloned {
 		if a.cfg.License != vault.NoLicense {
 			a.ui.StepHint("LICENSE", a.cfg.License+", for the skills you write", "edit LICENSE to change it")
 		}
 		return
 	}
-	c, err := v.Count()
+	c, err := v.Count(ctx)
 	if err != nil {
 		return // only a report: the clone is in place
 	}

@@ -25,7 +25,7 @@ type Options struct {
 
 // Repo is a repo reference, read.
 type Repo struct {
-	Input string // as typed
+	Input string // as typed, with any password hidden: safe to print and to keep
 	URL   string // what git clones: a short form per protocol, any other as given
 	Local bool   // on this machine
 
@@ -88,6 +88,11 @@ func (r *Repo) parseURL(word string) bool {
 		return false
 	}
 	r.URL = word
+	if u.User != nil {
+		if _, hasPassword := u.User.Password(); hasPassword {
+			r.Input = u.Redacted()
+		}
+	}
 	switch u.Scheme {
 	case "file":
 		p := filepath.Clean(u.Path)

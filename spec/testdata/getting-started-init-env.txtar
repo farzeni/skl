@@ -1,0 +1,36 @@
+# docs/guide/getting-started.md "Make your vault"
+skip 'pending: gitx fixes in #90'
+
+# "skl never creates a repo, so a missing repo or denied access stops init": git's
+# own line for a host's 404, without GitHub's extra one.
+chmod 755 bin/git
+env REALPATH=$PATH
+env PATH=$WORK/bin:$PATH
+exitcode 1 skl init you/skills
+cmp stderr want-missing.txt
+exitcode 1 skl init you/skills --dry-run
+cmp stderr want-missing.txt
+env PATH=$REALPATH
+
+# "Only a repo with no commits at all is empty and becomes a new vault": the
+# vault's, whatever repo the environment points git at, as in a git hook.
+remote you/skills
+exec git init -q outer
+env GIT_DIR=$WORK/outer/.git
+exec skl init you/skills
+stderr '^→ new vault you/skills$'
+stderr '^✓ generation 1 · skl rollback to undo$'
+exec env -u GIT_DIR git -C $HOME/.skl/vault log --oneline
+stdout 'new vault'
+! exec env -u GIT_DIR git -C outer rev-parse --verify HEAD
+
+-- bin/git --
+#!/bin/sh
+PATH=${PATH#*:}
+if [ "$1" = ls-remote ]; then
+	echo "fatal: repository 'https://github.com/you/skills/' not found" >&2
+	exit 128
+fi
+exec git "$@"
+-- want-missing.txt --
+✗ can't reach you/skills · create it or check access, then skl init you/skills

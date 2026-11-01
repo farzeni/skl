@@ -125,6 +125,20 @@ env SKL_HOME=$HOME/.skl-nohead
 exitcode 1 skl init you/nohead
 cmp stderr no-head.txt
 ! exists $HOME/.skl-nohead/vault
+exitcode 1 skl init you/nohead --dry-run
+cmp stderr no-head.txt
+! stdout .
+
+# "A repo with only tags stops too"
+remote you/tagsonly
+exec git -C nohead-work tag v1
+exec git -C nohead-work push -q https://github.com/you/tagsonly v1
+env SKL_HOME=$HOME/.skl-tags
+exitcode 1 skl init you/tagsonly
+cmp stderr tags-only.txt
+! exists $HOME/.skl-tags/vault
+exitcode 1 skl init you/tagsonly --dry-run
+cmp stderr tags-only.txt
 
 # "skl never creates a repo, so a missing repo or denied access stops init"
 env SKL_HOME=$HOME/.skl-missing
@@ -234,6 +248,34 @@ stderr '^✗ config: SKL_PROTOCOL must be ssh or https, not "carrier-pigeon"$'
 stderr '· unset SKL_PROTOCOL$'
 env SKL_PROTOCOL=
 
+# If no generation can be written, the vault is taken back, so init can run again.
+env SKL_HOME=$HOME/.skl-nogen
+mkdir $HOME/.skl-nogen
+cp readme/README.md $HOME/.skl-nogen/generations
+exitcode 1 skl init you/in-empty
+stderr '· skl init you/in-empty$'
+! exists $HOME/.skl-nogen/vault
+rm $HOME/.skl-nogen/generations
+exec skl init you/in-empty
+stderr '^✓ generation 1 · skl rollback to undo$'
+env SKL_HOME=
+
+# A password in a URL reaches git, but no line skl prints and no file it writes
+# but git's own config.
+remote you/secret
+exec git config --global --add url.file://$REMOTES/github.com/.insteadOf https://you:s3cret@github.com/
+env SKL_HOME=$HOME/.skl-pw
+exec skl init https://you:s3cret@github.com/you/secret
+! stderr s3cret
+stderr '^→ new vault https://you:xxxxx@github.com/you/secret$'
+! grep s3cret $HOME/.skl-pw/generations/1.json
+grep 'init https://you:xxxxx@github.com/you/secret' $HOME/.skl-pw/generations/1.json
+exec skl init https://you:s3cret@github.com/you/secret
+cmp stderr nothing.txt
+exitcode 1 skl init https://you:s3cret@github.com/team/skills --dry-run
+! stderr s3cret
+env SKL_HOME=
+
 # docs/reference/config.md: "So does a config file skl can't read"
 env SKL_HOME=$HOME/.skl-badconfig
 mkdir $HOME/.skl-badconfig/config.toml
@@ -271,9 +313,10 @@ LICENSE
 ◇ cloned     no skills yet
 ✓ generation 1 · skl rollback to undo
 -- no-head.txt --
-→ clone you/nohead
 ✗ you/nohead has branches but no default branch
   · set one on your git host, then skl init you/nohead
+-- tags-only.txt --
+✗ you/tagsonly has no branches · push a branch, then skl init you/tagsonly
 -- unreachable.txt --
 ✗ can't reach you/missing · create it or check access, then skl init you/missing
 -- no-dns.txt --

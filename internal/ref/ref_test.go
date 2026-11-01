@@ -191,3 +191,17 @@ func TestShortAndOwner(t *testing.T) {
 		}
 	}
 }
+
+// A password in a URL goes to git, and no further.
+func TestParseRepoHidesPassword(t *testing.T) {
+	r, err := ParseRepo("https://you:s3cret@git.example.com/team/skills.git", Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "https://you:xxxxx@git.example.com/team/skills.git"; r.Input != want {
+		t.Errorf("Input = %q, want %q", r.Input, want)
+	}
+	if want := "https://you:s3cret@git.example.com/team/skills.git"; r.URL != want {
+		t.Errorf("URL = %q, want %q", r.URL, want)
+	}
+}

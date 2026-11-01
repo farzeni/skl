@@ -231,6 +231,19 @@ func TestBodyCanceledOrFailed(t *testing.T) {
 	}
 }
 
+// commands.md "Output": "Every ! and ✗ line ends with the command to run"; an
+// error with no hint of its own gets the one that tries again.
+func TestChangingErrorsHaveAHint(t *testing.T) {
+	h := newHarness(t)
+	h.vaulted(t)
+	err := h.a.Changing(context.Background(), "use x", func(context.Context, *Change) (bool, error) {
+		return false, errors.New("no")
+	})
+	if got := hintOf(t, err); got != "skl use x" {
+		t.Errorf("hint = %q", got)
+	}
+}
+
 // docs/reference/config.md: "A value skl can't use stops the command, naming the
 // variable or the key".
 func TestNewConfigErrors(t *testing.T) {

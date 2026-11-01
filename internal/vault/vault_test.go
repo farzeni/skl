@@ -198,7 +198,7 @@ func TestBornNoDefaultBranch(t *testing.T) {
 	work := filepath.Join(dir, "w")
 	run(t, work, "commit", "--quiet", "--allow-empty", "-m", "x")
 	run(t, work, "push", "--quiet", "origin", "HEAD:refs/heads/dev")
-	if empty, err := RemoteEmpty(ctx, git, url); err != nil || empty {
+	if empty, err := RemoteEmpty(ctx, git, url); !errors.Is(err, ErrNoDefaultBranch) || empty {
 		t.Errorf("RemoteEmpty = %v, %v", empty, err)
 	}
 	v, err := Clone(ctx, git, url, filepath.Join(dir, "v"))
@@ -262,13 +262,14 @@ func TestCount(t *testing.T) {
 		"lessons/x/SKILL.md", // reserved
 		"h/x/SKILL.md",       // reserved
 		"sets/x/SKILL.md",    // reserved
+		"LESSONS/x/SKILL.md", // reserved, in any case
 		".github/x/SKILL.md", // hidden
 		"README.md",
 	} {
 		write(f)
 	}
 	v := &Vault{git: git, dir: filepath.Join(dir, "v")}
-	c, err := v.Count()
+	c, err := v.Count(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,5 +320,34 @@ func TestMove(t *testing.T) {
 	}
 	if _, err := os.Stat(keep); err != nil {
 		t.Errorf("keep: %v", err)
+	}
+}
+
+// A repo with only tags has no branch to work on. RemoteEmpty sees it first; Born
+// sees it if the tag came between the two.
+func TestNoBranches(t *testing.T) {
+	git, dir := env(t)
+	ctx := context.Background()
+	url := bare(t, dir, "tags.git")
+	work := filepath.Join(dir, "work")
+	for _, args := range [][]string{
+		{"clone", "--quiet", url, work},
+		{"-C", work, "commit", "--quiet", "--allow-empty", "-m", "one"},
+		{"-C", work, "tag", "v1"},
+		{"-C", work, "push", "--quiet", "origin", "v1"},
+	} {
+		if _, err := git.Run(ctx, "", args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := RemoteEmpty(ctx, git, url); !errors.Is(err, ErrNoBranches) {
+		t.Errorf("RemoteEmpty: err = %v, want ErrNoBranches", err)
+	}
+	v, err := Clone(ctx, git, url, filepath.Join(dir, "v"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Born(ctx); !errors.Is(err, ErrNoBranches) {
+		t.Errorf("Born: err = %v, want ErrNoBranches", err)
 	}
 }
