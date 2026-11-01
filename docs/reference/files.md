@@ -31,6 +31,16 @@ you/skills/
 
 Every other top-level folder is a group, and every folder in a group that holds a `SKILL.md` is a skill. A `SKILL.md` at any other depth is ignored. `sets`, `lessons` and `h` can't be group names (`-h` always means help). The other rules for names are in [Selectors and references](./repos#grammar).
 
+A name starts with a letter or a digit, so hidden folders are skipped at both levels: `.git` and `.github` aren't groups, and `review/.x/SKILL.md` isn't a skill. A hidden file in `sets/` isn't a skill set either.
+
+skl still counts and lists any other folder or set file whose name is outside the grammar, such as `a.b` or `a b`, but you can't select it by that name:
+
+- **A skill folder** loads with its whole group, or through a valid frontmatter `name`.
+- **A group folder** can't be selected at all, so its skills never load.
+- **A set file** can't be loaded.
+
+A name that isn't valid UTF-8 is skipped with a warning.
+
 ### `sets/<name>.toml`
 
 A named skill set holds selectors, applied left to right like on the command line. skl writes one selector per line, so when two machines change different selectors, [sync](../guide/sync) usually merges them without a conflict. Edit it by hand; `skl sync` commits the change.
