@@ -62,8 +62,9 @@ func TestResolveFoldedLookup(t *testing.T) {
 	}
 }
 
-// "Group names clash the same way: `Review` and `review`." Card #92, item 2: a
-// selector that matches two such groups stops and lists both, even if one is exact.
+// "Group names clash the same way: `Review` and `review` make a selector
+// ambiguous, so skl stops and lists both, as it does for a name in two groups."
+// Even if one is an exact match (card #92, item 2).
 func TestResolveAmbiguousGroup(t *testing.T) {
 	idx := index{skills: []string{"Review/a", "review/b", "e\u0301/c", "\u00e9/d", "other/z"}}
 	for _, tt := range []struct {
