@@ -2,7 +2,7 @@
 
 skl is a CLI for agent skills: Claude Code first, and opencode, pi, Codex and the other agents that read the same skill folders. It keeps your skills in one git repo (the vault), loads any mix of them on any machine, can roll back any change, and lets a skill **learn** from another one: copied as is if you don't have it, or through an LLM interview if you do. `learn` is the only way a skill from elsewhere gets in.
 
-**Status: early implementation.** The walking skeleton exists (argument parser, help, exit codes, spec harness, CI); every other command is still planned behavior in `docs/`. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
+**Status: early implementation.** `cli`, `ui` (output vocabulary, questions), `config` and `gitx` have merged (#56, #57, #59, #60); every command beyond `help` and `--version` is still planned behavior in `docs/`. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
 
 ## How we work
 
@@ -48,7 +48,7 @@ cmd/skl/       main: os.Exit(cli.Run()); cli.Run sets up signals
 internal/      cli, app (one file per command), ui, errs, the domain packages; see CONTRIBUTING.md
 spec/          spec tests: testscript harness + testdata/<page>[-<section>].txtar
 tools/         go.mod pinning golangci-lint, gofumpt, govulncheck
-Makefile       make check (the same as CI) | test | fmt | golden | docs
+Makefile       make check (the same as CI) | build | test | fmt | golden | docs | fmt-check | lint | vuln | release-check
 CONTRIBUTING.md  conventions, make targets, how to add a command
 .claude/skills/     the workflow skills
 .workbench/         investigations and proofs, NOT in git
@@ -92,7 +92,7 @@ Don't reopen these without a reason from an experiment.
 - Two parts (`review/pr-review`) is your vault; three or more, a host, a URL or a local path is a remote; `//` separates a nested path. **Reversed by the user (#29):** selectors are vault-only; `use`/`add`/`drop` and set files reject a remote reference with a hint to `skl learn` it. There are no read-only remote skills. Grammar corners (review C14, `docs/reference/repos.md` "Grammar"): `-` removes groups and sets too (`-review`, `-@base`); names have no dots; an owner name that's reserved or invalid gets the group `<owner>-skills`; a one-word name that's a skill but no group warns `! pdf   matches no group · skl use someone/pdf`. Sources and peers are stored as canonical URLs: HTTPS for shorthand, as typed otherwise, trailing `.git` dropped.
 - skl's flags are `--long` only and can go anywhere, as `--x v` or `--x=v`; `--` ends flags. Every other word is a selector, so `-review/test-gaps` is a removal (Go's stdlib `flag` can't parse this; skl parses its own args). **The one exception (user, 2026-10-22, D1):** `-h` always means `--help`. Help is `skl help [cmd]`, `--help`/`-h`, and bare `skl` lists the commands; `skl --version` prints the version and build commit.
 - Vault-changing commands commit locally and never push (user, #31: no auto-push); `skl status` and a `! N changes not pushed · skl sync` line before the `✓` remind instead. `skl sync` commits hand edits, merges (never rebases), pushes, and reloads the loaded selectors. A conflict is resolved with Claude (learn engine), by hand (`--continue`), or aborted.
-- A skill whose name (folder or frontmatter `name`) is taken by a skill skl didn't create is skipped with a warning. `skl import <name>… [--group <g>]` copies such skills into the vault; the group defaults to the vault's owner (`you/skills` → `you/`). `skl init <repo> [selectors]` clones or creates the vault, loads the selectors, and offers to import the skills in `~/.claude/skills` that aren't in a vault (#31).
+- A skill whose name (folder or frontmatter `name`) is taken by a skill skl didn't create is skipped with a warning. `skl import <name>… [--group <g>]` copies such skills into the vault; the group defaults to the vault's owner (`you/skills` → `you/`). An imported skill joins the active skill set, as `skl add` would. `skl init <repo> [selectors]` clones or creates the vault, loads the selectors, and offers to import the skills in `~/.claude/skills` that aren't in a vault (#31).
 - Loaded skills are copies, not links. Each holds `.skl-copy.toml` (source, always a vault skill; commit; `tree`, the folder's git tree hash), which is never saved back. Changes to a copy are saved back to the vault (three-way with `git merge-tree`, base = the recorded commit; review X1, X2) at the start of every command that changes something, as their own generation. People make and improve skills in Claude Code; there is no `skl new`, and `skl import` adopts the folder as skl's copy.
 - Hand edits in the vault are committed as their own generation before any vault-changing command. A selector that matches nothing warns and is listed in `skl status`.
 - A remote reference whose path has no `SKILL.md` and is one word names a skill: skl looks it up in the repo by folder or frontmatter `name` and records the path it found. Two matches stop and list the paths. So `someone/agent-skills/pdf` works although the folder is `skills/pdf`.

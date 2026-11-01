@@ -127,3 +127,14 @@ Never synced.
 ```
 
 `cache/` is safe to delete: skl fetches what it needs again. `generations/` and `state.json` hold your rollback history. `vault/` may hold commits you haven't pushed: run [`skl sync`](../guide/sync) before you delete it.
+
+If skl can't use `state.json`, it stops instead of overwriting it:
+
+```
+✗ can't read ~/.skl/state.json: <reason>
+  · move it aside, then run skl status
+✗ ~/.skl/state.json was written by a newer skl
+  · update skl
+```
+
+Moving `state.json` aside forgets the generation history `skl rollback` uses.

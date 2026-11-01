@@ -50,6 +50,13 @@ A value skl can't use stops the command, naming the variable or the key:
   · edit targets in ~/.skl/config.toml
 ```
 
+So does a config file skl can't read:
+
+```
+✗ can't read ~/.skl/config.toml: <reason>
+  · check its permissions
+```
+
 skl also reads:
 
 | Variable | Effect |
