@@ -124,6 +124,15 @@ func TestParseInvalid(t *testing.T) {
 		{"name: no other characters", "re view"},
 		{"a word with a space and three parts is no reference", "a b/c/d"},
 		{"a URL with a space is no reference", "https://example.com/a b"},
+		{"a tab is a space", "a\tb/c/d"},
+		{"a tab is a space, in a URL", "https://example.com/a\tb"},
+		{"a no-break space is a space", "a\u00a0b/c/d"},
+		{"a no-break space is a space, in a URL", "https://example.com/a\u00a0b"},
+		{"an ideographic space is a space", "a\u3000b/c/d"},
+		{"an ideographic space is a space, in a URL", "https://example.com/a\u3000b"},
+		{"a word of one space", " "},
+		{"a word of one tab", "\t"},
+		{"a removal of one space", "- "},
 		{"-- -word never gives a reference starting with -", "--a/b/c"},
 		{"-- -word: a URL", "--https://example.com/a"},
 		{"-- -word: a path", "--./a"},
@@ -165,7 +174,11 @@ func TestParseInvalid(t *testing.T) {
 func TestInvalidMessages(t *testing.T) {
 	for word, want := range map[string]string{
 		"":        "a selector can't be empty",
+		" ":       "a selector can't be empty",
+		"\t":      "a selector can't be empty",
+		"\u3000":  "a selector can't be empty",
 		"-":       "- is not a valid selector: it removes nothing",
+		"- ":      "- is not a valid selector: it removes nothing",
 		"re view": "re view is not a valid selector: " + badName,
 		"sets":    "sets is not a valid selector: a group can't be named sets",
 	} {
