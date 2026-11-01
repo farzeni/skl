@@ -1004,8 +1004,13 @@ func TestRepoEnvDropped(t *testing.T) {
 	// The calibration: plain git with this environment goes to the other repo.
 	plain := exec.Command("git", "rev-parse", "--absolute-git-dir")
 	plain.Dir = dir
-	if out, err := plain.Output(); err != nil || strings.TrimSpace(string(out)) != gitDir {
-		t.Fatalf("plain git in dir = %q, %v; want the other repo, %s", out, err, gitDir)
+	// git prints the resolved path: macOS's temp dir is behind a symlink.
+	want, err := filepath.EvalSymlinks(gitDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := plain.Output(); err != nil || strings.TrimSpace(string(out)) != want {
+		t.Fatalf("plain git in dir = %q, %v; want the other repo, %s", out, err, want)
 	}
 
 	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("# pdf\n"), 0o644); err != nil {
