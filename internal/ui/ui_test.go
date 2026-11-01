@@ -272,8 +272,8 @@ func TestClean(t *testing.T) {
 		{"title\x1b]0;owned\x07end", "titleend"},
 		{"bell\x07", "bell"},
 		{"two\nlines\r\tthree", "two lines  three"},
-		{"sep line", "sep line"},
-		{"rtl‮override", "rtloverride"},
+		{"sep\u2028line", "sep line"},
+		{"rtl\u202eoverride", "rtloverride"},
 		{"café", "café"},
 		{"bad\xffutf8", "bad�utf8"},
 	}
@@ -302,8 +302,8 @@ func TestEveryLineIsCleaned(t *testing.T) {
 	u.Step(evil, evil)
 	u.Change(Loaded, evil, evil)
 	u.Names(Loaded, []string{evil})
-	u.Warn(evil, evil)
-	u.Error(evil, evil)
+	u.Warn(evil, "x\x1b[2Jy")
+	u.Error(evil, "x\x1b[2Jy")
 	u.Done(evil)
 	if strings.Contains(out.String(), "\x1b") || strings.Contains(out.String(), "[2J") {
 		t.Errorf("an escape got through: %q", out.String())

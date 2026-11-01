@@ -118,7 +118,36 @@ exec git -C $HOME/.skl/vault -c user.name=T -c user.email=t@e commit --allow-emp
 exec skl add review/c
 cmp stderr ahead.txt
 
-# docs/reference/commands.md "Errors": a lock held, a state that can't be read.
+# docs/design/architecture.md "Loading pipeline": "If a step fails, the previous set
+# stays in place." No generation can be written, so the swap goes back.
+chmod 500 $HOME/.skl/generations
+exitcode 1 skl drop review/c
+stderr '^✗ generations: '
+stderr 'skl drop review/c$'
+exists $HOME/.claude/skills/c/.skl-copy.toml
+grep 'review/c' $HOME/.skl/state.json
+chmod 700 $HOME/.skl/generations
+# A skills folder that can't be written: nothing moved, and the same again.
+chmod 500 $HOME/.claude/skills
+exitcode 1 skl drop review/c
+stderr '^✗ .*permission denied'
+! stderr $WORK
+exists $HOME/.claude/skills/c/SKILL.md
+grep 'review/c' $HOME/.skl/state.json
+chmod 700 $HOME/.claude/skills
+exec skl drop review/c
+! exists $HOME/.claude/skills/c
+# A file where a skills folder should be.
+cp badstate.json $HOME/.agents
+env SKL_TARGETS=claude,agents
+exitcode 1 skl add review/c
+stderr '^✗ .*not a directory'
+! stderr $WORK
+! exists $HOME/.claude/skills/c
+env SKL_TARGETS=
+rm $HOME/.agents
+
+# docs/reference/commands.md "Errors": a state that can't be read.
 cp badstate.json $HOME/.skl/state.json
 exitcode 1 skl add review/c
 stderr '^✗ can''t read '
@@ -178,9 +207,7 @@ stderr '^✗ can''t read '
 → add evil
 + ared next
 ! badfm/nofront/SKILL.md   no frontmatter · edit badfm/nofront/SKILL.md
-! evil/ared next/SKILL.md   no frontmatter
-  · edit evil/ared
-next/SKILL.md
+! evil/ared next/SKILL.md   no frontmatter · edit evil/ared next/SKILL.md
 ✓ generation 9 · skl rollback to undo
 -- badstate.json --
 {not json

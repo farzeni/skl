@@ -190,7 +190,7 @@ func (a *App) report(s selection, next *loadNext) {
 		a.printChanges(next.plan.Changes)
 	}
 	for _, n := range next.notes {
-		a.ui.Warn(n.msg, n.hint)
+		a.ui.Warn(n.msg, ui.Clean(n.hint)) // a hint can quote a name from the vault
 	}
 }
 
@@ -381,6 +381,14 @@ func (a *App) skipNotes(p *load.Plan) []note {
 // that can't work were caught already, so these come from the vault, a set's file
 // or an earlier command.
 func (s selection) resolveError(err error, idx *vault.Index) error {
+	if he, ok := errors.AsType[*errs.Hinted](s.hintFor(err, idx)); ok {
+		he.Hint = ui.Clean(he.Hint) // it can quote a name from the vault
+		return he
+	}
+	return err
+}
+
+func (s selection) hintFor(err error, idx *vault.Index) error {
 	// What's wrong here is two folders, wherever the line that found them is.
 	if ce, ok := errors.AsType[*resolve.ClashError](err); ok {
 		return errs.Hint(ce, "rename one in your vault")
