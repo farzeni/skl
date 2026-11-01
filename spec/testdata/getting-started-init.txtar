@@ -76,6 +76,23 @@ exec skl init other/skills
 grep '^SPDX-License-Identifier: CC0-1.0$' $HOME/.skl-other/vault/LICENSE
 env SKL_LICENSE=
 
+# An empty folder at the vault's path is no vault, and in nobody's way.
+remote you/in-empty
+mkdir $HOME/.skl-empty/vault
+env SKL_HOME=$HOME/.skl-empty
+exec skl init you/in-empty
+exists $HOME/.skl-empty/vault/LICENSE
+env SKL_HOME=
+
+# A folder that holds something else is never overwritten.
+mkdir $HOME/.skl-full/vault
+cp readme/README.md $HOME/.skl-full/vault/mine
+env SKL_HOME=$HOME/.skl-full
+exitcode 1 skl init you/in-empty
+stderr '^✗ ~/.skl-full/vault isn''t a git repo · move it aside, then skl init you/in-empty$'
+exists $HOME/.skl-full/vault/mine
+env SKL_HOME=
+
 # "If the repo already holds skills, skl clones it as your vault instead: its
 # groups are the folders that hold skills."
 # docs/guide/learn.md "Licenses": "An existing vault's LICENSE is never touched."

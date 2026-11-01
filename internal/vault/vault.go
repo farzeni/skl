@@ -126,9 +126,13 @@ func (v *Vault) Ahead(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// Move moves the clone to dir, in one step. The caller makes sure dir is free
-// (missing or an empty folder).
+// Move moves the clone to dir, in one step. The caller makes sure dir is free:
+// missing, or an empty folder, which goes first because os.Rename won't replace
+// a folder. os.Remove can't take one that isn't empty.
 func (v *Vault) Move(dir string) error {
+	if err := os.Remove(dir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("vault: %w", err)
+	}
 	if err := os.Rename(v.dir, dir); err != nil {
 		return fmt.Errorf("vault: %w", err)
 	}

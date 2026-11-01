@@ -276,3 +276,48 @@ func TestCount(t *testing.T) {
 		t.Errorf("Count = %+v, want %+v", c, want)
 	}
 }
+
+// Open calls a missing or empty folder free, so Move takes either, and never one
+// that holds something.
+func TestMove(t *testing.T) {
+	git, dir := env(t)
+	ctx := context.Background()
+	url := bare(t, dir, "e.git")
+	for name, setup := range map[string]func(string) error{
+		"missing": func(string) error { return nil },
+		"empty":   func(p string) error { return os.Mkdir(p, 0o755) },
+	} {
+		v, err := Clone(ctx, git, url, filepath.Join(dir, "staged-"+name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dest := filepath.Join(dir, "dest-"+name)
+		if err := setup(dest); err != nil {
+			t.Fatal(err)
+		}
+		if err := v.Move(dest); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+		if _, err := Open(git, dest); err != nil || v.Dir() != dest {
+			t.Errorf("%s: Open = %v, Dir = %s", name, err, v.Dir())
+		}
+	}
+	v, err := Clone(ctx, git, url, filepath.Join(dir, "staged-full"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := filepath.Join(dir, "full")
+	if err := os.Mkdir(full, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(full, "keep")
+	if err := os.WriteFile(keep, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Move(full); err == nil {
+		t.Error("moved onto a folder that holds something")
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Errorf("keep: %v", err)
+	}
+}
