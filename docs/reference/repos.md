@@ -46,7 +46,8 @@ name      = letters, digits, "-" and "_", starting with a
     · skl learn gitlab.com/my.org/skills//pdf <group>/
   ```
 
-- **A selector that matches nothing** is a warning, and its hint follows the command you ran. A word that names a skill but no group gets that skill: `skl add pdf` warns `! pdf   matches no group · skl add someone/pdf`, `skl use pdf` hints `skl use someone/pdf`, and a removal (`skl drop pdf`, or `-pdf` in any command) hints `skl drop someone/pdf`. Anything else hints at dropping it: `! nope   matches no group · skl drop nope`. A line in a named skill set hints at [its file](../guide/skill-sets#whats-loaded).
+- **A selector that matches nothing** is a warning. If the word names a skill but no group, the hint repeats your command with only that word replaced: `skl use @a pdf` warns `! pdf   matches no group · skl use @a someone/pdf`, and `-pdf` becomes `-someone/pdf`. Anything else hints at dropping it: `! nope   matches no group · skl drop nope`. A line in a named skill set hints at [its file](../guide/skill-sets#whats-loaded).
+- **`skl drop` of a word that matches nothing** removes it without a warning if it's a line in your active skill set. If it isn't, skl warns: `! nope   isn't in the active skill set · skl status`.
 - **`-h` and `--`** follow the [flag rules](./commands#flags): `-h` is help, never a removal, and every word after `--` is an argument.
 
 ## Repos

@@ -136,3 +136,5 @@ If skl can't use `state.json`, it stops instead of overwriting it:
 ✗ ~/.skl/state.json was written by a newer skl
   · update skl
 ```
+
+Moving `state.json` aside forgets the generation history `skl rollback` uses.
