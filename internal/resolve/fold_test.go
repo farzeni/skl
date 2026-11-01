@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -231,6 +232,40 @@ func TestResolveOneGroupClash(t *testing.T) {
 		idx := index{skills: []string{"g/PDF", "g/pdf", "other/pdf"}}
 		if _, err := Resolve(parse(t, words), idx); err != nil {
 			t.Errorf("Resolve(%q) = %v", words, err)
+		}
+	}
+}
+
+// skill-sets.md: "A skill loses a clash only to a later skill that stays loaded".
+func TestSkippingGivesTheClashBack(t *testing.T) {
+	a := Skill{Group: "g", Folder: "x"}
+	b := Skill{Group: "k", Folder: "y", Name: "x"}
+	c := Skill{Group: "i", Folder: "z", Name: "y"}
+	res, err := Resolve(parse(t, "g/x k/y i/z"), index{skills: []string{"g/x", "k/y=x", "i/z=y"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(res.Skills, []Skill{a, c}) || !slices.Equal(res.Selected(), []Skill{a, b, c}) {
+		t.Fatalf("skills = %v, selected = %v", res.Skills, res.Selected())
+	}
+	tests := []struct {
+		skip         []Skill
+		skills, gone []Skill
+		replaced     []Replacement
+	}{
+		{nil, []Skill{a, c}, nil, []Replacement{{b, c}}},
+		// c gone: b stays, and a loses to b instead.
+		{[]Skill{c}, []Skill{b}, []Skill{c}, []Replacement{{a, b}}},
+		// b lost to c anyway, so it isn't reported.
+		{[]Skill{b}, []Skill{a, c}, nil, []Replacement{{b, c}}},
+		// Each one gone in turn gives way to the one before it.
+		{[]Skill{b, c}, []Skill{a}, []Skill{b, c}, nil},
+		{[]Skill{a, b, c}, nil, []Skill{a, b, c}, nil},
+	}
+	for _, tt := range tests {
+		got, gone := res.Skipping(func(s Skill) bool { return slices.Contains(tt.skip, s) })
+		if !slices.Equal(got.Skills, tt.skills) || !slices.Equal(gone, tt.gone) || !slices.Equal(got.Replaced, tt.replaced) {
+			t.Errorf("skip %v: skills %v, skipped %v, replaced %v", tt.skip, got.Skills, gone, got.Replaced)
 		}
 	}
 }

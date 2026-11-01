@@ -13,6 +13,7 @@ import (
 
 	"github.com/farzeni/skl/internal/config"
 	"github.com/farzeni/skl/internal/resolve"
+	"github.com/farzeni/skl/internal/selector"
 	"github.com/farzeni/skl/internal/state"
 )
 
@@ -191,10 +192,53 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
+// skillList is an index that holds just these skills.
+type skillList []resolve.Skill
+
+func (l skillList) Groups() []string {
+	var groups []string
+	for _, s := range l {
+		if !slices.Contains(groups, s.Group) {
+			groups = append(groups, s.Group)
+		}
+	}
+	return groups
+}
+
+func (l skillList) Skills(group string) []resolve.Skill {
+	var skills []resolve.Skill
+	for _, s := range l {
+		if s.Group == group {
+			skills = append(skills, s)
+		}
+	}
+	return skills
+}
+
+func (l skillList) Set(string) ([]string, error) { return nil, resolve.ErrNoSet }
+
+// result resolves one selector per skill, in order.
+func result(t *testing.T, skills ...resolve.Skill) resolve.Result {
+	t.Helper()
+	sels := make([]selector.Selector, len(skills))
+	for i, s := range skills {
+		sel, err := selector.Parse(s.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		sels[i] = sel
+	}
+	res, err := resolve.Resolve(sels, skillList(skills))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
 func (f *fixture) plan(t *testing.T, current []state.Copy, skills ...resolve.Skill) *Plan {
 	t.Helper()
 	p, err := Compute(context.Background(), Input{
-		Vault: f.vault, Commit: "c0", Result: resolve.Result{Skills: skills},
+		Vault: f.vault, Commit: "c0", Result: result(t, skills...),
 		Current: current, Targets: f.targets, HomeRoot: f.home,
 	})
 	if err != nil {
@@ -400,7 +444,7 @@ func TestEditedCopyStops(t *testing.T) {
 	copies := f.load(t, f.a)
 	write(t, filepath.Join(f.skills(), "a", "SKILL.md"), "edited", 0o644)
 	_, err := Compute(context.Background(), Input{
-		Vault: f.vault, Commit: "c1", Result: resolve.Result{Skills: []resolve.Skill{f.b}},
+		Vault: f.vault, Commit: "c1", Result: result(t, f.b),
 		Current: copies, Targets: f.targets, HomeRoot: f.home,
 	})
 	var ee *EditedError
@@ -435,13 +479,33 @@ func TestWhatIsSomeoneElses(t *testing.T) {
 	}
 }
 
+// skill-sets.md: "A skill loses a clash only to a later skill that stays loaded".
+func TestLoserLoadsWhereTheWinnerIsSkipped(t *testing.T) {
+	f := newFixture(t)
+	f.targets = []config.Target{config.Claude, config.Agents}
+	f.b.Name = "a"
+	write(t, filepath.Join(SkillsDir(f.home, config.Agents), "b/SKILL.md"), "mine", 0o644)
+	p := f.plan(t, nil, f.a, f.b)
+
+	var copies []string
+	for _, c := range p.Copies {
+		copies = append(copies, string(c.Target)+":"+c.Skill)
+	}
+	if want := []string{"claude:g/b", "agents:g/a"}; !slices.Equal(copies, want) {
+		t.Errorf("copies = %v, want %v", copies, want)
+	}
+	if len(p.Skipped) != 1 || p.Skipped[0].Skill != f.b || p.Skipped[0].Foreign != "b" {
+		t.Errorf("skipped = %+v", p.Skipped)
+	}
+}
+
 // A copy whose manifest skl can't read isn't thrown away either.
 func TestUnreadableManifestCountsAsEdited(t *testing.T) {
 	f := newFixture(t)
 	copies := f.load(t, f.a)
 	write(t, filepath.Join(f.skills(), "a", manifestFile), "not = [toml", 0o644)
 	_, err := Compute(context.Background(), Input{
-		Vault: f.vault, Commit: "c1", Result: resolve.Result{Skills: []resolve.Skill{f.b}},
+		Vault: f.vault, Commit: "c1", Result: result(t, f.b),
 		Current: copies, Targets: f.targets, HomeRoot: f.home,
 	})
 	if _, ok := errors.AsType[*EditedError](err); !ok {
@@ -451,14 +515,14 @@ func TestUnreadableManifestCountsAsEdited(t *testing.T) {
 
 func TestChangeLines(t *testing.T) {
 	f := newFixture(t)
-	write(t, filepath.Join(f.vault, "h/a/SKILL.md"), "other A\n", 0o644)
-	other := resolve.Skill{Group: "h", Folder: "a"}
+	write(t, filepath.Join(f.vault, "o/a/SKILL.md"), "other A\n", 0o644)
+	other := resolve.Skill{Group: "o", Folder: "a"}
 	copies := f.load(t, f.a, f.b)
 
 	// A skill from somewhere else takes the name.
 	p := f.plan(t, copies, other)
 	want := []Change{
-		{Kind: Replace, Name: "a", Detail: "h/a replaces g/a"},
+		{Kind: Replace, Name: "a", Detail: "o/a replaces g/a"},
 		{Kind: Unload, Name: "b"},
 	}
 	if !slices.Equal(p.Changes, want) {

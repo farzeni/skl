@@ -123,7 +123,7 @@ func Compute(ctx context.Context, in Input) (*Plan, error) {
 		return t, err
 	}
 
-	c := changes{result: in.Result}
+	var c changes
 	for _, t := range allTargets(in.Targets, in.Current) {
 		if err := p.planTarget(ctx, in, t, treeOfSkill, &c); err != nil {
 			return nil, err
@@ -142,16 +142,21 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 	}
 	var wanted []resolve.Skill
 	if slices.Contains(in.Targets, t) {
-		wanted = in.Result.Skills
+		res, skipped := in.Result.Skipping(func(s resolve.Skill) bool {
+			_, ok := held.foreignFor(s)
+			return ok
+		})
+		for _, s := range skipped {
+			f, _ := held.foreignFor(s)
+			p.Skipped = append(p.Skipped, Skip{Skill: s, Path: filepath.Join(dir, f), Foreign: f})
+		}
+		wanted = res.Skills
+		c.settled(res)
 	}
 	kept := map[string]bool{} // what stays under a name, by folded name
 	for _, s := range wanted {
 		if err := ctx.Err(); err != nil {
 			return err
-		}
-		if f, ok := held.foreignFor(s); ok {
-			p.Skipped = append(p.Skipped, Skip{Skill: s, Path: filepath.Join(dir, f), Foreign: f})
-			continue
 		}
 		tree, err := treeOfSkill(s)
 		if err != nil {
@@ -234,11 +239,27 @@ func checkEdited(ctx context.Context, path string, m Manifest) error {
 
 // changes builds the lines of a plan, one per name in any number of targets.
 type changes struct {
-	result  resolve.Result
-	added   []resolve.Skill
-	details map[string]string // an added skill's own reason for ~
-	removed []state.Copy
-	dirs    map[string]string // a removed copy's skills folder
+	skills   []resolve.Skill       // what some target keeps
+	replaced []resolve.Replacement // what some target settled
+	added    []resolve.Skill
+	details  map[string]string // an added skill's own reason for ~
+	removed  []state.Copy
+	dirs     map[string]string // a removed copy's skills folder
+}
+
+// settled adds what one target settled. Targets can differ, since someone else's
+// skill holds a name in one folder only.
+func (c *changes) settled(res resolve.Result) {
+	for _, s := range res.Skills {
+		if !slices.Contains(c.skills, s) {
+			c.skills = append(c.skills, s)
+		}
+	}
+	for _, r := range res.Replaced {
+		if !slices.Contains(c.replaced, r) {
+			c.replaced = append(c.replaced, r)
+		}
+	}
 }
 
 func (c *changes) loaded(s resolve.Skill, cur *state.Copy) {
@@ -274,7 +295,7 @@ func (c *changes) list() []Change {
 	replacedBy := map[string]bool{} // the vault skills a ~ line already names
 	for _, s := range c.added {
 		var details []string
-		for _, r := range c.result.Replaced {
+		for _, r := range c.replaced {
 			if r.New == s {
 				details = append(details, r.Detail())
 				replacedBy[r.Old.String()] = true
@@ -299,7 +320,7 @@ func (c *changes) list() []Change {
 			continue
 		}
 		from := ""
-		for _, s := range c.result.Skills {
+		for _, s := range c.skills {
 			if selector.Fold(s.Folder) == selector.Fold(cp.Name) {
 				from = c.dirs[string(cp.Target)+"/"+cp.Name]
 			}

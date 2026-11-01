@@ -83,7 +83,8 @@ func notInActive(word string, named resolve.Result, loaded []resolve.Skill) *not
 	return &note{msg: word + "   isn't in the active skill set", hint: "skl status"}
 }
 
-// resolved is the skills lines select.
+// resolved is the skills lines select, clashes or not: a skill that lost a clash
+// can still be the one loaded, where someone else's skill holds the winner's name.
 func resolved(lines []string, idx *vault.Index) ([]resolve.Skill, error) {
 	sels, err := parseLines(lines)
 	if err != nil {
@@ -93,7 +94,7 @@ func resolved(lines []string, idx *vault.Index) ([]resolve.Skill, error) {
 	if err != nil {
 		return nil, err
 	}
-	return res.Skills, nil
+	return res.Selected(), nil
 }
 
 // sameLine reports whether a line of the active skill set is the selector, in any

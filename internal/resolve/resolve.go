@@ -56,6 +56,28 @@ type Result struct {
 	Skills   []Skill // in the order they were first selected; no two clash
 	Replaced []Replacement
 	Warnings []Warning
+
+	selected []selection // what's left after the removals, before clashes settle
+}
+
+// Selected returns what the selectors select, clashes or not: the skills removals
+// left, in the order they were first selected.
+func (r Result) Selected() []Skill {
+	skills := make([]Skill, len(r.selected))
+	for i, o := range r.selected {
+		skills[i] = o.skill
+	}
+	return skills
+}
+
+// Skipping settles the clashes again for a place where skip's skills can't load. A
+// skill loses a clash only to a later skill that stays loaded, so what a skipped
+// skill would have replaced stays. It also returns the skipped skills that lost no
+// clash: the ones that would have loaded.
+func (r Result) Skipping(skip func(Skill) bool) (Result, []Skill) {
+	res, skipped := settle(r.selected, skip)
+	res.Warnings = r.Warnings
+	return res, skipped
 }
 
 // Replacement is a skill that lost a clash to a skill in the result.
@@ -169,7 +191,7 @@ func Resolve(sels []selector.Selector, idx Index) (Result, error) {
 	if err := sameSelector(r.selected); err != nil {
 		return Result{}, err
 	}
-	res := settle(r.selected)
+	res, _ := settle(r.selected, func(Skill) bool { return false })
 	res.Warnings = r.warnings
 	return res, nil
 }
@@ -397,34 +419,38 @@ func sameSelector(selected []selection) error {
 }
 
 // settle resolves clashes: going from the last selected to the first, a skill
-// stays if it clashes with none that stayed. So a skill is unloaded only by a
-// later skill in the result, and the report names every such skill. It says
-// nothing about a skill that lost a clash and then lost its own.
-func settle(selected []selection) Result {
+// stays if it clashes with none that stayed and skip doesn't take it. So a skill is
+// unloaded only by a later skill in the result, and the report names every such
+// skill. It says nothing about a skill that lost a clash and then lost its own.
+func settle(selected []selection, skip func(Skill) bool) (Result, []Skill) {
 	byLast := slices.Clone(selected)
 	slices.SortFunc(byLast, func(a, b selection) int { return b.last - a.last })
-	var kept []selection
+	var kept, gone []selection
 	for _, o := range byLast {
-		if !slices.ContainsFunc(kept, o.clashes) {
+		switch {
+		case slices.ContainsFunc(kept, o.clashes):
+		case skip(o.skill):
+			gone = append(gone, o)
+		default:
 			kept = append(kept, o)
 		}
 	}
 
-	var res Result
+	res := Result{selected: selected}
+	var skipped []Skill
 	for _, o := range selected {
-		if slices.Contains(kept, o) {
+		switch {
+		case slices.Contains(kept, o):
 			res.Skills = append(res.Skills, o.skill)
-		}
-	}
-	for _, o := range selected {
-		if slices.Contains(kept, o) {
-			continue
-		}
-		for _, w := range selected {
-			if slices.Contains(kept, w) && w.last > o.last && o.clashes(w) {
-				res.Replaced = append(res.Replaced, Replacement{Old: o.skill, New: w.skill})
+		case slices.Contains(gone, o):
+			skipped = append(skipped, o.skill)
+		default:
+			for _, w := range selected {
+				if slices.Contains(kept, w) && w.last > o.last && o.clashes(w) {
+					res.Replaced = append(res.Replaced, Replacement{Old: o.skill, New: w.skill})
+				}
 			}
 		}
 	}
-	return res
+	return res, skipped
 }

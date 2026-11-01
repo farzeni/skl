@@ -163,7 +163,7 @@ func (a *App) prepare(ctx context.Context, v *vault.Vault, st *state.State, s se
 	if err != nil {
 		return nil, a.planError(err, s)
 	}
-	notes = slices.Concat(s.selectorNotes(res, idx), notes, a.indexNotes(idx, res), a.skipNotes(plan))
+	notes = slices.Concat(s.selectorNotes(res, idx), notes, a.indexNotes(idx, plan), a.skipNotes(plan))
 	return &loadNext{
 		selectors: selectors,
 		plan:      plan,
@@ -352,13 +352,13 @@ func setFile(idx *vault.Index, name string) string {
 
 // indexNotes are the vault's own warnings that matter here: a name skl had to skip,
 // and anything wrong in a skill being loaded. skl status lists the rest.
-func (a *App) indexNotes(idx *vault.Index, res resolve.Result) []note {
+func (a *App) indexNotes(idx *vault.Index, plan *load.Plan) []note {
 	var notes []note
 	for _, w := range idx.Warnings() {
 		switch {
 		case w.BadName():
 			notes = append(notes, note{msg: w.Message(), hint: "rename it in " + a.shown(a.paths.Vault)})
-		case slices.ContainsFunc(res.Skills, func(s resolve.Skill) bool { return strings.HasPrefix(w.Path, s.String()+"/") }):
+		case slices.ContainsFunc(plan.Copies, func(c state.Copy) bool { return strings.HasPrefix(w.Path, c.Skill+"/") }):
 			notes = append(notes, note{msg: w.Message(), hint: "edit " + w.Path})
 		}
 	}
