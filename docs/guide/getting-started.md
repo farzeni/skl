@@ -40,7 +40,8 @@ A new vault's first commit needs your git identity. Without one, skl stops:
 
 ```
 ✗ git needs your name and email for skl's commits
-  · git config --global user.name "You" && git config --global user.email you@example.com
+  · git config --global user.name "You"
+    git config --global user.email you@example.com
 ```
 
 Only a repo with no commits at all is empty and becomes a new vault. A repo with commits is cloned as your vault, with no identity needed. Its groups are the folders that hold skills:
