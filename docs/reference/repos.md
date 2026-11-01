@@ -23,7 +23,7 @@ skl use @backend -review/test-gaps someone/pdf
 
 skl's [flags](./commands#flags) start with `--` and can go anywhere on the line. Every other word is a selector, so `-review/test-gaps` is never read as a flag.
 
-A selector has one or two parts. A word with three or more parts, a host, a URL or a path is a [reference](#repos) to someone else's repo: `use`, `add` and `drop` stop and tell you to [learn it](../guide/learn#get-a-skill) first.
+A selector has one or two parts. A word with three or more parts, a host, a `#` pin, a URL or a path is a [reference](#repos) to someone else's repo: `use`, `add` and `drop` stop and tell you to [learn it](../guide/learn#get-a-skill) first.
 
 ### Grammar
 
@@ -35,10 +35,19 @@ name      = letters, digits, "-" and "_", starting with a
 ```
 
 - **One part** is a group, **two parts** are a skill in a group, and **`@name`** is a named skill set in `sets/`. A skill is found by its folder name or its frontmatter `name`.
-- **`-`** removes what the rest of the selector names from what the earlier selectors added: `-review/test-gaps`, `-review` or `-@base`.
-- **Anything else is a reference:** three or more parts, a dot in the first part, a URL (`https://…`, `git@host:…`), or a word that starts with `~`, `/` or `.`. Every name is free of dots, so a group can't be mistaken for a host.
-- **Reserved names.** A group can't be named `sets`, `lessons` or `h`. When a new skill's group would be the owner's name and that name is reserved or isn't a valid name, skl uses `<owner>-skills` instead.
-- **A word that names a skill but no group** matches nothing, and the warning names the skill: `! pdf   matches no group · skl use someone/pdf`.
+- **Letters** can be from any script, with their combining marks: `résumé` works whether `é` is one character or `e` plus an accent.
+- **`-`** removes what the rest of the selector names from what the earlier selectors added: `-review/test-gaps`, `-review` or `-@base`. [Clashes](../guide/skill-sets#names-and-clashes) are settled after that.
+- **A reference** is a word with three or more parts, a dot in the first part, a `#` (`review#v1`), a URL (`https://…`, `git@host:…`), or one that starts with `~`, `/` or `.`. Every name is free of dots, so a group can't be mistaken for a host.
+- **Any other word is invalid,** and the command stops with a [usage error](./commands#exit-codes): `review/pr.review`, a word with a space, `review/@base`, `@a.b`. A word that starts with `@` and has fewer than three parts is a skill set's name, never a host or a pin.
+- **Reserved names.** A group can't be named `sets`, `lessons` or `h`, in any case: on a case-insensitive disk, `Sets` is the folder `sets`. When a new skill's group would be the owner's name and that name is reserved or isn't a valid name, skl uses `<owner>-skills` instead. If that isn't valid either, as with the owner `my.org`, there's no default group, and `skl learn` asks you to name one:
+
+  ```
+  ✗ the owner my.org gives no valid group name
+    · skl learn gitlab.com/my.org/skills//pdf <group>/
+  ```
+
+- **A selector that matches nothing** is a warning. If the word names a skill but no group, the hint repeats your command with only that word replaced: `skl use @a pdf` warns `! pdf   matches no group · skl use @a someone/pdf`, and `-pdf` becomes `-someone/pdf`. Anything else hints at dropping it: `! nope   matches no group · skl drop nope`. A line in a named skill set hints at [its file](../guide/skill-sets#whats-loaded).
+- **`skl drop` of a selector that isn't in your active skill set** warns, whether or not it names something real: `! nope   isn't in the active skill set · skl status`, and the same for `skl drop review/pdf`. A line in your active skill set that matches nothing is removed without a warning.
 - **`-h` and `--`** follow the [flag rules](./commands#flags): `-h` is help, never a removal, and every word after `--` is an argument.
 
 ## Repos
