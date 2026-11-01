@@ -218,7 +218,7 @@ func (a *App) makeVault(ctx context.Context, repo ref.Repo) (*vault.Vault, error
 func identityError(err error) error {
 	if errors.Is(err, vault.ErrNoIdentity) {
 		return errs.Hint(vault.ErrNoIdentity,
-			`git config --global user.name "You" && git config --global user.email you@example.com`)
+			`git config --global user.name "You"`+"\n    git config --global user.email you@example.com")
 	}
 	return err
 }

@@ -214,6 +214,7 @@ func TestHinted(t *testing.T) {
 		{"another skl is running (pid 4182)", "skl sync, once it's done", 40, "✗ another skl is running (pid 4182)\n  · skl sync, once it's done\n"},
 		{"abc", "skl x", 13, "✗ abc · skl x\n"},
 		{"abc", "skl x", 12, "✗ abc\n  · skl x\n"},
+		{"abc", "skl x\n    skl y", 200, "✗ abc\n  · skl x\n    skl y\n"},
 	} {
 		u, s := testUI(colorprofile.NoTTY, tt.width, Options{})
 		u.Error(tt.msg, tt.hint)

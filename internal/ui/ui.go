@@ -191,13 +191,14 @@ func (u *UI) Done(msg string) { u.line(markDone + " " + msg) }
 func (u *UI) line(s string) { fmt.Fprintln(u.stderr, s) }
 
 // hinted is "<mark> <msg> · <hint>", with the hint on its own line after
-// "·" when the whole doesn't fit in the width (commands.md "Output").
+// "·" when the whole doesn't fit in the width (commands.md "Output"). A hint
+// of several lines always goes there, so its lines stay aligned.
 func (u *UI) hinted(mark, msg, hint string) string {
 	line := mark + " " + msg
 	if hint == "" {
 		return line
 	}
-	if one := line + " · " + hint; lipgloss.Width(one) <= u.width {
+	if one := line + " · " + hint; !strings.Contains(hint, "\n") && lipgloss.Width(one) <= u.width {
 		return one
 	}
 	return line + "\n  · " + hint

@@ -19,7 +19,8 @@ stderr '^✓ generation 1 · skl rollback to undo$'
 
 -- no-identity.txt --
 ✗ git needs your name and email for skl's commits
-  · git config --global user.name "You" && git config --global user.email you@example.com
+  · git config --global user.name "You"
+    git config --global user.email you@example.com
 -- seeded/group/skill/SKILL.md --
 ---
 name: skill
