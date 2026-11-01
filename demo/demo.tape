@@ -20,7 +20,7 @@ Sleep 500ms
 Enter
 Type "skl init you/skills @backend writing/changelog"
 Enter
-Sleep 2.6s
+Sleep 3s
 
 Type "# get a skill from someone"
 Sleep 500ms

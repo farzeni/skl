@@ -98,7 +98,7 @@ With `--dry-run`, a command prints its plan, the `→` line and the `+ ~ −` li
 
 | Command | What `--dry-run` shows |
 |---|---|
-| `init` | Whether it would clone or create the repo, what it would import, and what it would load. |
+| `init` | Whether it would clone or create the repo (`→ clone you/skills` or `→ new vault you/skills`), what it would import, and what it would load. |
 | `import`, `use`, `add`, `drop`, `save`, `rollback` | The skills it would load, replace or unload, and the files it would write. |
 | `learn <peer> …` | Whether it would copy, update or run a lesson, and into which skill. The engine doesn't run. |
 | `learn` | Every available update, and how each would be taken. |
@@ -249,4 +249,4 @@ While a merge you resolve [by hand](../guide/sync#by-hand) is open, only `status
 ✗ can't reach github.com (Could not resolve host) · skl sync
 ```
 
-When the network or the remote fails, skl shows git's error and stops. `skl sync` keeps what it did locally first: your changes are saved and committed, and `skl status` lists them as not pushed. `skl learn` and `skl init` change nothing. Access problems fail the same way, without asking for a password: see [Authentication](./repos#authentication).
+When the network or the remote fails, skl shows git's error and stops, and the hint is the command you ran: a host that `skl init you/skills` can't resolve, or that refuses or times out, ends `· skl init you/skills`. `skl sync` keeps what it did locally first: your changes are saved and committed, and `skl status` lists them as not pushed. `skl learn` and `skl init` change nothing. Access problems fail the same way, without asking for a password: see [Authentication](./repos#authentication). `skl init` has [its own line](../guide/getting-started#make-your-vault) for a missing repo or denied access.
