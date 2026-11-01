@@ -1,0 +1,183 @@
+// Package state keeps what skl knows on this machine and never syncs
+// (docs/reference/files.md "Local state"): what's loaded where in state.json,
+// one snapshot per change in generations/, and the lock that lets one skl
+// change things at a time.
+package state
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/farzeni/skl/internal/config"
+)
+
+// schemaVersion is the format of state.json. New fields don't change it: only
+// a change an older skl would get wrong does.
+const schemaVersion = 1
+
+var (
+	// ErrCorrupt is a state.json or generation file that isn't valid JSON.
+	// skl writes them atomically, so this comes from a hand edit or a bad disk.
+	ErrCorrupt = errors.New("can't read")
+	// ErrNewerState is a state.json from a newer skl. Rewriting it could lose
+	// what this skl doesn't know about, so it stops.
+	ErrNewerState = errors.New("written by a newer skl")
+)
+
+// ScopeKey names a scope in state.json: User, or Project for one repo.
+type ScopeKey string
+
+// User is the user scope.
+const User ScopeKey = "user"
+
+const projectPrefix = "project:"
+
+// Project is the project scope of the repo with this top-level path. A git
+// worktree has its own top-level path, so it is a repo of its own.
+func Project(toplevel string) ScopeKey { return ScopeKey(projectPrefix + toplevel) }
+
+// Repo returns the repo's top-level path, and false for the user scope.
+func (k ScopeKey) Repo() (string, bool) {
+	repo, ok := strings.CutPrefix(string(k), projectPrefix)
+	if !ok {
+		return "", false
+	}
+	return repo, true
+}
+
+// Scope is what's loaded in one scope: its active skill set and its copies.
+type Scope struct {
+	Selectors []string `json:"selectors,omitempty"`
+	Copies    []Copy   `json:"copies,omitempty"`
+}
+
+// Copy is one loaded skill. Each target holds its own copy of a skill.
+type Copy struct {
+	Name   string        `json:"name"`   // its folder in the target's skills folder
+	Target config.Target `json:"target"` // claude or agents
+	Skill  string        `json:"skill"`  // the vault skill it came from: group/name
+	Commit string        `json:"commit"` // the vault commit it was copied from
+	Tree   string        `json:"tree"`   // the folder's git tree hash, as copied
+}
+
+// State is the content of state.json. Scopes is never nil after Load.
+type State struct {
+	Scopes map[ScopeKey]Scope
+}
+
+// file is state.json on disk.
+type file struct {
+	Version int                `json:"version"`
+	Scopes  map[ScopeKey]Scope `json:"scopes"`
+}
+
+// Store reads and writes the local state in the paths it was given.
+//
+// Reading needs no lock: writes are atomic, so a reader sees the old file or
+// the new one. status and history rely on that. Changing state, adding
+// generations included, is for the holder of the lock.
+type Store struct {
+	statePath   string
+	generations string
+	lockPath    string
+}
+
+// New returns the store for p.
+func New(p config.Paths) *Store {
+	return &Store{statePath: p.State, generations: p.Generations, lockPath: p.Lock}
+}
+
+// Load reads state.json. A missing file is an empty state: nothing is loaded.
+func (s *Store) Load(ctx context.Context) (*State, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var f file
+	data, err := os.ReadFile(s.statePath)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case err != nil:
+		return nil, fmt.Errorf("state: %w", err)
+	default:
+		if err := json.Unmarshal(data, &f); err != nil {
+			return nil, fmt.Errorf("%w %s: %w", ErrCorrupt, s.statePath, err)
+		}
+	}
+	if f.Version > schemaVersion {
+		return nil, fmt.Errorf("%s: %w", s.statePath, ErrNewerState)
+	}
+	if f.Scopes == nil {
+		f.Scopes = map[ScopeKey]Scope{}
+	}
+	return &State{Scopes: f.Scopes}, nil
+}
+
+// Save writes state.json atomically. Run it under context.WithoutCancel when
+// the change it records has already happened.
+func (s *Store) Save(ctx context.Context, st *State) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	data, err := marshal(file{Version: schemaVersion, Scopes: st.Scopes})
+	if err != nil {
+		return fmt.Errorf("state: %w", err)
+	}
+	if err := writeAtomic(s.statePath, data); err != nil {
+		return fmt.Errorf("state: %w", err)
+	}
+	return nil
+}
+
+func marshal(v any) ([]byte, error) {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(data, '\n'), nil
+}
+
+// writeAtomic replaces path with data: a temp file in the same folder, synced,
+// then renamed over it. A crash at any point leaves the old file or the new
+// one. A temp file left by a crash starts with a dot and is never read.
+func writeAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	if err := writeAndClose(tmp, data); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	return syncDir(dir)
+}
+
+func writeAndClose(f *os.File, data []byte) error {
+	_, err := f.Write(data)
+	if err == nil {
+		err = f.Sync()
+	}
+	return errors.Join(err, f.Close())
+}
+
+// syncDir makes the rename survive a power cut.
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	return errors.Join(d.Sync(), d.Close())
+}
