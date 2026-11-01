@@ -1,8 +1,11 @@
 // Package gitx is the only package that runs git. Every call runs the same
 // way on every host: without prompts (GIT_TERMINAL_PROMPT=0, ssh in batch
-// mode), with a timeout that, like Ctrl-C, stops git and all it started,
-// logged before it runs when SKL_DEBUG=1, and with git's error turned into
-// an *Error (docs/design/architecture.md "Fetching from remotes").
+// mode), logged before it runs when SKL_DEBUG=1, and with git's error turned
+// into an *Error (docs/design/architecture.md "Fetching from remotes").
+//
+// A command that may contact a remote has a timeout and leads its own process
+// group, so stopping it stops all it started. A local command keeps the
+// terminal, for a pinentry, and has no timeout (see mayUseRemote).
 package gitx
 
 import (
@@ -20,14 +23,20 @@ import (
 	"time"
 )
 
-// DefaultTimeout bounds each git call: "each git call times out after 30
-// seconds" (docs/design/architecture.md "Fetching from remotes").
+// DefaultTimeout bounds each git call that may contact a remote: "each git
+// call times out after 30 seconds" (docs/design/architecture.md "Fetching from
+// remotes").
 const DefaultTimeout = 30 * time.Second
+
+// waitDelay is how long skl waits for git's output after git exits or is
+// stopped, in case a child it started keeps the pipes open.
+const waitDelay = time.Second
 
 // Git runs git. Its zero value is not usable; call New. A Git is safe for
 // concurrent use.
 type Git struct {
-	// Timeout bounds each call; zero means DefaultTimeout.
+	// Timeout bounds each call that may contact a remote; zero means
+	// DefaultTimeout.
 	Timeout time.Duration
 
 	log *slog.Logger
@@ -74,34 +83,54 @@ func (g *Git) run(ctx context.Context, dir string, args []string) (string, error
 
 // exec runs git with env as its whole environment.
 func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string, error) {
-	timeout := g.Timeout
-	if timeout == 0 {
-		timeout = DefaultTimeout
-	}
-	tctx, cancel := context.WithTimeoutCause(ctx, timeout, errTimeout)
-	defer cancel()
-
 	if dir == "" {
 		g.log.DebugContext(ctx, "git "+strings.Join(args, " "))
 	} else {
 		g.log.DebugContext(ctx, "git "+strings.Join(args, " "), "dir", dir)
 	}
 
-	cmd := exec.CommandContext(tctx, "git", args...)
+	runCtx, timeout := ctx, time.Duration(0)
+	if mayUseRemote(args) {
+		timeout = g.Timeout
+		if timeout == 0 {
+			timeout = DefaultTimeout
+		}
+		var cancel context.CancelFunc
+		runCtx, cancel = context.WithTimeoutCause(ctx, timeout, errTimeout)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(runCtx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = env
-	// git leads its own process group, so stopping it stops what it started,
-	// such as ssh or a credential helper, which would otherwise outlive skl.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return killGroup(cmd.Process.Pid) }
+	if timeout != 0 {
+		// git leads its own process group, so stopping it stops what it
+		// started, such as ssh or a credential helper, which would otherwise
+		// outlive skl. A background group can't read the terminal: a child that
+		// tries stops, until the timeout.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Cancel = func() error { return killGroup(cmd.Process.Pid) }
+	} else {
+		// git stays in skl's group, in the terminal's foreground, where Ctrl-C
+		// reaches all of it. Interrupted, git removes its lock files; killed,
+		// it would leave index.lock in the way of the next commit. WaitDelay
+		// kills a git that ignores the interrupt.
+		cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
+	}
 	// A child that left the group, such as an ssh ControlMaster, may keep the
 	// pipes open; stop waiting for it.
-	cmd.WaitDelay = time.Second
+	cmd.WaitDelay = waitDelay
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 
 	err := cmd.Run()
 	if err == nil {
+		return stdout.String(), nil
+	}
+	if errors.Is(err, exec.ErrWaitDelay) {
+		// exec only returns this when git itself exited 0, and git wrote
+		// everything before it exited.
+		g.log.DebugContext(ctx, "git "+subcommand(args)+" exited 0, but something it started still holds its output")
 		return stdout.String(), nil
 	}
 	e := &Error{Args: args, Stderr: stderr.String(), Code: -1, err: err}
@@ -111,7 +140,11 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	switch {
 	case ctx.Err() != nil:
 		e.err = ctx.Err()
-	case errors.Is(context.Cause(tctx), errTimeout):
+	case interrupted(err):
+		// Ctrl-C reached git through the terminal before skl's own signal
+		// handler canceled ctx.
+		e.err = context.Canceled
+	case errors.Is(context.Cause(runCtx), errTimeout):
 		e.err, e.kind, e.reason = errTimeout, ErrUnreachable, "timed out"
 		e.msg = fmt.Sprintf("timed out after %s", timeout)
 	case errors.Is(err, exec.ErrNotFound):
@@ -120,6 +153,44 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 		e.reason, e.msg, e.kind = classify(e.Stderr)
 	}
 	return "", e
+}
+
+// interrupted reports whether git died of SIGINT.
+func interrupted(err error) bool {
+	exit, ok := errors.AsType[*exec.ExitError](err)
+	if !ok {
+		return false
+	}
+	status, ok := exit.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled() && status.Signal() == syscall.SIGINT
+}
+
+// localCommands don't contact a remote in the way skl runs them. They include
+// every command that signs or runs a hook, so a pinentry or a slow hook can take
+// its time, except push and pull, which contact a remote anyway.
+//
+// checkout, switch, restore, reset, sparse-checkout, cat-file, show, diff,
+// grep, blame and archive are left out on purpose: in a partial clone, as in
+// skl's source cache, they fetch missing blobs from the remote.
+var localCommands = map[string]bool{
+	"add": true, "am": true, "apply": true, "branch": true, "check-attr": true,
+	"check-ignore": true, "cherry-pick": true, "commit": true, "commit-tree": true,
+	"config": true, "diff-index": true, "for-each-ref": true, "hash-object": true,
+	"init": true, "log": true, "ls-files": true, "ls-tree": true, "merge": true,
+	"merge-base": true, "merge-file": true, "merge-tree": true, "mktree": true,
+	"mv": true, "read-tree": true, "rebase": true, "reflog": true, "rev-list": true,
+	"rev-parse": true, "revert": true, "rm": true, "show-ref": true, "stash": true,
+	"status": true, "symbolic-ref": true, "tag": true, "update-index": true,
+	"update-ref": true, "var": true, "version": true, "worktree": true,
+	"write-tree": true,
+}
+
+// mayUseRemote reports whether git with args may contact a remote. What isn't
+// listed as local counts as remote: clone, fetch, pull, push and ls-remote, but
+// also a command skl starts using later. Wrongly remote, it gets a timeout and
+// loses the terminal; wrongly local, a dead remote could hang it for good.
+func mayUseRemote(args []string) bool {
+	return !localCommands[subcommand(args)]
 }
 
 // killGroup kills the process group that pid leads. A group with nothing

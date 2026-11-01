@@ -329,9 +329,12 @@ func TestStopKillsChildren(t *testing.T) {
 		// set runs before git starts.
 		set func(g *Git)
 		is  error
+		ssh bool // through a real ls-remote and a fake ssh, not an alias
 	}{
-		{"Ctrl-C", nil, context.Canceled},
-		{"timeout", func(g *Git) { g.Timeout = 500 * time.Millisecond }, ErrUnreachable},
+		{"Ctrl-C", nil, context.Canceled, false},
+		{"timeout", func(g *Git) { g.Timeout = 500 * time.Millisecond }, ErrUnreachable, false},
+		{"ls-remote Ctrl-C", nil, context.Canceled, true},
+		{"ls-remote timeout", func(g *Git) { g.Timeout = 500 * time.Millisecond }, ErrUnreachable, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -343,7 +346,12 @@ func TestStopKillsChildren(t *testing.T) {
 			pidFile := filepath.Join(t.TempDir(), "pid")
 			// sleep is git's child's child, as ssh can be. It lets go of the
 			// pipes, so only the signal can stop it.
-			script := "!sleep 300 >/dev/null 2>&1 </dev/null & echo $! > '" + pidFile + "'; wait"
+			script := "sleep 300 >/dev/null 2>&1 </dev/null & echo $! > '" + pidFile + "'; wait"
+			args := []string{"-c", "alias.hang=!" + script, "hang"}
+			if tt.ssh {
+				t.Setenv("GIT_SSH", writeScript(t, "ssh", script+"\n"))
+				args = []string{"ls-remote", "ssh://git@example.invalid/you/skills"}
+			}
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -366,7 +374,7 @@ func TestStopKillsChildren(t *testing.T) {
 			}()
 
 			start := time.Now()
-			_, err := g.Run(ctx, "", "-c", "alias.hang="+script, "hang")
+			_, err := g.Run(ctx, "", args...)
 			<-ready
 			if pid == 0 {
 				t.Fatal("the child never started")
@@ -634,6 +642,287 @@ func TestMessage(t *testing.T) {
 	for _, tt := range tests {
 		if got := Message(tt.stderr); got != tt.want {
 			t.Errorf("Message(%q) = %q, want %q", tt.stderr, got, tt.want)
+		}
+	}
+}
+
+// writeScript writes an executable shell script and returns its path.
+func writeScript(t *testing.T, name, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// heldPid reads the pid a script left in file and kills it when the test ends.
+func heldPid(t *testing.T, file string) {
+	t.Helper()
+	b, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("the background child never started: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	if err := syscall.Kill(pid, 0); err != nil {
+		t.Errorf("the background child %d is gone (%v), so nothing held the pipe", pid, err)
+	}
+}
+
+// fakeSSH is an ssh that leaves a child holding its standard error, as an
+// ssh ControlPersist master does, then serves git over the local repo.
+func fakeSSH(t *testing.T, pidFile string) string {
+	t.Helper()
+	return writeScript(t, "ssh", "sleep 60 </dev/null >/dev/null &\necho $! > '"+pidFile+"'\n"+
+		"while [ $# -gt 1 ]; do shift; done\neval \"exec $1\"\n")
+}
+
+// A git that exited 0 succeeded, even if something it started outlives it and
+// keeps its output open.
+func TestPipesHeldAfterSuccess(t *testing.T) {
+	t.Run("ls-remote through ssh", func(t *testing.T) {
+		isolate(t)
+		g := New(nil)
+		src := newRepo(t, g)
+		if _, err := g.Run(t.Context(), src, "commit", "--quiet", "--allow-empty", "-m", "first"); err != nil {
+			t.Fatal(err)
+		}
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		t.Setenv("GIT_SSH", fakeSSH(t, pidFile))
+		out, err := g.Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid"+filepath.ToSlash(src))
+		heldPid(t, pidFile)
+		if err != nil {
+			t.Fatalf("Run = %v, want success", err)
+		}
+		if !strings.Contains(out, "refs/heads/main") {
+			t.Errorf("stdout = %q, want what git wrote", out)
+		}
+	})
+
+	t.Run("clone through ssh", func(t *testing.T) {
+		isolate(t)
+		g := New(nil)
+		src := newRepo(t, g)
+		if _, err := g.Run(t.Context(), src, "commit", "--quiet", "--allow-empty", "-m", "first"); err != nil {
+			t.Fatal(err)
+		}
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		t.Setenv("GIT_SSH", fakeSSH(t, pidFile))
+		dst := filepath.Join(t.TempDir(), "clone")
+		_, err := g.Run(t.Context(), "", "clone", "--quiet", "ssh://git@example.invalid"+filepath.ToSlash(src), dst)
+		heldPid(t, pidFile)
+		if err != nil {
+			t.Fatalf("Run = %v, want success", err)
+		}
+		if out, err := g.Run(t.Context(), dst, "log", "--format=%s"); err != nil || out != "first\n" {
+			t.Errorf("log in the clone = %q, %v", out, err)
+		}
+	})
+
+	t.Run("stdout held", func(t *testing.T) {
+		isolate(t)
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		script := "!sleep 60 </dev/null 2>/dev/null & echo $! > '" + pidFile + "'; echo out"
+		var buf bytes.Buffer
+		g := New(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+		out, err := g.Run(t.Context(), "", "-c", "alias.hold="+script, "hold")
+		heldPid(t, pidFile)
+		if err != nil || out != "out\n" {
+			t.Fatalf("Run = %q, %v, want %q", out, err, "out\n")
+		}
+		if n := strings.Count(buf.String(), "still holds"); n != 1 {
+			t.Errorf("debug log = %q, want one line saying a child still holds the output", buf.String())
+		}
+	})
+
+	t.Run("a failed git still fails", func(t *testing.T) {
+		isolate(t)
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		script := "!sleep 60 </dev/null >/dev/null & echo $! > '" + pidFile + "'; exit 3"
+		_, err := New(nil).Run(t.Context(), "", "-c", "alias.hold="+script, "hold")
+		heldPid(t, pidFile)
+		var e *Error
+		if !errors.As(err, &e) || e.Code != 3 {
+			t.Fatalf("err = %v, want an *Error with code 3", err)
+		}
+	})
+
+	t.Run("local command", func(t *testing.T) {
+		isolate(t)
+		g := New(nil)
+		dir := newRepo(t, g)
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		hook := "#!/bin/sh\nsleep 60 </dev/null >/dev/null &\necho $! > '" + pidFile + "'\n"
+		if err := os.WriteFile(filepath.Join(dir, ".git", "hooks", "post-commit"), []byte(hook), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		_, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "first")
+		heldPid(t, pidFile)
+		if err != nil {
+			t.Fatalf("Run = %v, want success", err)
+		}
+	})
+}
+
+// commitWithHook makes a repo whose pre-commit hook runs body.
+func commitWithHook(t *testing.T, g *Git, body string) string {
+	t.Helper()
+	dir := newRepo(t, g)
+	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// A local command stays in skl's process group, where the terminal can reach
+// it, and has no timeout, so a pinentry can wait for the user. A command that
+// may contact a remote leads its own group, with the timeout.
+func TestProcessGroup(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	pgidFile := filepath.Join(t.TempDir(), "pgid")
+	pgid := func() int {
+		t.Helper()
+		b, err := os.ReadFile(pgidFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	report := "ps -o pgid= -p $$ > '" + pgidFile + "'\n"
+
+	dir := commitWithHook(t, g, report)
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := pgid(), syscall.Getpgrp(); got != want {
+		t.Errorf("commit ran in group %d, want skl's, %d", got, want)
+	}
+
+	ssh := writeScript(t, "ssh", report+"exit 255\n")
+	t.Setenv("GIT_SSH", ssh)
+	if _, err := g.Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills"); err == nil {
+		t.Fatal("ls-remote through a failing ssh succeeded")
+	}
+	if got := pgid(); got == syscall.Getpgrp() {
+		t.Errorf("ls-remote ran in skl's group %d, want its own", got)
+	}
+}
+
+func TestLocalHasNoTimeout(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	g.Timeout = 100 * time.Millisecond
+	dir := commitWithHook(t, New(nil), "sleep 1\n")
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "slow"); err != nil {
+		t.Fatalf("a commit slower than the timeout: %v", err)
+	}
+}
+
+// Canceling a local command interrupts git rather than killing it, so git
+// removes its lock files: a killed commit would leave .git/index.lock and
+// every later commit in the vault would fail.
+func TestLocalCancelLeavesNoLock(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	armed := filepath.Join(t.TempDir(), "armed")
+	started := filepath.Join(t.TempDir(), "started")
+	dir := commitWithHook(t, g, "if [ -e '"+armed+"' ]; then rm '"+armed+"'; : > '"+started+"'; exec sleep 3; fi\n")
+	file := filepath.Join(dir, "SKILL.md")
+	for _, args := range [][]string{{"add", "SKILL.md"}, {"commit", "--quiet", "-m", "first"}} {
+		if err := os.WriteFile(file, []byte("# pdf\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := g.Run(t.Context(), dir, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(file, []byte("# changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(armed, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		for ctx.Err() == nil {
+			if _, err := os.Stat(started); err == nil {
+				time.Sleep(50 * time.Millisecond)
+				cancel()
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	// With -a, git holds index.lock all through the hook.
+	_, err := g.Run(ctx, dir, "commit", "--quiet", "--all", "-m", "x")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "index.lock")); err == nil {
+		t.Error("git left .git/index.lock behind")
+	}
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--all", "-m", "again"); err != nil {
+		t.Errorf("the next commit: %v", err)
+	}
+}
+
+func TestMayUseRemote(t *testing.T) {
+	tests := []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"clone", "x"}, true},
+		{[]string{"fetch"}, true},
+		{[]string{"pull"}, true},
+		{[]string{"push"}, true},
+		{[]string{"ls-remote", "x"}, true},
+		{[]string{"remote", "update"}, true},
+		{[]string{"submodule", "update"}, true},
+		// These fetch missing blobs in a partial clone.
+		{[]string{"cat-file", "-p", "x"}, true},
+		{[]string{"checkout", "main"}, true},
+		{[]string{"sparse-checkout", "set", "x"}, true},
+		{[]string{"diff"}, true},
+		{[]string{"show", "x"}, true},
+		// A command not listed as local may contact a remote.
+		{[]string{"something-new"}, true},
+		{[]string{"-c", "a=b", "fetch"}, true},
+
+		{[]string{"commit", "-S", "-m", "x"}, false},
+		{[]string{"merge", "x"}, false},
+		{[]string{"merge-tree", "--write-tree", "a", "b"}, false},
+		{[]string{"read-tree", "x"}, false},
+		{[]string{"tag", "-s", "x"}, false},
+		{[]string{"revert", "x"}, false},
+		{[]string{"commit-tree", "x"}, false},
+		{[]string{"status"}, false},
+		{[]string{"rev-parse", "HEAD"}, false},
+		{[]string{"add", "--all"}, false},
+		{[]string{"init"}, false},
+		{[]string{"version"}, false},
+		{[]string{"config", "--get", "x"}, false},
+		// git's own options don't hide the command.
+		{[]string{"-c", "a=b", "commit"}, false},
+		{[]string{"-C", "dir", "commit"}, false},
+		{[]string{"--git-dir", "commit.git", "--work-tree", "x", "commit"}, false},
+		{[]string{"--git-dir=x", "commit"}, false},
+		{[]string{"--git-dir", "fetch", "commit"}, false},
+	}
+	for _, tt := range tests {
+		if got := mayUseRemote(tt.args); got != tt.want {
+			t.Errorf("mayUseRemote(%q) = %v, want %v", tt.args, got, tt.want)
 		}
 	}
 }

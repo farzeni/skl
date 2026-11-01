@@ -44,11 +44,13 @@ func (e *Error) Error() string {
 // such as clone in "-c k=v clone …".
 func subcommand(args []string) string {
 	for i := 0; i < len(args); i++ {
-		switch a := args[i]; {
-		case a == "-c" || a == "-C":
+		switch a := args[i]; a {
+		case "-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env":
 			i++
-		case !strings.HasPrefix(a, "-"):
-			return a
+		default:
+			if !strings.HasPrefix(a, "-") {
+				return a
+			}
 		}
 	}
 	return ""
