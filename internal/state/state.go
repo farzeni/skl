@@ -25,8 +25,9 @@ import (
 const schemaVersion = 1
 
 var (
-	// ErrCorrupt is a state.json or generation file that isn't valid JSON.
-	// skl writes them atomically, so this comes from a hand edit or a bad disk.
+	// ErrCorrupt is a state.json or generation file that can't be read or isn't
+	// valid JSON. skl writes them atomically, so this comes from a hand edit,
+	// permissions or a bad disk.
 	ErrCorrupt = errors.New("can't read")
 	// ErrNewerState is a state.json from a newer skl. Rewriting it could lose
 	// what this skl doesn't know about, so it stops.
@@ -123,19 +124,27 @@ func (s *Store) Load(ctx context.Context) (*State, error) {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:
-		return nil, fmt.Errorf("state: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrCorrupt, s.statePath, osReason(err))
 	default:
 		if err := json.Unmarshal(data, &f); err != nil {
 			return nil, fmt.Errorf("%w %s: %w", ErrCorrupt, s.statePath, err)
 		}
 	}
 	if f.Version > schemaVersion {
-		return nil, fmt.Errorf("%s: %w", s.statePath, ErrNewerState)
+		return nil, fmt.Errorf("%s was %w", s.statePath, ErrNewerState)
 	}
 	if f.Scopes == nil {
 		f.Scopes = map[ScopeKey]Scope{}
 	}
 	return &State{Scopes: f.Scopes}, nil
+}
+
+// osReason is err without the operation and path os puts around it.
+func osReason(err error) error {
+	if pe, ok := errors.AsType[*fs.PathError](err); ok {
+		return pe.Err
+	}
+	return err
 }
 
 // Save writes state.json atomically. Holding the lock is how you get to call

@@ -1,0 +1,9 @@
+# docs/reference/commands.md "Errors"
+
+# "✗ no vault on this machine · skl init <repo>"
+# "Every command except init, help, completion and open with someone else's repo
+# needs your vault."
+# init is the only command that changes something so far. internal/app tests
+# the frame (TestChangingWithoutVault); the first command built on it adds the
+# block here, through the real binary.
+skip 'pending: docs/reference/commands.md "Errors": no other command needs the vault yet'

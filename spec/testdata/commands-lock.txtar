@@ -1,0 +1,51 @@
+# docs/reference/commands.md "Errors" and "Exit codes"
+
+# bin/git holds a clone until the directory "go" exists, so a skl stays busy for
+# as long as the script needs. Everything else goes to the real git.
+chmod 755 bin/git
+env PATH=$WORK/bin:$PATH
+remote you/skills
+
+# "One skl runs at a time on a machine, so two commands never change your vault
+# or your loaded skills at once."
+# "✗ another skl is running (pid 4182) · skl sync, once it's done"
+exec skl init you/skills &first&
+waitfile started
+exitcode 1 skl init you/skills
+stderr '^✗ another skl is running \(pid [0-9]+\) · skl sync, once it''s done$'
+! stdout .
+# --dry-run changes nothing, so it needs no lock.
+exec skl init you/skills --dry-run
+stdout '^→ new vault you/skills$'
+mkdir go
+wait first
+stderr '^✓ generation 1 · skl rollback to undo$'
+exists $HOME/.skl/vault/LICENSE
+rm go started
+
+# "Ctrl-C while skl is changing things lets it finish or undo the step it's in,
+# so your loaded skills and your vault are never left half changed."
+env SKL_HOME=$HOME/.skl-int
+! exec skl init you/skills &second&
+waitfile started
+kill -INT second
+wait second
+! stderr '✓'
+! exists $HOME/.skl-int/vault
+! exists $HOME/.skl-int/staging/vault
+! exists $HOME/.skl-int/generations
+
+# The lock went with it.
+mkdir go
+exec skl init you/skills
+stderr '^✓ generation 1 · skl rollback to undo$'
+exists $HOME/.skl-int/vault/LICENSE
+
+-- bin/git --
+#!/bin/sh
+PATH=${PATH#*:}
+if [ "$1" = clone ]; then
+	mkdir -p "$WORK/started"
+	while [ ! -d "$WORK/go" ]; do sleep 0.02; done
+fi
+exec git "$@"

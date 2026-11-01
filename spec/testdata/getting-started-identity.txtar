@@ -1,0 +1,27 @@
+# docs/guide/getting-started.md "Make your vault"
+
+# "A new vault's first commit needs your git identity. Without one, skl stops";
+# it leaves nothing behind.
+remote you/skills
+remote you/seeded seeded
+exec git config --file noid.gitconfig user.useConfigOnly true
+exec git config --file noid.gitconfig url.file://$REMOTES/github.com/.insteadOf https://github.com/
+env GIT_CONFIG_GLOBAL=$WORK/noid.gitconfig
+exitcode 1 skl init you/skills
+cmp stderr no-identity.txt
+! exists $HOME/.skl/vault
+! exists $HOME/.skl/staging/vault
+! exists $HOME/.skl/generations
+
+# "A repo with commits is cloned as your vault, with no identity needed."
+exec skl init you/seeded
+stderr '^✓ generation 1 · skl rollback to undo$'
+
+-- no-identity.txt --
+✗ git needs your name and email for skl's commits
+  · git config --global user.name "You"
+    git config --global user.email you@example.com
+-- seeded/group/skill/SKILL.md --
+---
+name: skill
+---

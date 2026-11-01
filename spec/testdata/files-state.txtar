@@ -1,0 +1,30 @@
+# docs/reference/files.md "Local state"
+
+remote you/skills
+
+# "If skl can't use state.json, it stops instead of overwriting it"
+mkdir $HOME/.skl
+cp bad.json $HOME/.skl/state.json
+exitcode 1 skl init you/skills
+stderr '^✗ can''t read ~/.skl/state.json: '
+stderr '· move it aside, then run skl status$'
+cmp $HOME/.skl/state.json bad.json
+! exists $HOME/.skl/vault
+
+cp newer.json $HOME/.skl/state.json
+exitcode 1 skl init you/skills
+cmp stderr newer.txt
+cmp $HOME/.skl/state.json newer.json
+! exists $HOME/.skl/vault
+
+# "move it aside": with state.json gone, skl runs again.
+mv $HOME/.skl/state.json $HOME/.skl/state.json.bak
+exec skl init you/skills
+stderr '^✓ generation 1 · skl rollback to undo$'
+
+-- bad.json --
+{not json
+-- newer.json --
+{"version": 999, "scopes": {}}
+-- newer.txt --
+✗ ~/.skl/state.json was written by a newer skl · update skl

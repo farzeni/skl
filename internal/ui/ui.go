@@ -26,6 +26,9 @@ type Options struct {
 	// Command is the command line as typed, such as "skl learn x". A
 	// question that can't be asked suggests it again with --yes.
 	Command string
+	// DryRun sends the plan, the → and + ~ − lines, to standard output: with
+	// --dry-run it is what was asked for.
+	DryRun bool
 }
 
 // UI prints one command's output.
@@ -33,6 +36,7 @@ type UI struct {
 	stdin       io.Reader
 	stdout      io.Writer
 	stderr      io.Writer // colorprofile.Writer: escapes are cut to what the terminal shows
+	plan        io.Writer // where → and + ~ − go: stderr, or stdout for a dry run
 	tty         io.Writer // the raw stderr, for Bubble Tea, which needs its fd and its cursor moves
 	profile     colorprofile.Profile
 	width       int
@@ -47,14 +51,19 @@ func New(o Options) *UI {
 	u := newUI(o, pickProfile(o.Stderr, o.Getenv), pickWidth(o.Stderr, o.Getenv),
 		isTerminal(o.Stdin) && isTerminal(o.Stderr))
 	u.dumb = o.Getenv("TERM") == "dumb"
+	if o.DryRun {
+		u.plan = &colorprofile.Writer{Forward: o.Stdout, Profile: pickProfile(o.Stdout, o.Getenv)}
+	}
 	return u
 }
 
 func newUI(o Options, profile colorprofile.Profile, width int, interactive bool) *UI {
+	stderr := &colorprofile.Writer{Forward: o.Stderr, Profile: profile}
 	return &UI{
 		stdin:       o.Stdin,
 		stdout:      o.Stdout,
-		stderr:      &colorprofile.Writer{Forward: o.Stderr, Profile: profile},
+		stderr:      stderr,
+		plan:        stderr,
 		tty:         o.Stderr,
 		profile:     profile,
 		width:       width,
@@ -137,7 +146,7 @@ func (u *UI) Report() io.Writer { return u.stdout }
 
 // Plan prints "→ <what skl is about to do>".
 func (u *UI) Plan(format string, a ...any) {
-	u.line(markPlan + " " + fmt.Sprintf(format, a...))
+	fmt.Fprintln(u.plan, markPlan+" "+fmt.Sprintf(format, a...))
 }
 
 // Step prints "◇ <label> <detail>", the label padded to 10 columns so the
@@ -147,7 +156,18 @@ func (u *UI) Step(label, detail string) {
 		u.line(markStep + " " + label)
 		return
 	}
-	u.line(fmt.Sprintf("%s %-10s %s", markStep, label, detail))
+	u.line(stepLine(label, detail))
+}
+
+// StepHint is Step with what to do next, after "·": on the line if it fits,
+// else on the next one.
+func (u *UI) StepHint(label, detail, hint string) {
+	mark, text, _ := strings.Cut(stepLine(label, detail), " ")
+	u.line(u.hinted(mark, text, hint))
+}
+
+func stepLine(label, detail string) string {
+	return fmt.Sprintf("%s %-10s %s", markStep, label, detail)
 }
 
 // Change prints "+ name", "~ name" or "− name", then the detail if any.
@@ -155,7 +175,7 @@ func (u *UI) Change(k Kind, name, detail string) {
 	if detail != "" {
 		name += "   " + detail
 	}
-	u.line(changeMarks[k] + " " + name)
+	fmt.Fprintln(u.plan, changeMarks[k]+" "+name)
 }
 
 // Warn prints "! <msg> · <hint>". A warning never changes the exit code.
@@ -171,13 +191,14 @@ func (u *UI) Done(msg string) { u.line(markDone + " " + msg) }
 func (u *UI) line(s string) { fmt.Fprintln(u.stderr, s) }
 
 // hinted is "<mark> <msg> · <hint>", with the hint on its own line after
-// "·" when the whole doesn't fit in the width (commands.md "Output").
+// "·" when the whole doesn't fit in the width (commands.md "Output"). A hint
+// of several lines always goes there, so its lines stay aligned.
 func (u *UI) hinted(mark, msg, hint string) string {
 	line := mark + " " + msg
 	if hint == "" {
 		return line
 	}
-	if one := line + " · " + hint; lipgloss.Width(one) <= u.width {
+	if one := line + " · " + hint; !strings.Contains(hint, "\n") && lipgloss.Width(one) <= u.width {
 		return one
 	}
 	return line + "\n  · " + hint

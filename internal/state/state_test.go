@@ -166,3 +166,21 @@ func TestCanceledContext(t *testing.T) {
 		t.Errorf("Lock: %v", err)
 	}
 }
+
+// docs/reference/files.md "Local state": "✗ can't read ~/.skl/state.json: <reason>".
+func TestLoadUnreadable(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	s, p := testStore(t)
+	if err := os.MkdirAll(filepath.Dir(p.State), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.State, []byte("{}"), 0); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.Load(context.Background())
+	if !errors.Is(err, ErrCorrupt) || !strings.HasSuffix(err.Error(), ": permission denied") {
+		t.Errorf("err = %v", err)
+	}
+}

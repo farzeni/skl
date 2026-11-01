@@ -90,7 +90,7 @@ func (c *cli) run(ctx context.Context, args []string) int {
 	in, perr := parse(args, c.knownFlags())
 	c.ui = ui.New(ui.Options{
 		Stdin: c.st.Stdin, Stdout: c.st.Stdout, Stderr: c.st.Stderr, Getenv: c.getenv,
-		Yes: in.Has("yes"), Command: ui.CommandLine(args),
+		Yes: in.Has("yes"), DryRun: in.Has("dry-run"), Command: ui.CommandLine(args),
 	})
 	var cmd *Command
 	if len(in.Args) > 0 {
