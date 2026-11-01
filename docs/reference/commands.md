@@ -130,8 +130,7 @@ Without a terminal and without `--yes`, a question stops the command before it c
 Two things always need a terminal, because the [engine](../guide/learn#who-does-the-thinking) asks you questions in them: a [lesson](../guide/learn#how-a-lesson-works) and a [sync conflict resolved with Claude](../guide/sync#with-claude). `--yes` doesn't answer them. Without a terminal, `skl learn` stops before the engine runs. `skl sync` undoes the merge, keeps your local commits, and stops:
 
 ```
-✗ conflict in sets/backend.toml needs you
-  · skl sync, in a terminal
+✗ conflict in sets/backend.toml needs you · skl sync, in a terminal
 ```
 
 ## Output

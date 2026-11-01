@@ -18,7 +18,7 @@ make check                # everything CI runs
 | `make fmt` | Format the code (gofumpt, goimports). |
 | `make golden` | Rewrite the expected output: `UPDATE=1 go test ./...`. Review the diff before you commit it. |
 | `make docs` | Build the docs site. A dead link fails the build. |
-| `make build` | Build `bin/skl`. |
+| `make build` | Build `bin/skl`, with the commit of this checkout. A plain `go build` in a git worktree under `.claude/worktrees/` stamps the main checkout's commit, because Go only takes a `.git` folder for a repo's root and a worktree's `.git` is a file. |
 
 The dev tools are pinned in `tools/go.mod`, apart from the main `go.mod`, so their dependencies never change skl's. `make` runs them with `go tool -modfile=tools/go.mod <tool>`. GoReleaser comes from your `PATH`, else `go run` at the version the Makefile pins.
 

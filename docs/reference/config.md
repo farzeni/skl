@@ -41,11 +41,13 @@ The value is one of `github`, `gitlab`, `bitbucket`, `gitea` (also Forgejo), `so
 
 Every key above the `[web]` table can be set with an environment variable: `SKL_DEFAULT_HOST`, `SKL_PROTOCOL`, `SKL_SCOPE`, `SKL_TARGETS` (comma-separated, such as `claude,agents`), `SKL_ENGINE`, `SKL_LICENSE`.
 
-A variable with a value skl can't use stops the command, naming the variable:
+A value skl can't use stops the command, naming the variable or the key:
 
 ```
 ✗ config: SKL_TARGETS can only hold claude and agents, not "cursor"
   · unset SKL_TARGETS
+✗ config: targets must be a list of target names
+  · edit targets in ~/.skl/config.toml
 ```
 
 skl also reads:
@@ -59,4 +61,4 @@ skl also reads:
 
 ## Precedence
 
-A command-line flag wins over an environment variable, which wins over the config file, which wins over the default.
+A command-line flag wins over an environment variable, which wins over the config file, which wins over the default. Only the value that wins is checked: a bad one in the file doesn't matter while a variable or a flag overrides it.

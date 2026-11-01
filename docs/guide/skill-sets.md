@@ -38,12 +38,9 @@ loaded (user)  @backend writing/changelog
   pr-review     review/pr-review    changed · skl sync
   sql-explain   data/sql-explain
   changelog     writing/changelog
-  pdf           someone/pdf         update available
-                · skl learn someone/pdf
-! review/old-name   matches no skill (in @backend)
-  · edit sets/backend.toml
-! lint   skipped: ~/.claude/skills/lint
-  is not in your vault · skl import lint
+  pdf           someone/pdf         update available · skl learn someone/pdf
+! review/old-name   matches no skill (in @backend) · edit sets/backend.toml
+! lint   skipped: ~/.claude/skills/lint is not in your vault · skl import lint
 loaded (project ~/code/prj1)  @frontend
   ui-review     frontend/ui-review  vault changed · skl sync
 not in your vault
@@ -155,16 +152,14 @@ cd ~/code/prj2 && skl use @backend --scope project
 Claude Code's docs suggest committing a repo's `.claude/skills` so the whole team gets them. A skill folder git tracks belongs to the repo: skl never changes it, and `skl status` doesn't list it. If a skill you load has its name, skl skips yours and warns:
 
 ```
-! team-style   skipped: .claude/skills/team-style
-  is committed in this repo
+! team-style   skipped: .claude/skills/team-style is committed in this repo
   · skl drop frontend/team-style --scope project
 ```
 
 To have a committed skill in your vault, learn it from the repo, so the team's later changes reach you as [updates](./learn#keep-up-with-its-author). `skl import` says so:
 
 ```
-✗ team-style is committed in this repo
-  · skl learn team/prj1/team-style
+✗ team-style is committed in this repo · skl learn team/prj1/team-style
 ```
 
 ### Keep your skills out of the repo's git
@@ -234,8 +229,7 @@ Skills you added by hand, installed with another tool such as [`npx skills`](../
 If a hand-made skill already has a name that a loaded skill needs, skl skips its own skill, loads the rest, and warns you. The command still succeeds:
 
 ```
-! pr-review   skipped: ~/.claude/skills/pr-review
-  is not in your vault
+! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
   · skl import pr-review
 ```
 

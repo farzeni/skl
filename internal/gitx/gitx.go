@@ -1,8 +1,8 @@
 // Package gitx is the only package that runs git. Every call runs the same
 // way on every host: without prompts (GIT_TERMINAL_PROMPT=0, ssh in batch
-// mode), with a timeout, logged before it runs when SKL_DEBUG=1, and with
-// git's error turned into an *Error (docs/design/architecture.md "Fetching
-// from remotes").
+// mode), with a timeout that, like Ctrl-C, stops git and all it started,
+// logged before it runs when SKL_DEBUG=1, and with git's error turned into
+// an *Error (docs/design/architecture.md "Fetching from remotes").
 package gitx
 
 import (
@@ -13,8 +13,10 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -60,7 +62,14 @@ func (g *Git) Run(ctx context.Context, dir string, args ...string) (string, erro
 }
 
 func (g *Git) run(ctx context.Context, dir string, args []string) (string, error) {
-	return g.exec(ctx, dir, args, append(baseEnv(), "GIT_SSH_COMMAND="+g.sshCommand(ctx, dir)))
+	env := baseEnv()
+	if ssh := g.sshCommand(ctx, dir); ssh != "" {
+		env = append(env, "GIT_SSH_COMMAND="+ssh)
+	} else {
+		// git would run even an empty GIT_SSH_COMMAND instead of GIT_SSH.
+		env = slices.DeleteFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "GIT_SSH_COMMAND=") })
+	}
+	return g.exec(ctx, dir, args, env)
 }
 
 // exec runs git with env as its whole environment.
@@ -81,8 +90,12 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	cmd := exec.CommandContext(tctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = env
-	// A child git started, such as ssh or a hook, may keep the pipes open
-	// after git is killed; stop waiting for it.
+	// git leads its own process group, so stopping it stops what it started,
+	// such as ssh or a credential helper, which would otherwise outlive skl.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return killGroup(cmd.Process.Pid) }
+	// A child that left the group, such as an ssh ControlMaster, may keep the
+	// pipes open; stop waiting for it.
 	cmd.WaitDelay = time.Second
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -97,7 +110,7 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	}
 	switch {
 	case ctx.Err() != nil:
-		e.err = context.Cause(ctx)
+		e.err = ctx.Err()
 	case errors.Is(context.Cause(tctx), errTimeout):
 		e.err, e.kind, e.reason = errTimeout, ErrUnreachable, "timed out"
 		e.msg = fmt.Sprintf("timed out after %s", timeout)
@@ -107,6 +120,16 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 		e.reason, e.msg, e.kind = classify(e.Stderr)
 	}
 	return "", e
+}
+
+// killGroup kills the process group that pid leads. A group with nothing
+// left to kill is ESRCH, or EPERM on macOS when only zombies remain.
+func killGroup(pid int) error {
+	err := syscall.Kill(-pid, syscall.SIGKILL)
+	if errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.EPERM) {
+		return os.ErrProcessDone
+	}
+	return err
 }
 
 // baseEnv is the process's environment plus GIT_TERMINAL_PROMPT=0, so a
@@ -119,7 +142,9 @@ func baseEnv() []string {
 // sshCommand is the ssh command git would use in dir, in batch mode, so an
 // unknown host key fails at once: the user's GIT_SSH_COMMAND, else their
 // core.sshCommand (which a GIT_SSH_COMMAND set by skl would override), else
-// plain ssh. core.sshCommand is read once per dir.
+// plain ssh. It is "" when git should run the user's GIT_SSH, which comes
+// after both in git's order and takes no options. core.sshCommand is read
+// once per dir.
 func (g *Git) sshCommand(ctx context.Context, dir string) string {
 	const batch = " -o BatchMode=yes"
 	if own := os.Getenv("GIT_SSH_COMMAND"); own != "" {
@@ -141,6 +166,9 @@ func (g *Git) sshCommand(ctx context.Context, dir string) string {
 		}
 	}
 	if cfg == "" {
+		if os.Getenv("GIT_SSH") != "" {
+			return ""
+		}
 		cfg = "ssh"
 	}
 	return cfg + batch

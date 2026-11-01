@@ -3,8 +3,8 @@
 // and computes the paths of skl's local files (paths.go).
 //
 // A flag wins over an environment variable, which wins over the file, which
-// wins over the default. Load handles the last three; the caller applies
-// flags, such as --scope with ParseScope.
+// wins over the default. Only the value that wins is checked. The caller
+// parses flags, such as --scope with ParseScope, and passes them to Load.
 package config
 
 import (
@@ -96,19 +96,38 @@ func (e *InvalidError) Hint() string {
 	}
 }
 
-// Load reads p.Config, if it exists, and the SKL_* variables over it.
-// A missing file is fine; a bad value is an *InvalidError.
-func Load(ctx context.Context, p Paths, getenv func(string) string) (Config, error) {
+// UnreadableError is a config file that exists but can't be read.
+type UnreadableError struct {
+	File string // the config file, with ~ for HOME
+	Err  error  // why, such as permission denied
+}
+
+func (e *UnreadableError) Error() string { return "can't read " + e.File + ": " + e.Err.Error() }
+func (e *UnreadableError) Unwrap() error { return e.Err }
+
+// Hint is what deals with the error.
+func (e *UnreadableError) Hint() string { return "check its permissions" }
+
+// Flags are the command-line flags that override a setting. A zero field is
+// a flag that wasn't given.
+type Flags struct {
+	Scope Scope // --scope, parsed with ParseScope
+}
+
+// Load reads p.Config, if it exists, the SKL_* variables over it and the
+// flags over those. A missing file is fine; a file skl can't read is an
+// *UnreadableError, and a bad value an *InvalidError.
+func Load(ctx context.Context, p Paths, getenv func(string) string, flags Flags) (Config, error) {
 	if err := ctx.Err(); err != nil {
 		return Config{}, err
 	}
 	shown := tilde(p.Config, getenv("HOME"))
-	var inFile map[string]string
+	var inFile map[string]any
 	data, err := os.ReadFile(p.Config)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:
-		return Config{}, fmt.Errorf("config: %w", err)
+		return Config{}, &UnreadableError{File: shown, Err: osReason(err)}
 	default:
 		if inFile, err = parseFile(data, shown); err != nil {
 			return Config{}, err
@@ -116,50 +135,74 @@ func Load(ctx context.Context, p Paths, getenv func(string) string) (Config, err
 	}
 
 	c := Default()
+	if flags.Scope != "" {
+		c.Scope = flags.Scope
+	}
 	settings := []struct {
 		key, envVar string
 		// apply sets v on c, or says what's wrong with it; name is the key
 		// or the variable v came from.
 		apply func(name, v string) string
+		// applyFile is apply for the file's value, when that isn't a string.
+		applyFile func(v any) string
+		// flagged says a flag overrides the setting.
+		flagged bool
 	}{
-		{"default_host", "SKL_DEFAULT_HOST", func(name, v string) string {
+		{key: "default_host", envVar: "SKL_DEFAULT_HOST", apply: func(name, v string) string {
 			if v == "" || strings.ContainsAny(v, "/ \t") {
 				return fmt.Sprintf("%s must be a host name such as github.com, not %q", name, v)
 			}
 			c.DefaultHost = v
 			return ""
 		}},
-		{"protocol", "SKL_PROTOCOL", func(name, v string) string {
+		{key: "protocol", envVar: "SKL_PROTOCOL", apply: func(name, v string) string {
 			if v != string(HTTPS) && v != string(SSH) {
 				return fmt.Sprintf("%s must be ssh or https, not %q", name, v)
 			}
 			c.Protocol = Protocol(v)
 			return ""
 		}},
-		{"scope", "SKL_SCOPE", func(name, v string) string {
+		{key: "scope", envVar: "SKL_SCOPE", apply: func(name, v string) string {
 			s, err := parseScope(name, v)
 			if err != nil {
 				return err.Error()
 			}
 			c.Scope = s
 			return ""
-		}},
-		{"targets", "SKL_TARGETS", func(name, v string) string {
-			ts, reason := parseTargets(name, v)
+		}, flagged: flags.Scope != ""},
+		{key: "targets", envVar: "SKL_TARGETS", apply: func(name, v string) string {
+			// Comma-separated; empty items are skipped.
+			var names []string
+			for w := range strings.SplitSeq(v, ",") {
+				if w = strings.TrimSpace(w); w != "" {
+					names = append(names, w)
+				}
+			}
+			ts, reason := parseTargets(name, names)
+			if reason == "" {
+				c.Targets = ts
+			}
+			return reason
+		}, applyFile: func(v any) string {
+			names, ok := stringList(v)
+			if !ok {
+				return "targets must be a list of target names"
+			}
+			ts, reason := parseTargets("targets", names)
 			if reason == "" {
 				c.Targets = ts
 			}
 			return reason
 		}},
-		{"engine", "SKL_ENGINE", func(name, v string) string {
+		{key: "engine", envVar: "SKL_ENGINE", apply: func(name, v string) string {
 			if strings.TrimSpace(v) == "" {
 				return name + " is empty"
 			}
 			c.Engine = v
 			return ""
 		}},
-		{"license", "SKL_LICENSE", func(name, v string) string {
-			if v != "none" && !spdxID.MatchString(v) {
+		{key: "license", envVar: "SKL_LICENSE", apply: func(name, v string) string {
+			if v != "none" && (!spdxID.MatchString(v) || notALicense(v)) {
 				return fmt.Sprintf("%s must be an SPDX id such as MIT, or none, not %q", name, v)
 			}
 			c.License = v
@@ -167,36 +210,53 @@ func Load(ctx context.Context, p Paths, getenv func(string) string) (Config, err
 		}},
 	}
 	for _, s := range settings {
-		// An empty variable counts as unset.
-		name, v := s.envVar, getenv(s.envVar)
-		if v == "" {
-			fv, ok := inFile[s.key]
-			if !ok {
-				continue
-			}
-			name, v = s.key, fv
+		if s.flagged {
+			continue
 		}
-		if reason := s.apply(name, v); reason != "" {
-			ie := &InvalidError{Key: s.key, File: shown, Reason: reason}
-			if name == s.envVar {
-				ie.Var = s.envVar
+		// An empty variable counts as unset.
+		if v := getenv(s.envVar); v != "" {
+			if why := s.apply(s.envVar, v); why != "" {
+				return Config{}, &InvalidError{Key: s.key, Var: s.envVar, File: shown, Reason: why}
 			}
-			return Config{}, ie
+			continue
+		}
+		v, ok := inFile[s.key]
+		if !ok {
+			continue
+		}
+		var why string
+		switch str, isStr := v.(string); {
+		case s.applyFile != nil:
+			why = s.applyFile(v)
+		case isStr:
+			why = s.apply(s.key, str)
+		default:
+			why = s.key + " must be a string in quotes, not " + tomlValue(v)
+		}
+		if why != "" {
+			return Config{}, &InvalidError{Key: s.key, File: shown, Reason: why}
 		}
 	}
 	return c, nil
 }
 
-// parseTargets reads a comma-separated list of targets, in order, without
-// repeats. Empty items are skipped, but the list can't be empty.
-func parseTargets(name, v string) ([]Target, string) {
+// osReason is err without the operation and path os puts around it.
+func osReason(err error) error {
+	if pe, ok := errors.AsType[*fs.PathError](err); ok {
+		return pe.Err
+	}
+	return err
+}
+
+// parseTargets checks a list of target names and returns it in order,
+// without repeats. The list can't be empty.
+func parseTargets(name string, names []string) ([]Target, string) {
 	var ts []Target
-	for w := range strings.SplitSeq(v, ",") {
-		t := Target(strings.TrimSpace(w))
+	for _, n := range names {
+		t := Target(n)
 		switch {
-		case t == "":
 		case t != Claude && t != Agents:
-			return nil, fmt.Sprintf("%s can only hold claude and agents, not %q", name, t)
+			return nil, fmt.Sprintf("%s can only hold claude and agents, not %q", name, n)
 		case !slices.Contains(ts, t):
 			ts = append(ts, t)
 		}
@@ -207,10 +267,31 @@ func parseTargets(name, v string) ([]Target, string) {
 	return ts, ""
 }
 
+// stringList is v as a list of strings, if it is one.
+func stringList(v any) ([]string, bool) {
+	list, ok := v.([]any)
+	if !ok {
+		return nil, false
+	}
+	names := make([]string, len(list))
+	for i, e := range list {
+		if names[i], ok = e.(string); !ok {
+			return nil, false
+		}
+	}
+	return names, true
+}
+
 // spdxID is the shape of an SPDX license id, such as Apache-2.0 or
 // GPL-3.0-or-later; LGPL-2.1+ is an older form still in use. Whether skl
 // knows the license's text is a question for skl init.
 var spdxID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]*\+?$`)
+
+// notALicense reports the words that have an SPDX id's shape but say there
+// is no license. "none", in lower case, is the setting for that.
+func notALicense(v string) bool {
+	return strings.EqualFold(v, "none") || strings.EqualFold(v, "noassertion")
+}
 
 // ParseScope checks a --scope value.
 func ParseScope(v string) (Scope, error) { return parseScope("scope", v) }
@@ -222,11 +303,10 @@ func parseScope(name, v string) (Scope, error) {
 	return "", fmt.Errorf("%s must be user or project, not %q", name, v)
 }
 
-// parseFile reads the keys core owns from config.toml, as strings; targets
-// becomes a comma-separated list, like SKL_TARGETS. Other keys and tables,
-// such as [web] or a third-party part's table, are left alone: core ignores
-// what it doesn't own.
-func parseFile(data []byte, shown string) (map[string]string, error) {
+// parseFile decodes config.toml. Load picks the keys core owns; other keys
+// and tables, such as [web] or a third-party part's table, are left alone:
+// core ignores what it doesn't own.
+func parseFile(data []byte, shown string) (map[string]any, error) {
 	var raw map[string]any
 	if _, err := toml.Decode(string(data), &raw); err != nil {
 		reason := shown + ": " + err.Error()
@@ -235,32 +315,7 @@ func parseFile(data []byte, shown string) (map[string]string, error) {
 		}
 		return nil, &InvalidError{File: shown, Reason: reason}
 	}
-	out := map[string]string{}
-	for _, key := range []string{"default_host", "protocol", "scope", "engine", "license"} {
-		v, ok := raw[key]
-		if !ok {
-			continue
-		}
-		s, ok := v.(string)
-		if !ok {
-			return nil, &InvalidError{Key: key, File: shown, Reason: key + " must be a string in quotes, not " + tomlValue(v)}
-		}
-		out[key] = s
-	}
-	if v, ok := raw["targets"]; ok {
-		list, isList := v.([]any)
-		names := make([]string, 0, len(list))
-		for _, t := range list {
-			if s, ok := t.(string); ok {
-				names = append(names, s)
-			}
-		}
-		if !isList || len(names) != len(list) {
-			return nil, &InvalidError{Key: "targets", File: shown, Reason: `targets must be a list such as ["claude", "agents"], not ` + tomlValue(v)}
-		}
-		out["targets"] = strings.Join(names, ",")
-	}
-	return out, nil
+	return raw, nil
 }
 
 // tomlValue shows a decoded value roughly as it was written.
@@ -274,6 +329,8 @@ func tomlValue(v any) string {
 			parts[i] = tomlValue(e)
 		}
 		return "[" + strings.Join(parts, ", ") + "]"
+	case map[string]any, []map[string]any:
+		return "a table"
 	default:
 		return fmt.Sprint(v)
 	}

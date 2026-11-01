@@ -96,8 +96,7 @@ skl learn someone/agent-skills/docx "only the tables part"
 
 ```
   someone/pdf   update available · skl learn someone/pdf
-  data/csv      update available · you changed it
-                · skl learn data/csv
+  data/csv      update available · you changed it · skl learn data/csv
 ```
 
 To take an update, give `learn` only your skill:
@@ -216,8 +215,7 @@ skl splits the line into words at spaces, keeping text in double quotes together
 A line skl can't use stops the lesson before anything starts:
 
 ```
-✗ engine: unknown placeholder {promt}
-  · edit engine in ~/.skl/config.toml
+✗ engine: unknown placeholder {promt} · edit engine in ~/.skl/config.toml
 ```
 
 The same goes for an unclosed quote or a command that isn't on your `PATH`. The examples above aren't tested yet: they are checked before lessons ship in v0.3, see [Roadmap](../design/roadmap).
