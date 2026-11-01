@@ -73,7 +73,7 @@ skl runs git and behaves the same on every host.
 - A git that may sign or run a hook, such as `git commit`, keeps your terminal, so gpg can ask for a passphrase, and it has no timeout; Ctrl-C reaches it through the terminal.
 - Any other local git, such as `git status`, has no timeout and doesn't share your terminal: Ctrl-C stops it only if the step it's in can stop.
 - The update check reads at most 8 repos at once, and each git call times out after 30 seconds. A source that can't be reached is a `!` line, and the check goes on with the others.
-- [`SKL_DEBUG=1`](../reference/config#environment-variables) prints each git and engine command before it runs.
+- [`SKL_DEBUG=1`](../reference/config#environment-variables) prints each git and engine command before it runs, and skl's internal diagnostics.
 
 ## Learn engine
 

@@ -48,7 +48,7 @@ tools/            go.mod pinning golangci-lint, gofumpt, govulncheck
 
 **Output.** Only `ui` writes to the terminal. What the user asked for (a report, `--json`, a `--dry-run` plan, help) goes to stdout; marks and questions go to stderr. The width is the terminal's, else `COLUMNS`, else 80; a hint that doesn't fit moves to the next line after `·`. Every message uses the vocabulary in `docs/reference/commands.md` "Output".
 
-**Logging.** `log/slog` on stderr, only with `SKL_DEBUG=1`. `gitx` logs each git command before it runs. There is no other logging.
+**Logging.** `log/slog` on stderr, only with `SKL_DEBUG=1`. `gitx` logs each git command before it runs. `state` logs a problem it works around: a folder sync the filesystem refused, a leftover temp file it removed or couldn't remove. There is no other logging.
 
 **State.** No global mutable state and no `init()`, except the `ext` registry and `thirdparty/` parts that register with it. Read-only tables are fine. Dependencies such as the streams, config and clock are passed in.
 

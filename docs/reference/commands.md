@@ -210,7 +210,7 @@ A command that changes nothing makes no generation and ends with `✓ nothing to
 }
 ```
 
-To see the git and engine commands skl runs, set `SKL_DEBUG=1`: each one is printed to standard error before it runs.
+To see the git and engine commands skl runs, set `SKL_DEBUG=1`: each one is printed to standard error before it runs. skl's [internal diagnostics](./config#environment-variables) are printed there too.
 
 ## Exit codes
 

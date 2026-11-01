@@ -62,7 +62,7 @@ skl also reads:
 | Variable | Effect |
 |---|---|
 | `SKL_HOME` | Moves the whole `~/.skl` folder, config file included. Useful in CI or for keeping separate setups. |
-| `SKL_DEBUG` | Set to `1` to print each git and engine command skl runs, on standard error. |
+| `SKL_DEBUG` | Set to `1` to print each git and engine command skl runs, on standard error. It also prints skl's internal diagnostics, such as a state file problem it works around: a folder sync the filesystem refused, leftover temp files removed. |
 | `NO_COLOR` | Set to anything to turn color off. `TERM=dumb` does the same. See [Output](./commands#output). |
 | `BROWSER` | The browser [`skl open`](./repos#web-pages) starts, instead of the system's default. |
 
