@@ -219,6 +219,12 @@ A selector that names one skill in a group, or one skill set, finds it like this
 - **A folder name and a frontmatter name:** the folder name wins. `data/PDF` picks the folder `data/pdf` over `data/reader` with `name: PDF`.
 - **Skill sets** match in any case or form, so `@BASE` loads `base.toml`. An exact name selects that file. With `Dup.toml` and `dup.toml`, `@dup` selects the second, and `@DUP` stops and lists both.
 
+Loading a whole group stops if two skills in it clash, such as `data/PDF` and `data/pdf`, or two skills with the same frontmatter `name`. This goes for `skl use data` and for a line `data` in a named skill set. skl lists both, loads nothing and [exits with `1`](../reference/commands#exit-codes):
+
+```
+✗ data/PDF and data/pdf have the same name · rename one in your vault
+```
+
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
 ```sh
