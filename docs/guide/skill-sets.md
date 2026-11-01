@@ -208,7 +208,7 @@ skl copies a skill as it is. Frontmatter fields that only Claude Code knows, suc
 
 ## Names and clashes
 
-Claude Code reads skills from one flat folder, so skl copies each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`, and `~/.agents/skills/pr-review` for the `agents` target. Two skills clash when they have the same folder name or the same `name` in their `SKILL.md` frontmatter.
+Claude Code reads skills from one flat folder, so skl copies each skill under its folder name: `review/pr-review` becomes `~/.claude/skills/pr-review`, and `~/.agents/skills/pr-review` for the `agents` target. A skill's names are its folder name and the `name` in its `SKILL.md` frontmatter. Two skills clash when they share a name, so `a/x` and `b/y` with `name: x` clash.
 
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
@@ -219,6 +219,14 @@ skl use review someone/pr-review
 ```
   ~ pr-review   someone/pr-review replaces review/pr-review
 ```
+
+Removals apply before clashes are settled, so a skill you removed replaces nothing. If `@backend` holds `review` and `someone/pr-review`, this keeps `review/pr-review` loaded, with no `~` line:
+
+```sh
+skl use @backend -someone/pr-review
+```
+
+A skill loses a clash only to a later skill that stays loaded, so every `~` line is a real replacement.
 
 Claude Code prefers a user skill to a project skill with the same name. When a skill you loaded with `--scope project` is hidden that way, `skl status` warns about it.
 
