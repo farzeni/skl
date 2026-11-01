@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/farzeni/skl/internal/gitx"
-	"github.com/farzeni/skl/internal/selector"
 )
 
 var (
@@ -173,44 +172,15 @@ type Counts struct{ Groups, Skills, Sets int }
 // SKILL.md is a skill." A folder with no skill isn't counted as a group, and a
 // SKILL.md at any other depth is ignored.
 func (v *Vault) Count(ctx context.Context) (Counts, error) {
-	var c Counts
-	top, err := os.ReadDir(v.dir)
+	idx, err := v.Index(ctx)
 	if err != nil {
-		return c, fmt.Errorf("vault: %w", err)
+		return Counts{}, err
 	}
-	for _, g := range top {
-		if err := ctx.Err(); err != nil {
-			return c, err
-		}
-		if !g.IsDir() || selector.ReservedGroup(g.Name()) || strings.HasPrefix(g.Name(), ".") {
-			continue
-		}
-		skills, err := os.ReadDir(filepath.Join(v.dir, g.Name()))
-		if err != nil {
-			return c, fmt.Errorf("vault: %w", err)
-		}
-		found := 0
-		for _, s := range skills {
-			if !s.IsDir() {
-				continue
-			}
-			if _, err := os.Stat(filepath.Join(v.dir, g.Name(), s.Name(), "SKILL.md")); err == nil {
-				found++
-			}
-		}
-		if found > 0 {
+	c := Counts{Sets: len(idx.Sets())}
+	for _, g := range idx.Groups() {
+		if n := len(idx.Skills(g)); n > 0 {
 			c.Groups++
-			c.Skills += found
-		}
-	}
-	sets, err := os.ReadDir(filepath.Join(v.dir, "sets"))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return c, fmt.Errorf("vault: %w", err)
-	}
-	for _, s := range sets {
-		name := s.Name()
-		if !s.IsDir() && strings.HasSuffix(name, ".toml") && !strings.HasSuffix(name, ".origin.toml") {
-			c.Sets++
+			c.Skills += n
 		}
 	}
 	return c, nil
