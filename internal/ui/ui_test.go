@@ -262,3 +262,53 @@ func TestDryRunPlanGoesToStdout(t *testing.T) {
 		t.Errorf("stderr = %q, want %q", got, want)
 	}
 }
+
+// What comes from a vault can be someone else's, and reaches the terminal as text.
+func TestClean(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"plain", "plain"},
+		{"keeps   three spaces", "keeps   three spaces"},
+		{"a\x1b[31mred\x1b[m", "ared"},
+		{"title\x1b]0;owned\x07end", "titleend"},
+		{"bell\x07", "bell"},
+		{"two\nlines\r\tthree", "two lines  three"},
+		{"sep line", "sep line"},
+		{"rtl‮override", "rtloverride"},
+		{"café", "café"},
+		{"bad\xffutf8", "bad�utf8"},
+	}
+	for _, tt := range tests {
+		if got := Clean(tt.in); got != tt.want {
+			t.Errorf("Clean(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestNamesShareALineUpToTheWidth(t *testing.T) {
+	var out strings.Builder
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out}, colorprofile.NoTTY, 20, false)
+	u.Names(Loaded, []string{"aaaaa", "bbbbb", "ccccc"})
+	u.Names(Loaded, nil)
+	if want := "+ aaaaa   + bbbbb\n+ ccccc\n"; out.String() != want {
+		t.Errorf("got %q, want %q", out.String(), want)
+	}
+}
+
+func TestEveryLineIsCleaned(t *testing.T) {
+	var out strings.Builder
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out}, colorprofile.NoTTY, 200, false)
+	evil := "x\x1b[2Jy\nz"
+	u.Plan("%s", evil)
+	u.Step(evil, evil)
+	u.Change(Loaded, evil, evil)
+	u.Names(Loaded, []string{evil})
+	u.Warn(evil, evil)
+	u.Error(evil, evil)
+	u.Done(evil)
+	if strings.Contains(out.String(), "\x1b") || strings.Contains(out.String(), "[2J") {
+		t.Errorf("an escape got through: %q", out.String())
+	}
+	if lines := strings.Count(out.String(), "\n"); lines > 9 {
+		t.Errorf("%d lines: %q", lines, out.String())
+	}
+}

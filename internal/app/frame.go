@@ -22,6 +22,9 @@ type Change struct {
 	// Undo, if the body sets it, takes the change back when no generation can be
 	// made for it, so the command can simply run again.
 	Undo func()
+	// Cleanup, if the body sets it, runs once the command is over, however it ended,
+	// while the lock is still held.
+	Cleanup func()
 }
 
 // Body is a command's own work. It returns whether it changed anything: if not,
@@ -92,6 +95,11 @@ func (a *App) locked(ctx context.Context, command string, body Body) error {
 		return a.stateError(err)
 	}
 	c := &Change{Lock: lock, State: st}
+	defer func() {
+		if c.Cleanup != nil {
+			c.Cleanup()
+		}
+	}()
 	changed, err := body(ctx, c)
 	if err != nil {
 		return err

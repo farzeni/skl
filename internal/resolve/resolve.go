@@ -108,6 +108,27 @@ func (e *CycleError) Error() string {
 	return fmt.Sprintf("skill set @%s includes itself: @%s", e.Cycle[0], strings.Join(e.Cycle, " → @"))
 }
 
+// SetLineError is a line of a named skill set that can't be used.
+type SetLineError struct {
+	Set string // the set that holds the line, as named
+	Err error
+}
+
+func (e *SetLineError) Error() string { return "@" + e.Set + ": " + e.Err.Error() }
+
+func (e *SetLineError) Unwrap() error { return e.Err }
+
+// ClashError is two skills that one group selector selected and that share a name.
+// Nothing on the command line says which one is meant, and the disk may hold them
+// as one folder, so skl stops.
+type ClashError struct {
+	A, B Skill
+}
+
+func (e *ClashError) Error() string {
+	return e.A.String() + " and " + e.B.String() + " have the same name"
+}
+
 // AmbiguousGroupError is a selector whose group matches two or more vault
 // groups that differ only by case or Unicode form.
 type AmbiguousGroupError struct {
@@ -145,6 +166,9 @@ func Resolve(sels []selector.Selector, idx Index) (Result, error) {
 	if err := r.apply(sels, ""); err != nil {
 		return Result{}, err
 	}
+	if err := sameSelector(r.selected); err != nil {
+		return Result{}, err
+	}
 	res := settle(r.selected)
 	res.Warnings = r.warnings
 	return res, nil
@@ -153,10 +177,13 @@ func Resolve(sels []selector.Selector, idx Index) (Result, error) {
 // selection is a selected skill, its folded names and when it was last selected.
 // A skill selected again keeps its place in the list, and counts as selected then
 // in a clash. Settling compares every pair, so the names are folded only here.
+// group is the group selector that last selected it, counted from 1, or 0 if a
+// selector named it on its own.
 type selection struct {
 	skill Skill
 	names names
 	last  int
+	group int
 }
 
 func (s selection) clashes(o selection) bool { return s.names.clashes(o.names) }
@@ -166,6 +193,7 @@ type resolver struct {
 	selected []selection
 	warnings []Warning
 	count    int      // selections so far
+	groups   int      // group selectors applied so far
 	stack    []string // the sets being expanded, outermost first
 }
 
@@ -181,13 +209,18 @@ func (r *resolver) apply(sels []selector.Selector, in string) error {
 		}
 		skills, err := r.match(sel, in)
 		if err != nil {
-			return err
+			return inSet(err, in)
+		}
+		group := 0
+		if sel.Kind == selector.Group && !sel.Remove {
+			r.groups++
+			group = r.groups
 		}
 		for _, s := range skills {
 			if sel.Remove {
 				r.remove(s)
 			} else {
-				r.add(s)
+				r.add(s, group)
 			}
 		}
 	}
@@ -197,7 +230,8 @@ func (r *resolver) apply(sels []selector.Selector, in string) error {
 // applySet applies a set's lines in place of @name. -@name removes what the
 // set selects on its own, which is what the rest of the selector names.
 func (r *resolver) applySet(sel selector.Selector, in string) error {
-	if i := slices.Index(r.stack, sel.Name); i >= 0 {
+	want := selector.Fold(sel.Name)
+	if i := slices.IndexFunc(r.stack, func(s string) bool { return selector.Fold(s) == want }); i >= 0 {
 		return &CycleError{Cycle: append(slices.Clone(r.stack[i:]), sel.Name)}
 	}
 	lines, err := r.idx.Set(sel.Name)
@@ -206,12 +240,12 @@ func (r *resolver) applySet(sel selector.Selector, in string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("@%s: %w", sel.Name, err)
+		return inSet(err, in)
 	}
 	sels := make([]selector.Selector, len(lines))
 	for i, line := range lines {
 		if sels[i], err = selector.Parse(line); err != nil {
-			return fmt.Errorf("@%s: %w", sel.Name, err)
+			return inSet(err, sel.Name)
 		}
 	}
 
@@ -229,6 +263,15 @@ func (r *resolver) applySet(sel selector.Selector, in string) error {
 		r.remove(o.skill)
 	}
 	return nil
+}
+
+// inSet says which set holds the line that failed; in is empty for the command's
+// own words.
+func inSet(err error, in string) error {
+	if in == "" {
+		return err
+	}
+	return &SetLineError{Set: in, Err: err}
 }
 
 // match returns the skills a group or skill selector names, and warns if
@@ -326,17 +369,31 @@ func (r *resolver) warn(sel selector.Selector, problem Problem, in, suggest stri
 	}
 }
 
-func (r *resolver) add(s Skill) {
+func (r *resolver) add(s Skill, group int) {
 	r.count++
 	if i := slices.IndexFunc(r.selected, func(o selection) bool { return o.skill == s }); i >= 0 {
 		r.selected[i].last = r.count
+		r.selected[i].group = group
 		return
 	}
-	r.selected = append(r.selected, selection{skill: s, names: foldNames(s), last: r.count})
+	r.selected = append(r.selected, selection{skill: s, names: foldNames(s), last: r.count, group: group})
 }
 
 func (r *resolver) remove(s Skill) {
 	r.selected = slices.DeleteFunc(r.selected, func(o selection) bool { return o.skill == s })
+}
+
+// sameSelector finds two skills left selected by one group selector that clash.
+// It runs after the removals: skl use data -data/PDF says which one is meant.
+func sameSelector(selected []selection) error {
+	for i, a := range selected {
+		for _, b := range selected[i+1:] {
+			if a.group != 0 && a.group == b.group && a.clashes(b) {
+				return &ClashError{A: a.skill, B: b.skill}
+			}
+		}
+	}
+	return nil
 }
 
 // settle resolves clashes: going from the last selected to the first, a skill

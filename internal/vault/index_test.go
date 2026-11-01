@@ -437,7 +437,7 @@ func TestIndexSetClash(t *testing.T) {
 	if !errors.As(err, &amb) || !reflect.DeepEqual(amb.Sets, []string{"Dup", "dup"}) {
 		t.Fatalf("Set(DUP) = %v, want both", err)
 	}
-	if want := "DUP matches 2 skill sets: @Dup, @dup"; err.Error() != want {
+	if want := "@DUP matches 2 skill sets: @Dup, @dup"; err.Error() != want {
 		t.Errorf("message = %q, want %q", err, want)
 	}
 }

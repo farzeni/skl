@@ -23,7 +23,9 @@ func TestResolveFoldedClash(t *testing.T) {
 		{"frontmatter names differ by case", "a/y b/x", []string{"b/x"}, []string{"b/x replaces a/y"}, []string{"a/y=CAFÉ", "b/x=caf\u00e9"}},
 		{"a folder and a frontmatter name differ by case", "a/caf\u00e9 b/x", []string{"b/x"}, []string{"b/x replaces a/caf\u00e9"}, []string{"a/caf\u00e9", "b/x=CAFÉ"}},
 		{"a frontmatter name and a folder differ by case", "b/x a/caf\u00e9", []string{"a/caf\u00e9"}, []string{"a/caf\u00e9 replaces b/x"}, []string{"a/caf\u00e9", "b/x=CAFÉ"}},
-		{"a whole group with one name twice", "g", []string{"g/pdf"}, []string{"g/pdf replaces g/PDF"}, []string{"g/PDF", "g/pdf"}},
+		{"two of one group, each named", "g/PDF g/pdf", []string{"g/pdf"}, []string{"g/pdf replaces g/PDF"}, []string{"g/PDF", "g/pdf"}},
+		{"a group then one of its skills", "g g/PDF", []string{"g/PDF"}, []string{"g/PDF replaces g/pdf"}, []string{"g/PDF", "g/pdf"}},
+		{"a removal settles a group", "g -g/PDF", []string{"g/pdf"}, nil, []string{"g/PDF", "g/pdf"}},
 		{"ß and SS", "a/straße b/STRASSE", []string{"b/STRASSE"}, []string{"b/STRASSE replaces a/straße"}, []string{"a/straße", "b/STRASSE"}},
 		{"dotless i is its own letter", "a/ı b/I", []string{"a/ı", "b/I"}, nil, []string{"a/ı", "b/I"}},
 		{"a removal comes before the clash", "low/PDF2 Up/pdf2 -up/PDF2", []string{"low/PDF2"}, nil, []string{"low/PDF2", "Up/pdf2"}},
@@ -112,8 +114,8 @@ func TestResolveAmbiguousSkill(t *testing.T) {
 		{"n/NOM", "n/NOM", []Skill{{Group: "n", Folder: "a", Name: "Nom"}, {Group: "n", Folder: "b", Name: "nom"}}, "n/NOM matches 2 skills: n/a, n/b"},
 		{"n/nom", "n/nom", []Skill{{Group: "n", Folder: "a", Name: "Nom"}, {Group: "n", Folder: "b", Name: "nom"}}, "n/nom matches 2 skills: n/a, n/b"},
 		{"n/same", "n/same", []Skill{{Group: "n", Folder: "c", Name: "same"}, {Group: "n", Folder: "d", Name: "same"}}, "n/same matches 2 skills: n/c, n/d"},
-		{"@s", "g/Pdf", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "g/Pdf matches 2 skills: g/PDF, g/pdf"},
-		{"-@s", "g/Pdf", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "g/Pdf matches 2 skills: g/PDF, g/pdf"},
+		{"@s", "g/Pdf", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "@s: g/Pdf matches 2 skills: g/PDF, g/pdf"},
+		{"-@s", "g/Pdf", []Skill{{Group: "g", Folder: "PDF"}, {Group: "g", Folder: "pdf"}}, "@s: g/Pdf matches 2 skills: g/PDF, g/pdf"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.words, func(t *testing.T) {
@@ -194,5 +196,41 @@ func BenchmarkResolve(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// PR #102, the user's decision: a group selector that covers two skills that clash
+// stops the command and lists both, whichever name they share.
+func TestResolveOneGroupClash(t *testing.T) {
+	tests := []struct {
+		name, words string
+		vault       []string
+		a, b        string
+	}{
+		{"folders by case", "g", []string{"g/PDF", "g/pdf"}, "g/PDF", "g/pdf"},
+		{"a frontmatter name", "g", []string{"g/a=x", "g/b=x"}, "g/a", "g/b"},
+		{"a folder and a frontmatter name", "g", []string{"g/a=x", "g/x"}, "g/a", "g/x"},
+		{"through a set", "@s", []string{"g/PDF", "g/pdf"}, "g/PDF", "g/pdf"},
+		{"selected twice", "g g", []string{"g/PDF", "g/pdf"}, "g/PDF", "g/pdf"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			idx := index{skills: tt.vault, sets: map[string][]string{"s": {"g"}}}
+			_, err := Resolve(parse(t, tt.words), idx)
+			var ce *ClashError
+			if !errors.As(err, &ce) || ce.A.String() != tt.a || ce.B.String() != tt.b {
+				t.Fatalf("Resolve(%q) = %v, want %s and %s", tt.words, err, tt.a, tt.b)
+			}
+			if want := tt.a + " and " + tt.b + " have the same name"; err.Error() != want {
+				t.Errorf("message = %q, want %q", err, want)
+			}
+		})
+	}
+	// Removing the whole group needs no choice, and two groups keep "the later wins".
+	for _, words := range []string{"g -g", "-g", "other g/PDF"} {
+		idx := index{skills: []string{"g/PDF", "g/pdf", "other/pdf"}}
+		if _, err := Resolve(parse(t, words), idx); err != nil {
+			t.Errorf("Resolve(%q) = %v", words, err)
+		}
 	}
 }

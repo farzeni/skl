@@ -44,6 +44,10 @@ type Warning struct {
 // Message returns the warning without a hint: "review/x/SKILL.md   no frontmatter".
 func (w Warning) Message() string { return w.Path + "   " + w.Reason }
 
+// BadName reports a folder or file skipped for its name, as opposed to a skill that
+// loads with something wrong in it.
+func (w Warning) BadName() bool { return w.Reason == badNameReason }
+
 // SetError is a named skill set whose file can't be used.
 type SetError struct {
 	File string // from the vault's root: sets/<name>.toml
@@ -62,7 +66,7 @@ type AmbiguousSetError struct {
 }
 
 func (e *AmbiguousSetError) Error() string {
-	return fmt.Sprintf("%s matches %d skill sets: @%s", e.Name, len(e.Sets), strings.Join(e.Sets, ", @"))
+	return fmt.Sprintf("@%s matches %d skill sets: @%s", e.Name, len(e.Sets), strings.Join(e.Sets, ", @"))
 }
 
 // Index reads the vault's folder: every top-level folder except the reserved
@@ -129,7 +133,7 @@ func (i *Index) Set(name string) ([]string, error) {
 	file := "sets/" + found + ".toml"
 	lines, err := readSet(filepath.Join(i.dir, filepath.FromSlash(file)))
 	if err != nil {
-		return nil, &SetError{File: file, Err: err}
+		return nil, &SetError{File: file, Err: readable(err)}
 	}
 	return lines, nil
 }
@@ -190,7 +194,7 @@ func (i *Index) readSkill(group, folder string) {
 	}
 	skill := resolve.Skill{Group: group, Folder: folder}
 	if err == nil {
-		var fm frontmatter
+		var fm Frontmatter
 		if fm, err = readFrontmatter(file); err == nil {
 			skill.Name = fm.Name
 			if fm.Description != "" {
@@ -233,15 +237,23 @@ func (i *Index) warn(rel, reason string) {
 }
 
 // warnName skips a name that can't be typed, printed or compared.
-func (i *Index) warnName(rel string) { i.warn(rel, "skipped: the name isn't valid UTF-8") }
+func (i *Index) warnName(rel string) { i.warn(rel, badNameReason) }
+
+const badNameReason = "skipped: the name isn't valid UTF-8"
 
 // oneLine fits an error from a parser on a warning's one line, and drops the
 // absolute path a read error starts with: Warning.Path says where.
 func oneLine(err error) string {
+	return strings.Join(strings.Fields(readable(err).Error()), " ")
+}
+
+// readable drops the absolute path a read error starts with, for a message that
+// already says which file.
+func readable(err error) error {
 	if pe, ok := errors.AsType[*fs.PathError](err); ok {
-		err = fmt.Errorf("can't read it: %w", pe.Err)
+		return fmt.Errorf("can't read it: %w", pe.Err)
 	}
-	return strings.Join(strings.Fields(err.Error()), " ")
+	return err
 }
 
 // readSet reads a set file's select list. A missing one is an error, not an empty
@@ -269,24 +281,24 @@ func readSet(file string) ([]string, error) {
 
 const skillFile = "SKILL.md"
 
-// frontmatter is what skl reads from the YAML at the top of a SKILL.md.
-type frontmatter struct {
+// Frontmatter is what skl reads from the YAML at the top of a SKILL.md.
+type Frontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 }
 
-func readFrontmatter(file string) (frontmatter, error) {
+func readFrontmatter(file string) (Frontmatter, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
-		return frontmatter{}, err
+		return Frontmatter{}, err
 	}
-	return parseFrontmatter(data)
+	return ParseFrontmatter(data)
 }
 
-// parseFrontmatter reads the YAML between a first line of --- and the next line
+// ParseFrontmatter reads the YAML between a first line of --- and the next line
 // of ---, whatever follows them. Other fields are left alone, but they must parse.
-func parseFrontmatter(data []byte) (frontmatter, error) {
-	var fm frontmatter
+func ParseFrontmatter(data []byte) (Frontmatter, error) {
+	var fm Frontmatter
 	data = bytes.TrimPrefix(data, []byte("\uFEFF"))
 	first, rest, _ := bytes.Cut(data, []byte("\n"))
 	if !isFence(first) {
@@ -296,7 +308,7 @@ func parseFrontmatter(data []byte) (frontmatter, error) {
 	for line := range bytes.Lines(rest) {
 		if isFence(line) {
 			if err := yaml.Unmarshal(head, &fm); err != nil {
-				return frontmatter{}, fmt.Errorf("invalid frontmatter: %w", err)
+				return Frontmatter{}, fmt.Errorf("invalid frontmatter: %w", err)
 			}
 			return fm, nil
 		}

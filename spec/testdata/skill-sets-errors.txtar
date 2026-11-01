@@ -1,0 +1,253 @@
+# docs/guide/skill-sets.md "Names and clashes", docs/reference/repos.md "Grammar",
+# and what the commands print from a vault that can hold anything
+
+remote you/skills seed
+exec skl init you/skills
+stderr '^◇ cloned'
+symlink $HOME/.skl/vault/sets/dangling.toml -> $WORK/nowhere
+exec sh -c 'mkdir "$HOME/.skl/vault/evil"; d="$HOME/.skl/vault/evil/$(printf "a\033[31mred\nnext")"; mkdir "$d"; printf "description: x\n" > "$d/SKILL.md"'
+
+# "Loading a whole group stops if two skills in it clash ... skl lists both, loads
+# nothing and exits with 1"
+exitcode 1 skl use data
+cmp stderr group-clash.txt
+! exists $HOME/.claude/skills
+! exists $HOME/.skl/state.json
+# "This goes for skl use data and for a line data in a named skill set."
+exitcode 1 skl use @hasdata
+cmp stderr group-clash.txt
+# "or two skills with the same frontmatter name"
+exitcode 1 skl use shared
+cmp stderr shared-clash.txt
+# Removals come first, so a removal says which one you mean.
+# "A removal still applies before the clash is settled"
+exec skl use data -data/PDF
+exists $HOME/.claude/skills/pdf
+! exists $HOME/.claude/skills/PDF
+# A group that clashes can still be dropped.
+exec skl use review/a
+exec skl add data/pdf
+exec skl drop data/pdf
+exec skl use review/a
+
+# "With data/PDF and data/pdf, data/pdf selects the second, and data/Pdf stops and
+# lists both."
+exitcode 1 skl add data/Pdf
+cmp stderr ambiguous-skill.txt
+# "Group names clash the same way: Review and review make a selector ambiguous, so
+# skl stops and lists both"
+exitcode 1 skl add dup/x
+cmp stderr ambiguous-group.txt
+
+# "With Dup.toml and dup.toml, @dup selects the second, and @DUP stops and lists both."
+exitcode 1 skl add @DUP
+cmp stderr ambiguous-set.txt
+# "@BASE loads base.toml"
+exec skl add @BASE
+exists $HOME/.claude/skills/b
+exec skl use review/a
+
+# A set that can't be used stops the command, with its file as the command to run.
+exitcode 1 skl add @self
+cmp stderr cycle.txt
+exitcode 1 skl add @SELF
+cmp stderr cycle-folded.txt
+exitcode 1 skl add @badtoml
+stderr '^✗ sets/badtoml.toml: '
+stderr ' · edit sets/badtoml.toml$|^  · edit sets/badtoml.toml$'
+exitcode 1 skl add @noselect
+cmp stderr noselect.txt
+exitcode 1 skl add @dangling
+cmp stderr dangling.txt
+! stderr $WORK
+# A line of a set: which set, and that file.
+exitcode 1 skl add @hasref
+cmp stderr set-reference.txt
+exitcode 1 skl add @hasamb
+cmp stderr set-ambiguous.txt
+# None of them changed anything.
+exists $HOME/.claude/skills/a
+! exists $HOME/.claude/skills/b
+
+# A one-word skill name. The word is replaced in the command as typed.
+exec skl add b --dry-run
+cmp stderr suggest-add.txt
+# The hint of a drop names the skill that is loaded.
+exec skl drop a
+cmp stderr drop-suggest.txt
+exec skl drop -a
+cmp stderr drop-suggest-removal.txt
+exec skl drop zzz
+cmp stderr drop-none.txt
+
+# Hints are for the line, not the flag: --dry-run isn't repeated, and it goes anywhere.
+exec skl --dry-run drop review/a
+cmp stdout dry-drop.txt
+
+# Something wrong in a skill being loaded is a warning with its file.
+exec skl add badfm
+cmp stderr badfm.txt
+exists $HOME/.claude/skills/nofront
+
+# "Anything printed that comes from the vault": no escapes, one line. A name's two
+# Unicode forms print the same.
+exec skl add evil
+cmp stderr evil.txt
+exec skl use review/a
+mkdir $HOME/.claude/skills/hand
+cp hostile.md $HOME/.claude/skills/hand/SKILL.md
+exec skl add collide
+stderr '^! x   skipped: ~/.claude/skills/hand is not in your vault · skl import hand$'
+
+# A folder that holds a link, and a file named like a skill, are someone else's.
+exec skl use review/a
+symlink $HOME/.claude/skills/b -> $WORK/elsewhere
+exec skl add other/b
+stderr '^! b   skipped: ~/.claude/skills/b is not in your vault · skl import b$'
+exists $WORK/elsewhere/SKILL.md
+! exists $WORK/elsewhere/.skl-copy.toml
+
+# A project scope in the config isn't built yet: it stops, it doesn't load elsewhere.
+env SKL_SCOPE=project
+exitcode 1 skl use review/a
+stderr '^✗ scope = "project" isn''t supported yet · edit scope in ~/.skl/config.toml$'
+env SKL_SCOPE=
+
+# docs/reference/commands.md "Output": a change not pushed is said before the ✓.
+exec git -C $HOME/.skl/vault -c user.name=T -c user.email=t@e commit --allow-empty -q -m local
+exec skl add review/c
+cmp stderr ahead.txt
+
+# docs/reference/commands.md "Errors": a lock held, a state that can't be read.
+cp badstate.json $HOME/.skl/state.json
+exitcode 1 skl add review/c
+stderr '^✗ can''t read '
+exitcode 1 skl add review/c --dry-run
+stderr '^✗ can''t read '
+
+-- group-clash.txt --
+✗ data/PDF and data/pdf have the same name · rename one in your vault
+-- shared-clash.txt --
+✗ shared/one and shared/two have the same name · rename one in your vault
+-- ambiguous-skill.txt --
+✗ data/Pdf matches 2 skills: data/PDF, data/pdf · skl add data/PDF
+-- ambiguous-group.txt --
+✗ dup matches 2 groups: Dup, dup · rename one of them in your vault
+-- ambiguous-set.txt --
+✗ @DUP matches 2 skill sets: @Dup, @dup · skl add @Dup
+-- cycle.txt --
+✗ skill set @self includes itself: @self → @SELF · edit sets/self.toml
+-- cycle-folded.txt --
+✗ skill set @SELF includes itself: @SELF → @SELF · edit sets/self.toml
+-- noselect.txt --
+✗ sets/noselect.toml: has no select = [...] · edit sets/noselect.toml
+-- dangling.txt --
+✗ sets/dangling.toml: can't read it: no such file or directory
+  · edit sets/dangling.toml
+-- set-reference.txt --
+✗ @hasref: someone/agent-skills/pdf is someone else's skill
+  · edit sets/hasref.toml
+-- set-ambiguous.txt --
+✗ @hasamb: data/Pdf matches 2 skills: data/PDF, data/pdf · edit sets/hasamb.toml
+-- suggest-add.txt --
+! b   matches no group · skl add other/b
+-- drop-suggest.txt --
+! a   matches no group · skl drop review/a
+✓ nothing to change
+-- drop-suggest-removal.txt --
+! -a   matches no group · skl drop review/a
+✓ nothing to change
+-- drop-none.txt --
+! zzz   isn't in the active skill set · skl status
+✓ nothing to change
+-- dry-drop.txt --
+→ drop review/a
+− a
+-- badfm.txt --
+→ add badfm
++ nofront
+! badfm/nofront/SKILL.md   no frontmatter · edit badfm/nofront/SKILL.md
+✓ generation 8 · skl rollback to undo
+-- ahead.txt --
+→ add review/c
++ c
+! b   skipped: ~/.claude/skills/b is not in your vault · skl import b
+! 1 change not pushed · skl sync
+✓ generation 14 · skl rollback to undo
+-- evil.txt --
+→ add evil
++ ared next
+! badfm/nofront/SKILL.md   no frontmatter · edit badfm/nofront/SKILL.md
+! evil/ared next/SKILL.md   no frontmatter
+  · edit evil/ared
+next/SKILL.md
+✓ generation 9 · skl rollback to undo
+-- badstate.json --
+{not json
+-- hostile.md --
+---
+name: x
+---
+Mine.
+-- elsewhere/SKILL.md --
+Mine.
+-- seed/review/a/SKILL.md --
+---
+description: a
+---
+-- seed/review/c/SKILL.md --
+---
+description: c
+---
+-- seed/other/b/SKILL.md --
+---
+description: b
+---
+-- seed/data/PDF/SKILL.md --
+---
+description: upper
+---
+-- seed/data/pdf/SKILL.md --
+---
+description: lower
+---
+-- seed/shared/one/SKILL.md --
+---
+name: same
+---
+-- seed/shared/two/SKILL.md --
+---
+name: same
+---
+-- seed/Dup/x/SKILL.md --
+---
+description: x
+---
+-- seed/dup/y/SKILL.md --
+---
+description: y
+---
+-- seed/badfm/nofront/SKILL.md --
+Just text.
+-- seed/collide/x/SKILL.md --
+---
+description: x
+---
+-- seed/sets/hasdata.toml --
+select = ["data"]
+-- seed/sets/base.toml --
+select = ["other/b"]
+-- seed/sets/Dup.toml --
+select = ["review/a"]
+-- seed/sets/dup.toml --
+select = ["review/a"]
+-- seed/sets/self.toml --
+select = ["@SELF"]
+-- seed/sets/badtoml.toml --
+select = [
+-- seed/sets/noselect.toml --
+other = 1
+-- seed/sets/hasref.toml --
+select = ["someone/agent-skills/pdf"]
+-- seed/sets/hasamb.toml --
+select = ["data/Pdf"]
