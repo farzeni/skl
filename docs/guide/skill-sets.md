@@ -212,6 +212,13 @@ Claude Code reads skills from one flat folder, so skl copies each skill under it
 
 Names that differ only by case or Unicode form are the same name, because a disk can store them as one folder, as the macOS default does. `low/PDF2` and `Up/pdf2` clash, and so do `é` written as one character and `e` plus an accent. Group names clash the same way: `Review` and `review` make a selector ambiguous, so skl stops and lists both, as it does for a name in two groups.
 
+A selector that names one skill in a group, or one skill set, finds it like this:
+
+- **Two skills that differ only by case or form:** an exact folder name selects that one. With `data/PDF` and `data/pdf`, `data/pdf` selects the second, and `data/Pdf` stops and lists both.
+- **Two skills that share a frontmatter `name`:** a selector naming it stops and lists both. With `name: pdf` in `data/a` and `data/b`, `data/pdf` stops; `data/a` selects that folder.
+- **A folder name and a frontmatter name:** the folder name wins. `data/PDF` picks the folder `data/pdf` over `data/reader` with `name: PDF`.
+- **Skill sets** match in any case or form, so `@BASE` loads `base.toml`. An exact name selects that file. With `Dup.toml` and `dup.toml`, `@dup` selects the second, and `@DUP` stops and lists both.
+
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
 ```sh
