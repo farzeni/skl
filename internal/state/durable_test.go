@@ -246,6 +246,8 @@ func exists(path string) bool {
 // lock holder's start."
 func TestLockRemovesLeftoverTempFiles(t *testing.T) {
 	s, p := testStore(t)
+	// A start in the future, so the folder and the link made below count as old.
+	s.started = time.Now().Add(time.Minute)
 	before := s.started.Add(-time.Hour)
 	after := s.started.Add(time.Hour)
 
