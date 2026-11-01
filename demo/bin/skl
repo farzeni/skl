@@ -14,7 +14,8 @@ choose() { # choose "opt1" "opt2" ... -> reads a digit, echoes the pick
 }
 case "$1" in
 init)
-  step "cloned      github.com/$2  ${D}3 groups · 14 skills · 2 skill sets${R}"; p 0.6
+  printf "${A}→${R} clone ${B}$2${R}\n"; p 0.4
+  step "cloned     3 groups · 14 skills · 2 skill sets"; p 0.6
   printf "${A}→${R} load ${B}@backend writing/changelog${R}\n"; p 0.4
   printf "${A}+${R} pr-review     ${A}+${R} sql-explain\n"
   printf "${A}+${R} changelog\n"; p 0.3

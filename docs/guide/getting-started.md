@@ -36,11 +36,35 @@ skl init you/skills
 
 Your skills stay where Claude Code reads them. They're now versioned, and they go wherever your vault goes. They sit in a **group** named after you, `you/`; you can [move them](./skills#rename-or-delete-a-skill) into groups such as `review` or `writing` later.
 
-If the repo already holds skills, skl clones it as your vault instead: its groups are the folders that hold skills. An empty repo becomes a new vault. skl never creates a repo, so one it can't reach stops init:
+A new vault's first commit needs your git identity. Without one, skl stops:
+
+```
+✗ git needs your name and email for skl's commits
+  · git config --global user.name "You" && git config --global user.email you@example.com
+```
+
+Only a repo with no commits at all is empty and becomes a new vault. A repo with commits is cloned as your vault, with no identity needed. Its groups are the folders that hold skills:
+
+```
+→ clone you/skills
+◇ cloned     3 groups · 14 skills · 2 skill sets
+✓ generation 1 · skl rollback to undo
+```
+
+A repo with commits but no skills, such as one with only a README, is cloned too. skl prints `◇ cloned     no skills yet` and adds no `LICENSE`. A repo with branches but no default branch stops:
+
+```
+✗ you/skills has branches but no default branch
+  · set one on your git host, then skl init you/skills
+```
+
+skl never creates a repo, so a missing repo or denied access stops init:
 
 ```
 ✗ can't reach you/skills · create it or check access, then skl init you/skills
 ```
+
+A host that doesn't answer gives the [network error](../reference/commands#errors) instead.
 
 Any git remote works: see [Selectors and references](../reference/repos). To pick which skills to import, answer `choose`: skl asks about each one.
 

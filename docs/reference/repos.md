@@ -47,7 +47,7 @@ name      = letters, digits, "-" and "_", starting with a
   ```
 
 - **A selector that matches nothing** is a warning. If the word names a skill but no group, the hint repeats your command with only that word replaced: `skl use @a pdf` warns `! pdf   matches no group · skl use @a someone/pdf`, and `-pdf` becomes `-someone/pdf`. Anything else hints at dropping it: `! nope   matches no group · skl drop nope`. A line in a named skill set hints at [its file](../guide/skill-sets#whats-loaded).
-- **`skl drop` of a word that matches nothing** removes it without a warning if it's a line in your active skill set. If it isn't, skl warns: `! nope   isn't in the active skill set · skl status`.
+- **`skl drop` of a selector that isn't in your active skill set** warns, whether or not it names something real: `! nope   isn't in the active skill set · skl status`, and the same for `skl drop review/pdf`. A line in your active skill set that matches nothing is removed without a warning.
 - **`-h` and `--`** follow the [flag rules](./commands#flags): `-h` is help, never a removal, and every word after `--` is an argument.
 
 ## Repos
