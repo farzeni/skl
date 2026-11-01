@@ -1,7 +1,7 @@
 # docs/guide/getting-started.md "Make your vault"
 
-# A new vault's first commit needs the user's git identity. Without one, skl
-# says what to do and leaves nothing behind.
+# "A new vault's first commit needs your git identity. Without one, skl stops";
+# it leaves nothing behind.
 remote you/skills
 remote you/seeded seeded
 exec git config --file noid.gitconfig user.useConfigOnly true
@@ -13,7 +13,7 @@ cmp stderr no-identity.txt
 ! exists $HOME/.skl/staging/vault
 ! exists $HOME/.skl/generations
 
-# A clone commits nothing, so it needs no identity.
+# "A repo with commits is cloned as your vault, with no identity needed."
 exec skl init you/seeded
 stderr '^✓ generation 1 · skl rollback to undo$'
 

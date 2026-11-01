@@ -17,6 +17,11 @@ cmp stderr newer.txt
 cmp $HOME/.skl/state.json newer.json
 ! exists $HOME/.skl/vault
 
+# "move it aside": with state.json gone, skl runs again.
+mv $HOME/.skl/state.json $HOME/.skl/state.json.bak
+exec skl init you/skills
+stderr '^✓ generation 1 · skl rollback to undo$'
+
 -- bad.json --
 {not json
 -- newer.json --

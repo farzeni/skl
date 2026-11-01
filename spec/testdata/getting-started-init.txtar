@@ -1,6 +1,6 @@
 # docs/guide/getting-started.md "Make your vault"
 
-# "An empty repo becomes a new vault."
+# "Only a repo with no commits at all is empty and becomes a new vault."
 remote you/skills
 exec skl init you/skills
 cmp stderr new-vault.txt
@@ -93,8 +93,8 @@ stderr '^✗ ~/.skl-full/vault isn''t a git repo · move it aside, then skl init
 exists $HOME/.skl-full/vault/mine
 env SKL_HOME=
 
-# "If the repo already holds skills, skl clones it as your vault instead: its
-# groups are the folders that hold skills."
+# "A repo with commits is cloned as your vault, with no identity needed. Its
+# groups are the folders that hold skills"
 # docs/guide/learn.md "Licenses": "An existing vault's LICENSE is never touched."
 remote you/seeded seeded
 env SKL_HOME=$HOME/.skl-seeded
@@ -108,14 +108,15 @@ stdout '^1$'
 exec git -C $HOME/.skl-seeded/vault status --porcelain
 ! stdout .
 
-# A repo with commits that holds no skills is cloned as it is: no LICENSE, no commit.
+# "A repo with commits but no skills, such as one with only a README, is cloned
+# too. skl prints ◇ cloned     no skills yet and adds no LICENSE."
 remote you/readme readme
 env SKL_HOME=$HOME/.skl-readme
 exec skl init you/readme
 cmp stderr clone-empty.txt
 ! exists $HOME/.skl-readme/vault/LICENSE
 
-# A repo whose HEAD names no branch can't be a vault, and leaves nothing behind.
+# "A repo with branches but no default branch stops"; it leaves nothing behind.
 remote you/nohead
 exec git clone -q https://github.com/you/nohead nohead-work
 exec git -C nohead-work commit -q --allow-empty -m one
@@ -125,7 +126,7 @@ exitcode 1 skl init you/nohead
 cmp stderr no-head.txt
 ! exists $HOME/.skl-nohead/vault
 
-# "skl never creates a repo, so one it can't reach stops init"
+# "skl never creates a repo, so a missing repo or denied access stops init"
 env SKL_HOME=$HOME/.skl-missing
 exitcode 1 skl init you/missing
 cmp stderr unreachable.txt
@@ -134,6 +135,7 @@ cmp stderr unreachable.txt
 ! exists $HOME/.skl-missing/generations
 
 # docs/reference/commands.md "Dry run": "Nothing is written, cloned, created or committed"
+# "Whether it would clone or create the repo (→ clone you/skills or → new vault you/skills)"
 # "What you asked for goes to standard output: ... a --dry-run plan"
 env SKL_HOME=$HOME/.skl-dry
 exitcode 1 skl init you/empty-dry --dry-run
@@ -206,7 +208,8 @@ stdout '/home/code/skills.git$'
 exec skl init ~/code/skills
 cmp stderr nothing.txt
 
-# docs/reference/commands.md "Errors": "✗ can't reach github.com (Could not resolve host) · skl sync"
+# docs/reference/commands.md "Errors": "the hint is the command you ran: a host that
+# skl init you/skills can't resolve, or that refuses or times out, ends · skl init you/skills"
 env SKL_HOME=$HOME/.skl-dns
 exitcode 1 skl init nonexistent.invalid/team/skills
 cmp stderr no-dns.txt
@@ -230,6 +233,15 @@ exitcode 1 skl init you/skills
 stderr '^✗ config: SKL_PROTOCOL must be ssh or https, not "carrier-pigeon"$'
 stderr '· unset SKL_PROTOCOL$'
 env SKL_PROTOCOL=
+
+# docs/reference/config.md: "So does a config file skl can't read"
+env SKL_HOME=$HOME/.skl-badconfig
+mkdir $HOME/.skl-badconfig/config.toml
+exitcode 1 skl init you/skills
+stderr '^✗ can''t read ~/.skl-badconfig/config.toml: is a directory$'
+stderr '^  · check its permissions$'
+! exists $HOME/.skl-badconfig/vault
+env SKL_HOME=
 
 -- new-vault.txt --
 → new vault you/skills
