@@ -225,6 +225,8 @@ Loading a whole group stops if two skills in it clash, such as `data/PDF` and `d
 ✗ data/PDF and data/pdf have the same name · rename one in your vault
 ```
 
+Removals apply first, so `skl use data -data/PDF` loads `data/pdf` and doesn't stop.
+
 Between the skills you select, the later selector wins, and skl says which skill replaced which:
 
 ```sh
