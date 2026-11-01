@@ -48,7 +48,7 @@ func TestStateRoundTrip(t *testing.T) {
 		User:                       sampleScope("@backend"),
 		Project("/home/u/code/p1"): sampleScope("@frontend"),
 	}}
-	if err := s.Save(ctx, want); err != nil {
+	if err := s.save(ctx, want); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.Load(ctx)
@@ -68,7 +68,7 @@ func TestStateFileIsKeyedByScope(t *testing.T) {
 		User:                       {Selectors: []string{"@reviews"}},
 		Project("/home/u/code/p1"): {Selectors: []string{"@frontend"}},
 	}}
-	if err := s.Save(context.Background(), st); err != nil {
+	if err := s.save(context.Background(), st); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(p.State)
@@ -150,10 +150,10 @@ func TestCanceledContext(t *testing.T) {
 	if _, err := s.Load(ctx); !errors.Is(err, context.Canceled) {
 		t.Errorf("Load: %v", err)
 	}
-	if err := s.Save(ctx, &State{}); !errors.Is(err, context.Canceled) {
+	if err := s.save(ctx, &State{}); !errors.Is(err, context.Canceled) {
 		t.Errorf("Save: %v", err)
 	}
-	if _, err := s.AddGeneration(ctx, Generation{}); !errors.Is(err, context.Canceled) {
+	if _, err := s.addGeneration(ctx, Generation{}); !errors.Is(err, context.Canceled) {
 		t.Errorf("AddGeneration: %v", err)
 	}
 	if _, err := s.Generation(ctx, 1); !errors.Is(err, context.Canceled) {
@@ -164,5 +164,23 @@ func TestCanceledContext(t *testing.T) {
 	}
 	if _, err := s.Lock(ctx); !errors.Is(err, context.Canceled) {
 		t.Errorf("Lock: %v", err)
+	}
+}
+
+// docs/reference/files.md "Local state": "✗ can't read ~/.skl/state.json: <reason>".
+func TestLoadUnreadable(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	s, p := testStore(t)
+	if err := os.MkdirAll(filepath.Dir(p.State), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.State, []byte("{}"), 0); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.Load(context.Background())
+	if !errors.Is(err, ErrCorrupt) || !strings.HasSuffix(err.Error(), ": permission denied") {
+		t.Errorf("err = %v", err)
 	}
 }

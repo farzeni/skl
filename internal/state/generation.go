@@ -36,8 +36,15 @@ type NoGenerationError struct{ N int }
 func (e *NoGenerationError) Error() string { return fmt.Sprintf("no generation %d", e.N) }
 
 // AddGeneration writes g as the next generation and returns it with its
-// number. The caller holds the lock and sets everything but N.
-func (s *Store) AddGeneration(ctx context.Context, g Generation) (Generation, error) {
+// number. The caller sets everything but N.
+func (l *Lock) AddGeneration(ctx context.Context, g Generation) (Generation, error) {
+	if l.f == nil {
+		return Generation{}, ErrReleased
+	}
+	return l.s.addGeneration(ctx, g)
+}
+
+func (s *Store) addGeneration(ctx context.Context, g Generation) (Generation, error) {
 	if err := ctx.Err(); err != nil {
 		return Generation{}, err
 	}

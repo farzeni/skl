@@ -76,6 +76,7 @@ Usage
   skl <command> [arguments] [flags]
 
 Commands
+  init  Clone your vault, or set up a new one
   help  List the commands, or show one command's help
 
 Flags

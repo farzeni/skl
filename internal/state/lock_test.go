@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -86,7 +87,7 @@ func helper(name string) int {
 	case "save-loop": // write state.json until killed
 		for i := 0; ; i++ {
 			tag := string(rune('a' + i%2))
-			if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope(tag)}}); err != nil {
+			if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: bigScope(tag)}}); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				return 3
 			}
@@ -316,10 +317,10 @@ func TestChildDoesNotInheritLock(t *testing.T) {
 func TestReadingNeedsNoLock(t *testing.T) {
 	s, p := testStore(t)
 	ctx := context.Background()
-	if err := s.Save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@base"}}}}); err != nil {
+	if err := s.save(ctx, &State{Scopes: map[ScopeKey]Scope{User: {Selectors: []string{"@base"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AddGeneration(ctx, Generation{Time: genTime, Command: "use @base"}); err != nil {
+	if _, err := s.addGeneration(ctx, Generation{Time: genTime, Command: "use @base"}); err != nil {
 		t.Fatal(err)
 	}
 	startHolder(t, p, "hold")
@@ -516,5 +517,34 @@ func TestLockCreatesTheFolder(t *testing.T) {
 	t.Cleanup(func() { _ = l.Release() })
 	if _, err := os.Stat(p.Lock); err != nil {
 		t.Error(err)
+	}
+}
+
+// Changing state goes through the lock: once released, it can't.
+func TestReleasedLockChangesNothing(t *testing.T) {
+	s, p := testStore(t)
+	ctx := context.Background()
+	l, err := s.Lock(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Save(ctx, &State{}); err != nil {
+		t.Errorf("Save while held: %v", err)
+	}
+	g, err := l.AddGeneration(ctx, Generation{Time: genTime})
+	if err != nil || g.N != 1 {
+		t.Errorf("AddGeneration while held: %+v, %v", g, err)
+	}
+	if err := l.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Save(ctx, &State{}); !errors.Is(err, ErrReleased) {
+		t.Errorf("Save after Release: %v", err)
+	}
+	if _, err := l.AddGeneration(ctx, Generation{Time: genTime}); !errors.Is(err, ErrReleased) {
+		t.Errorf("AddGeneration after Release: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(p.Generations, "2.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("generation 2: %v", err)
 	}
 }

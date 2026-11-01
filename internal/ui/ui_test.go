@@ -222,3 +222,42 @@ func TestHinted(t *testing.T) {
 		}
 	}
 }
+
+// commands.md "Output": "A command that doesn't fit on the line moves to the next
+// one, after ·; one that fits stays on the line."
+func TestStepHint(t *testing.T) {
+	for _, tt := range []struct {
+		width int
+		want  string
+	}{
+		{80, "◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it\n"},
+		{60, "◇ LICENSE    MIT, for the skills you write\n  · edit LICENSE to change it\n"},
+	} {
+		u, s := testUI(colorprofile.NoTTY, tt.width, Options{})
+		u.StepHint("LICENSE", "MIT, for the skills you write", "edit LICENSE to change it")
+		if got := s.stderr.String(); got != tt.want {
+			t.Errorf("width %d: %q, want %q", tt.width, got, tt.want)
+		}
+	}
+}
+
+// commands.md "Where output goes": "What you asked for goes to standard output:
+// ... a --dry-run plan". "Everything else, the marks of a running command and its
+// questions, goes to standard error."
+func TestDryRunPlanGoesToStdout(t *testing.T) {
+	var stdout, stderr strings.Builder
+	u := New(Options{
+		Stdin: strings.NewReader(""), Stdout: &stdout, Stderr: &stderr, DryRun: true,
+		Getenv: func(string) string { return "" },
+	})
+	u.Plan("new vault %s", "you/skills")
+	u.Change(Loaded, "pdf", "")
+	u.Warn("careful", "skl sync")
+	u.Done("nothing to change")
+	if got, want := stdout.String(), "→ new vault you/skills\n+ pdf\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if got, want := stderr.String(), "! careful · skl sync\n✓ nothing to change\n"; got != want {
+		t.Errorf("stderr = %q, want %q", got, want)
+	}
+}

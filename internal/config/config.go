@@ -121,7 +121,7 @@ func Load(ctx context.Context, p Paths, getenv func(string) string, flags Flags)
 	if err := ctx.Err(); err != nil {
 		return Config{}, err
 	}
-	shown := tilde(p.Config, getenv("HOME"))
+	shown := Tilde(p.Config, getenv("HOME"))
 	var inFile map[string]any
 	data, err := os.ReadFile(p.Config)
 	switch {
@@ -336,8 +336,8 @@ func tomlValue(v any) string {
 	}
 }
 
-// tilde shows path with ~ for home, as the docs write it.
-func tilde(path, home string) string {
+// Tilde shows path with ~ for home, as the docs write it.
+func Tilde(path, home string) string {
 	if home == "" {
 		return path
 	}
