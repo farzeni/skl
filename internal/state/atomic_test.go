@@ -76,7 +76,7 @@ func TestSaveFailureKeepsTheOldFile(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(blocked, "x"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeAtomic(blocked, []byte("new")); err == nil {
+	if err := s.writeAtomic(blocked, []byte("new")); err == nil {
 		t.Fatal("rename over a directory worked")
 	}
 	entries, err := os.ReadDir(filepath.Dir(blocked))
@@ -114,7 +114,7 @@ func TestSaveSurvivesKill(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 5 {
-		cmd, _ := startHelper(t, p, "save-loop")
+		cmd := startHelper(t, p, "save-loop")
 		time.Sleep(30 * time.Millisecond)
 		if err := cmd.Process.Signal(syscall.SIGKILL); err != nil {
 			t.Fatal(err)

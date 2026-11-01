@@ -24,7 +24,7 @@ func testStore(t *testing.T) (*Store, config.Paths) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(p), p
+	return New(p, nil), p
 }
 
 func sampleScope(selector string) Scope {

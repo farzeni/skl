@@ -57,7 +57,7 @@ func New(ctx context.Context, d Deps) (*App, error) {
 		paths:  paths,
 		cfg:    cfg,
 		git:    gitx.New(d.Log),
-		store:  state.New(paths),
+		store:  state.New(paths, d.Log),
 	}, nil
 }
 
