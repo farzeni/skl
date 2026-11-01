@@ -142,7 +142,7 @@ This runs a lesson. Claude can restore the author's version as it is, and you se
 | `docs/pdf` | exactly that one |
 | `docs/` | the one with the peer's name in your `docs` group |
 
-A name matches a skill's folder or the `name` in its `SKILL.md`. If two groups have it, skl stops and asks you to write `group/name`. If no skill has it, a new one goes into a group named after the peer's owner: `someone/agent-skills/pdf` becomes `someone/pdf`, and a repo on this machine uses its folder name. A skill at the root of a repo (`someone/pdf-skill//`) takes the `name` in its `SKILL.md`, else the repo's name.
+A name matches a skill's folder or the `name` in its `SKILL.md`. If two groups have it, skl stops and asks you to write `group/name`. If no skill has it, a new one goes into a group named after the peer's owner: `someone/agent-skills/pdf` becomes `someone/pdf`, and a repo on this machine uses its folder name. A name that can't be a group follows the [reserved names](../reference/repos#grammar) rule. A skill at the root of a repo (`someone/pdf-skill//`) takes the `name` in its `SKILL.md`, else the repo's name.
 
 A peer that's one of your own skills is never copied: your vault already has it. To start a new skill from it, say what to take, and a lesson builds it:
 
@@ -225,6 +225,8 @@ The same goes for an unclosed quote or a command that isn't on your `PATH`. The 
 *This describes what skl does; it isn't legal advice.*
 
 Your vault has its own license. `skl init` writes a `LICENSE` file when it creates a vault: MIT, unless the [`license`](../reference/config) setting says otherwise. An existing vault's `LICENSE` is never touched.
+
+For MIT and Apache-2.0, skl writes the full text; MIT's copyright line has the year and your git name. For any other SPDX id, it writes one line, `SPDX-License-Identifier: <id>`, and you paste the full text yourself. With `none`, there's no `LICENSE` file, and the new vault still starts with generation 1.
 
 Each skill you learn keeps its author's license. skl looks for it in the skill's folder, then at the root of the author's repo, then in the `license` field of its `SKILL.md`, and prints what it found:
 
