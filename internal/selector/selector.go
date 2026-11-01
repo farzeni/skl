@@ -171,7 +171,17 @@ func ValidName(name string) bool {
 // Two names with the same Fold are one name (skill-sets.md "Names and clashes").
 // Folding has no locale: ß folds to ss, while the Turkish ı stays its own letter.
 func Fold(name string) string {
-	return norm.NFC.String(cases.Fold().String(norm.NFC.String(name)))
+	folded := cases.Fold().String(norm.NFC.String(name))
+	return norm.NFC.String(strings.Map(cherokeeUpper, folded))
+}
+
+// cherokeeUpper puts a Cherokee letter in the case Unicode folds it to, the
+// upper one. x/text's Fold swaps the two cases, so a pair would never match.
+func cherokeeUpper(r rune) rune {
+	if unicode.Is(unicode.Cherokee, r) {
+		return unicode.ToUpper(r)
+	}
+	return r
 }
 
 // ReservedGroup reports whether a group can't have this name, in any case or

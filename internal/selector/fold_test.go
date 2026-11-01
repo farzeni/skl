@@ -1,8 +1,13 @@
 package selector
 
-import "testing"
+import (
+	"testing"
+	"unicode"
+	"unicode/utf8"
+)
 
-// Card #92, docs/guide/skill-sets.md "Names and clashes".
+// docs/guide/skill-sets.md "Names and clashes": "`low/PDF2` and `Up/pdf2` clash,
+// and so do `\u00e9` written as one character and `e` plus an accent."
 func TestFold(t *testing.T) {
 	tests := []struct {
 		a, b string
@@ -10,8 +15,8 @@ func TestFold(t *testing.T) {
 	}{
 		{"PDF2", "pdf2", true},
 		{"Review", "review", true},
-		{"é", "é", true},
-		{"É", "é", true},
+		{"\u00e9", "e\u0301", true},
+		{"É", "e\u0301", true},
 		{"straße", "STRASSE", true},
 		// Folding has no locale: the Turkish letters stay their own.
 		{"ı", "i", false},
@@ -22,6 +27,21 @@ func TestFold(t *testing.T) {
 	for _, tt := range tests {
 		if got := Fold(tt.a) == Fold(tt.b); got != tt.same {
 			t.Errorf("Fold(%q) == Fold(%q) = %v, want %v", tt.a, tt.b, got, tt.same)
+		}
+	}
+}
+
+// Every rune and its other cases fold to one name. This caught x/text swapping
+// the two cases of Cherokee.
+func TestFoldCasePairs(t *testing.T) {
+	for r := rune(0); r <= utf8.MaxRune; r++ {
+		if !utf8.ValidRune(r) {
+			continue
+		}
+		for o := unicode.SimpleFold(r); o != r; o = unicode.SimpleFold(o) {
+			if Fold(string(r)) != Fold(string(o)) {
+				t.Errorf("Fold(%U) = %q, Fold(%U) = %q", r, Fold(string(r)), o, Fold(string(o)))
+			}
 		}
 	}
 }
