@@ -22,10 +22,10 @@ type Skill struct {
 // String returns the skill as "group/folder".
 func (s Skill) String() string { return s.Group + "/" + s.Folder }
 
-// clashes reports whether two skills have the same folder name or the same
-// frontmatter name.
+// clashes reports whether two skills share a name. A skill's names are its
+// folder name and its frontmatter name.
 func (s Skill) clashes(o Skill) bool {
-	return s.Folder == o.Folder || (s.Name != "" && s.Name == o.Name)
+	return s.Folder == o.Folder || s.Folder == o.Name || s.Name == o.Folder || (s.Name != "" && s.Name == o.Name)
 }
 
 // ErrNoSet is what Index.Set returns for a skill set that doesn't exist.
@@ -44,13 +44,12 @@ type Index interface {
 
 // Result is what a list of selectors resolves to.
 type Result struct {
-	Skills   []Skill // in the order they were selected; no two clash
+	Skills   []Skill // in the order they were first selected; no two clash
 	Replaced []Replacement
 	Warnings []Warning
 }
 
-// Replacement is a skill that lost a clash to a later selector. Only clashes
-// that still hold in the result are reported, against the final winner.
+// Replacement is a skill that lost a clash to a skill in the result.
 type Replacement struct {
 	Old, New Skill
 }
@@ -58,18 +57,33 @@ type Replacement struct {
 // Detail returns "someone/pr-review replaces review/pr-review".
 func (r Replacement) Detail() string { return r.New.String() + " replaces " + r.Old.String() }
 
-// Warning is a selector that matched nothing.
-type Warning struct {
-	Selector string // as written, "-" included
-	Problem  string // "matches no skill"
-	Set      string // the named skill set that holds the line, if any
-	Hint     string // the command that deals with it
+// Problem is why a selector matched nothing.
+type Problem int
+
+// The ways a selector matches nothing.
+const (
+	NoGroup Problem = iota
+	NoSkill
+	NoSet
+)
+
+func (p Problem) String() string {
+	return [...]string{NoGroup: "matches no group", NoSkill: "matches no skill", NoSet: "matches no skill set"}[p]
 }
 
-// Message returns the warning without its hint:
+// Warning is a selector that matched nothing. It holds no command: app builds
+// the hint, for the command being run.
+type Warning struct {
+	Selector selector.Selector
+	Problem  Problem
+	Set      string // the named skill set that holds the line, if any
+	Suggest  string // the skill a one-word name probably meant, as group/folder
+}
+
+// Message returns the warning without a hint:
 // "review/old-name   matches no skill (in @backend)".
 func (w Warning) Message() string {
-	msg := w.Selector + "   " + w.Problem
+	msg := w.Selector.String() + "   " + w.Problem.String()
 	if w.Set != "" {
 		msg += " (in @" + w.Set + ")"
 	}
@@ -85,21 +99,36 @@ func (e *CycleError) Error() string {
 	return fmt.Sprintf("skill set @%s includes itself: @%s", e.Cycle[0], strings.Join(e.Cycle, " → @"))
 }
 
-// Resolve applies sels left to right. A selector that matches nothing is a
-// warning. A set that includes itself, a set line that isn't a selector, or a
-// set that can't be read is an error.
+// Resolve applies sels left to right: each removal takes away what the earlier
+// selectors selected. Then, among what's left, the later of two skills that
+// clash wins. A selector that matches nothing is a warning. A set that includes
+// itself, a set line that isn't a selector, or a set that can't be read is an
+// error.
 func Resolve(sels []selector.Selector, idx Index) (Result, error) {
 	r := resolver{idx: idx}
 	if err := r.apply(sels, ""); err != nil {
 		return Result{}, err
 	}
-	return r.Result, nil
+	res := settle(r.selected)
+	res.Warnings = r.warnings
+	return res, nil
 }
 
+// selection is a selected skill and when it was last selected. A skill selected
+// again keeps its place in the list, and counts as selected then in a clash.
+type selection struct {
+	skill Skill
+	last  int
+}
+
+func (s selection) clashes(o selection) bool { return s.skill.clashes(o.skill) }
+
 type resolver struct {
-	Result
-	idx   Index
-	stack []string // the sets being expanded, outermost first
+	idx      Index
+	selected []selection
+	warnings []Warning
+	count    int      // selections so far
+	stack    []string // the sets being expanded, outermost first
 }
 
 // apply applies selectors that come from the set named in, or from the
@@ -123,15 +152,15 @@ func (r *resolver) apply(sels []selector.Selector, in string) error {
 	return nil
 }
 
-// applySet applies a set's lines in place of @name. -@name removes the skills
-// the set would add on its own, which is what the rest of the selector names.
+// applySet applies a set's lines in place of @name. -@name removes what the
+// set selects on its own, which is what the rest of the selector names.
 func (r *resolver) applySet(sel selector.Selector, in string) error {
 	if i := slices.Index(r.stack, sel.Name); i >= 0 {
 		return &CycleError{Cycle: append(slices.Clone(r.stack[i:]), sel.Name)}
 	}
 	lines, err := r.idx.Set(sel.Name)
 	if errors.Is(err, ErrNoSet) {
-		r.warn(sel, "matches no skill set", in, "")
+		r.warn(sel, NoSet, in, "")
 		return nil
 	}
 	if err != nil {
@@ -149,14 +178,13 @@ func (r *resolver) applySet(sel selector.Selector, in string) error {
 	if !sel.Remove {
 		return r.apply(sels, sel.Name)
 	}
-	own := resolver{idx: r.idx, stack: r.stack}
-	own.Warnings = r.Warnings
+	own := resolver{idx: r.idx, warnings: r.warnings, stack: r.stack}
 	if err := own.apply(sels, sel.Name); err != nil {
 		return err
 	}
-	r.Warnings = own.Warnings
-	for _, s := range own.Skills {
-		r.remove(s)
+	r.warnings = own.warnings
+	for _, o := range own.selected {
+		r.remove(o.skill)
 	}
 	return nil
 }
@@ -169,24 +197,21 @@ func (r *resolver) match(sel selector.Selector, in string) []Skill {
 		if s, ok := find(skills, sel.Name); ok {
 			return []Skill{s}
 		}
-		r.warn(sel, "matches no skill", in, "")
+		r.warn(sel, NoSkill, in, "")
 		return nil
 	}
 	if len(skills) > 0 {
 		return skills
 	}
 	if slices.Contains(r.idx.Groups(), sel.Group) {
-		r.warn(sel, "matches no skill", in, "")
+		r.warn(sel, NoSkill, in, "")
 		return nil
 	}
 	suggest := ""
 	if s, ok := r.skillNamed(sel.Group); ok {
 		suggest = s.String()
-		if sel.Remove {
-			suggest = "-" + suggest
-		}
 	}
-	r.warn(sel, "matches no group", in, suggest)
+	r.warn(sel, NoGroup, in, suggest)
 	return nil
 }
 
@@ -213,56 +238,56 @@ func (r *resolver) skillNamed(name string) (Skill, bool) {
 	return Skill{}, false
 }
 
-// warn adds a warning once. suggest is the selector the word probably meant.
-func (r *resolver) warn(sel selector.Selector, problem, in, suggest string) {
-	w := Warning{Selector: sel.String(), Problem: problem, Set: in}
-	switch {
-	case in != "" && suggest != "":
-		w.Hint = fmt.Sprintf("edit sets/%s.toml to say %s", in, suggest)
-	case in != "":
-		w.Hint = fmt.Sprintf("edit sets/%s.toml", in)
-	case suggest != "":
-		w.Hint = "skl use " + suggest
-	default:
-		w.Hint = "skl drop " + sel.String()
-	}
-	if !slices.Contains(r.Warnings, w) {
-		r.Warnings = append(r.Warnings, w)
+// warn adds a warning once.
+func (r *resolver) warn(sel selector.Selector, problem Problem, in, suggest string) {
+	w := Warning{Selector: sel, Problem: problem, Set: in, Suggest: suggest}
+	if !slices.Contains(r.warnings, w) {
+		r.warnings = append(r.warnings, w)
 	}
 }
 
-// add appends s, replacing every skill it clashes with. A skill already there
-// keeps its place.
 func (r *resolver) add(s Skill) {
-	if slices.Contains(r.Skills, s) {
+	r.count++
+	if i := slices.IndexFunc(r.selected, func(o selection) bool { return o.skill == s }); i >= 0 {
+		r.selected[i].last = r.count
 		return
 	}
-	var lost []Skill
-	r.Skills = slices.DeleteFunc(r.Skills, func(o Skill) bool {
-		if !o.clashes(s) {
-			return false
-		}
-		lost = append(lost, o)
-		return true
-	})
-	r.Skills = append(r.Skills, s)
-
-	// Whoever the losers had replaced, s has now replaced.
-	for i, rep := range r.Replaced {
-		if slices.Contains(lost, rep.New) {
-			r.Replaced[i].New = s
-		}
-	}
-	for _, o := range lost {
-		r.Replaced = append(r.Replaced, Replacement{Old: o, New: s})
-	}
-	// A skill that came back is no longer replaced by anything.
-	r.Replaced = slices.DeleteFunc(r.Replaced, func(rep Replacement) bool { return rep.Old == s })
+	r.selected = append(r.selected, selection{skill: s, last: r.count})
 }
 
-// remove drops s, and the clashes it took part in: the replacement either
-// reports no longer holds.
 func (r *resolver) remove(s Skill) {
-	r.Skills = slices.DeleteFunc(r.Skills, func(o Skill) bool { return o == s })
-	r.Replaced = slices.DeleteFunc(r.Replaced, func(rep Replacement) bool { return rep.Old == s || rep.New == s })
+	r.selected = slices.DeleteFunc(r.selected, func(o selection) bool { return o.skill == s })
+}
+
+// settle resolves clashes: going from the last selected to the first, a skill
+// stays if it clashes with none that stayed. So a skill is unloaded only by a
+// later skill in the result, and the report names every such skill. It says
+// nothing about a skill that lost a clash and then lost its own.
+func settle(selected []selection) Result {
+	byLast := slices.Clone(selected)
+	slices.SortFunc(byLast, func(a, b selection) int { return b.last - a.last })
+	var kept []selection
+	for _, o := range byLast {
+		if !slices.ContainsFunc(kept, o.clashes) {
+			kept = append(kept, o)
+		}
+	}
+
+	var res Result
+	for _, o := range selected {
+		if slices.Contains(kept, o) {
+			res.Skills = append(res.Skills, o.skill)
+		}
+	}
+	for _, o := range selected {
+		if slices.Contains(kept, o) {
+			continue
+		}
+		for _, w := range selected {
+			if slices.Contains(kept, w) && w.last > o.last && o.clashes(w) {
+				res.Replaced = append(res.Replaced, Replacement{Old: o.skill, New: w.skill})
+			}
+		}
+	}
+	return res
 }

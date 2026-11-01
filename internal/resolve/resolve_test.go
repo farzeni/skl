@@ -2,7 +2,9 @@ package resolve
 
 import (
 	"errors"
+	"math/rand/v2"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -73,6 +75,7 @@ var vault = index{
 		"right":    {"@bottom"},
 		"bottom":   {"writing/changelog", "review/old-name"},
 		"drops":    {"-review/pr-review"},
+		"clashing": {"review", "someone/pr-review"},
 		"stale":    {"review/old-name", "@gone", "pdf", "nope", "-nope"},
 		"outer":    {"@stale"},
 		"self":     {"writing/changelog", "@self"},
@@ -168,22 +171,22 @@ func TestResolve(t *testing.T) {
 		{
 			name:     "A word that names a skill but no group: the warning names the skill",
 			words:    "pdf",
-			warnings: []string{"pdf   matches no group · skl use someone/pdf"},
+			warnings: []string{"pdf   matches no group → someone/pdf"},
 		},
 		{
 			name:     "A word that names a skill by its frontmatter name: the hint uses its folder",
 			words:    "entity-diagram",
-			warnings: []string{"entity-diagram   matches no group · skl use data/erd"},
+			warnings: []string{"entity-diagram   matches no group → data/erd"},
 		},
 		{
 			name:     "A word that names a skill in two groups: the hint picks the first",
 			words:    "pr-review",
-			warnings: []string{"pr-review   matches no group · skl use review/pr-review"},
+			warnings: []string{"pr-review   matches no group → review/pr-review"},
 		},
 		{
 			name:     "A removal that names a skill but no group",
 			words:    "-pdf",
-			warnings: []string{"-pdf   matches no group · skl use -someone/pdf"},
+			warnings: []string{"-pdf   matches no group → someone/pdf"},
 		},
 
 		// docs/guide/skill-sets.md "Selectors"
@@ -218,7 +221,7 @@ func TestResolve(t *testing.T) {
 			replaced: []string{"lint   someone/lint replaces review/style"},
 		},
 		{
-			name:   "No frontmatter name, no clash on it; a folder and another's name don't clash",
+			name:   "Skills whose names don't overlap don't clash",
 			words:  "review/pr-review data/sql-explain data/erd",
 			skills: []string{"review/pr-review", "data/sql-explain", "data/erd"},
 		},
@@ -237,9 +240,19 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			name:   "No replacement is reported for a skill that was removed again",
+			name:   "A removal comes before clashes: the skill that would have lost stays",
 			words:  "review/pr-review someone/pr-review -someone/pr-review",
-			skills: nil,
+			skills: []string{"review/pr-review"},
+		},
+		{
+			name:   "A removal comes before clashes: @set -skill",
+			words:  "@clashing -someone/pr-review",
+			skills: []string{"review/pr-review", "review/test-gaps", "review/style"},
+		},
+		{
+			name:   "-@set removes what the set selects, the skill that lost a clash in it too",
+			words:  "review/pr-review writing -@clashing",
+			skills: []string{"writing/changelog"},
 		},
 		{
 			name:   "No replacement is reported for a replaced skill that was removed",
@@ -257,7 +270,7 @@ func TestResolve(t *testing.T) {
 			name:     "Two sets including the same one is no cycle",
 			words:    "@diamond",
 			skills:   []string{"writing/changelog", "data/sql-explain"},
-			warnings: []string{"review/old-name   matches no skill (in @bottom) · edit sets/bottom.toml"},
+			warnings: []string{"review/old-name   matches no skill (in @bottom)"},
 		},
 		{
 			name:   "A set's lines are selectors, applied in its place",
@@ -271,77 +284,77 @@ func TestResolve(t *testing.T) {
 		{
 			name:     "A skill that matches nothing, in a command",
 			words:    "review/old-name",
-			warnings: []string{"review/old-name   matches no skill · skl drop review/old-name"},
+			warnings: []string{"review/old-name   matches no skill"},
 		},
 		{
 			name:     "A skill in a group that doesn't exist",
 			words:    "nope/x",
-			warnings: []string{"nope/x   matches no skill · skl drop nope/x"},
+			warnings: []string{"nope/x   matches no skill"},
 		},
 		{
 			name:     "A group that matches nothing",
 			words:    "nope",
-			warnings: []string{"nope   matches no group · skl drop nope"},
+			warnings: []string{"nope   matches no group"},
 		},
 		{
 			name:     "A group with no skills",
 			words:    "empty",
-			warnings: []string{"empty   matches no skill · skl drop empty"},
+			warnings: []string{"empty   matches no skill"},
 		},
 		{
 			name:     "A skill set that matches nothing",
 			words:    "@nope",
-			warnings: []string{"@nope   matches no skill set · skl drop @nope"},
+			warnings: []string{"@nope   matches no skill set"},
 		},
 		{
 			name:  "A removal that matches nothing",
 			words: "-nope/x -nope -@nope",
 			warnings: []string{
-				"-nope/x   matches no skill · skl drop -nope/x",
-				"-nope   matches no group · skl drop -nope",
-				"-@nope   matches no skill set · skl drop -@nope",
+				"-nope/x   matches no skill",
+				"-nope   matches no group",
+				"-@nope   matches no skill set",
 			},
 		},
 		{
 			name:  "A selector that matches nothing in a skill set: ! review/old-name   matches no skill (in @backend)",
 			words: "@stale",
 			warnings: []string{
-				"review/old-name   matches no skill (in @stale) · edit sets/stale.toml",
-				"@gone   matches no skill set (in @stale) · edit sets/stale.toml",
-				"pdf   matches no group (in @stale) · edit sets/stale.toml to say someone/pdf",
-				"nope   matches no group (in @stale) · edit sets/stale.toml",
-				"-nope   matches no group (in @stale) · edit sets/stale.toml",
+				"review/old-name   matches no skill (in @stale)",
+				"@gone   matches no skill set (in @stale)",
+				"pdf   matches no group (in @stale) → someone/pdf",
+				"nope   matches no group (in @stale)",
+				"-nope   matches no group (in @stale)",
 			},
 		},
 		{
 			name:  "A warning names the set that holds the line, however deep",
 			words: "@outer",
 			warnings: []string{
-				"review/old-name   matches no skill (in @stale) · edit sets/stale.toml",
-				"@gone   matches no skill set (in @stale) · edit sets/stale.toml",
-				"pdf   matches no group (in @stale) · edit sets/stale.toml to say someone/pdf",
-				"nope   matches no group (in @stale) · edit sets/stale.toml",
-				"-nope   matches no group (in @stale) · edit sets/stale.toml",
+				"review/old-name   matches no skill (in @stale)",
+				"@gone   matches no skill set (in @stale)",
+				"pdf   matches no group (in @stale) → someone/pdf",
+				"nope   matches no group (in @stale)",
+				"-nope   matches no group (in @stale)",
 			},
 		},
 		{
 			name:  "The warnings of a removed set still show",
 			words: "-@bottom",
 			warnings: []string{
-				"review/old-name   matches no skill (in @bottom) · edit sets/bottom.toml",
+				"review/old-name   matches no skill (in @bottom)",
 			},
 		},
 		{
 			name:     "The same warning shows once",
 			words:    "nope nope",
-			warnings: []string{"nope   matches no group · skl drop nope"},
+			warnings: []string{"nope   matches no group"},
 		},
 		{
 			name:   "A warning never stops the rest",
 			words:  "nope writing",
 			skills: []string{"writing/changelog"},
 			warnings: []string{
-				"nope   matches no group · skl drop nope",
+				"nope   matches no group",
 			},
 		},
 		{name: "No selectors, no skills", words: ""},
@@ -360,7 +373,11 @@ func TestResolve(t *testing.T) {
 				replaced = append(replaced, r.New.Folder+"   "+r.Detail())
 			}
 			for _, w := range res.Warnings {
-				warnings = append(warnings, w.Message()+" · "+w.Hint)
+				text := w.Message()
+				if w.Suggest != "" {
+					text += " → " + w.Suggest
+				}
+				warnings = append(warnings, text)
 			}
 			if !reflect.DeepEqual(skills, tt.skills) {
 				t.Errorf("Resolve(%q) skills:\n got %q\nwant %q", tt.words, skills, tt.skills)
@@ -394,33 +411,101 @@ func TestResolveReplacesTwo(t *testing.T) {
 	}
 }
 
-// A chain of clashes reports the winner against each skill it displaced.
-func TestResolveReplacedChain(t *testing.T) {
-	idx := index{skills: []string{"a/x", "b/x", "c/x", "o/x=n", "w/y=n", "z/y"}}
+// Removals first, then clashes among what's left: a skill is unloaded only if
+// a skill in the result clashes with it, and the report names that skill.
+func TestResolveClashChains(t *testing.T) {
+	idx := index{skills: []string{"a/x", "b/x", "c/x", "c/y=n", "e/x=n", "o/x=n", "w/y=n", "z/y"}}
 	tests := []struct {
-		words string
-		want  []string
+		words            string
+		skills, replaced []string
 	}{
-		{"a/x b/x c/x", []string{"c/x replaces a/x", "c/x replaces b/x"}},
-		{"a/x b/x c/x -b/x", []string{"c/x replaces a/x"}},
-		{"a/x b/x c/x -c/x", nil},
-		{"a/x b/x a/x", []string{"a/x replaces b/x"}},
-		// o loses to w by name, w to z by folder; o doesn't clash with z, so
-		// when o comes back both stay and nothing replaces o any more.
-		{"o/x w/y z/y", []string{"z/y replaces o/x", "z/y replaces w/y"}},
-		{"o/x w/y z/y o/x", []string{"z/y replaces w/y"}},
+		{"a/x b/x c/x", []string{"c/x"}, []string{"c/x replaces a/x", "c/x replaces b/x"}},
+		{"a/x b/x c/x -b/x", []string{"c/x"}, []string{"c/x replaces a/x"}},
+		{"a/x b/x c/x -c/x", []string{"b/x"}, []string{"b/x replaces a/x"}},
+		{"a/x b/x a/x", []string{"a/x"}, []string{"a/x replaces b/x"}},
+		// c/y and a/x don't clash; e/x clashes with both and loses to a/x.
+		{"c/y e/x a/x", []string{"c/y", "a/x"}, []string{"a/x replaces e/x"}},
+		{"c/y e/x", []string{"e/x"}, []string{"e/x replaces c/y"}},
+		// w/y clashes with o/x by name and with z/y by folder.
+		{"o/x w/y z/y", []string{"o/x", "z/y"}, []string{"z/y replaces w/y"}},
+		{"o/x w/y z/y o/x", []string{"o/x", "z/y"}, []string{"o/x replaces w/y", "z/y replaces w/y"}},
 	}
 	for _, tt := range tests {
 		res, err := Resolve(parse(t, tt.words), idx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var got []string
-		for _, r := range res.Replaced {
-			got = append(got, r.Detail())
+		var skills, replaced []string
+		for _, s := range res.Skills {
+			skills = append(skills, s.String())
 		}
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("Resolve(%q) replaced = %q, want %q", tt.words, got, tt.want)
+		for _, r := range res.Replaced {
+			replaced = append(replaced, r.Detail())
+		}
+		if !reflect.DeepEqual(skills, tt.skills) {
+			t.Errorf("Resolve(%q) skills = %q, want %q", tt.words, skills, tt.skills)
+		}
+		if !reflect.DeepEqual(replaced, tt.replaced) {
+			t.Errorf("Resolve(%q) replaced = %q, want %q", tt.words, replaced, tt.replaced)
+		}
+	}
+}
+
+// A skill's names are its folder name and its frontmatter name. Two skills
+// clash when those overlap, so a folder clashes with another skill's name.
+func TestResolveNamesOverlap(t *testing.T) {
+	idx := index{skills: []string{"a/x", "b/y=x", "c/z"}}
+	tests := []struct {
+		words  string
+		skills string
+		want   string
+	}{
+		{"a/x b/y", "b/y", "b/y replaces a/x"},
+		{"b/y a/x", "a/x", "a/x replaces b/y"},
+	}
+	for _, tt := range tests {
+		res, err := Resolve(parse(t, tt.words), idx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Skills) != 1 || res.Skills[0].String() != tt.skills {
+			t.Errorf("Resolve(%q) skills = %+v, want %s", tt.words, res.Skills, tt.skills)
+		}
+		if len(res.Replaced) != 1 || res.Replaced[0].Detail() != tt.want {
+			t.Errorf("Resolve(%q) replaced = %+v, want %s", tt.words, res.Replaced, tt.want)
+		}
+	}
+	// Neither has a frontmatter name: an empty name overlaps nothing.
+	res, err := Resolve(parse(t, "a/x c/z"), idx)
+	if err != nil || len(res.Skills) != 2 || res.Replaced != nil {
+		t.Errorf("Resolve(a/x c/z) = %+v, %v, want both, no clash", res, err)
+	}
+}
+
+// resolve returns the data for a hint, never a command: app builds the hint
+// for the command being run (the strings land with #64).
+func TestWarningData(t *testing.T) {
+	tests := []struct {
+		word    string
+		problem Problem
+		remove  bool
+		set     string
+		suggest string
+	}{
+		{word: "pdf", problem: NoGroup, suggest: "someone/pdf"},
+		{word: "-pdf", problem: NoGroup, remove: true, suggest: "someone/pdf"},
+		{word: "nope", problem: NoGroup},
+		{word: "nope/x", problem: NoSkill},
+		{word: "@nope", problem: NoSet},
+	}
+	for _, tt := range tests {
+		res, err := Resolve(parse(t, tt.word), vault)
+		if err != nil || len(res.Warnings) != 1 {
+			t.Fatalf("Resolve(%q) = %+v, %v", tt.word, res, err)
+		}
+		w := res.Warnings[0]
+		if w.Selector.String() != tt.word || w.Selector.Remove != tt.remove || w.Problem != tt.problem || w.Set != tt.set || w.Suggest != tt.suggest {
+			t.Errorf("Resolve(%q) warning = %+v", tt.word, w)
 		}
 	}
 }
@@ -499,6 +584,63 @@ func TestResolveSetError(t *testing.T) {
 	for _, words := range []string{"@bad", "-@bad"} {
 		if _, err := Resolve(parse(t, words), idx); !errors.Is(err, boom) {
 			t.Errorf("Resolve(%q) = %v, want %v", words, err, boom)
+		}
+	}
+}
+
+// What must hold for any list: no two loaded skills clash, every replacement is
+// real, and a selected skill only goes missing through a removal or a clash.
+func TestResolveInvariants(t *testing.T) {
+	idx := index{skills: []string{"a/x", "a/y=n", "b/x=m", "b/z=n", "c/m", "c/y", "d/n=x", "d/w"}}
+	var words []string
+	for _, s := range idx.skills {
+		w, _, _ := strings.Cut(s, "=")
+		words = append(words, w, "-"+w)
+	}
+	words = append(words, "a", "b", "c", "d", "-a", "-b", "-c", "-d")
+	rnd := rand.New(rand.NewPCG(58, 85))
+	for range 20000 {
+		list := make([]string, 1+rnd.IntN(8))
+		for i := range list {
+			list[i] = words[rnd.IntN(len(words))]
+		}
+		line := strings.Join(list, " ")
+		res, err := Resolve(parse(t, line), idx)
+		if err != nil {
+			t.Fatalf("Resolve(%q): %v", line, err)
+		}
+		for i, s := range res.Skills {
+			for _, o := range res.Skills[i+1:] {
+				if s.clashes(o) {
+					t.Fatalf("Resolve(%q): %s and %s clash", line, s, o)
+				}
+			}
+		}
+		for _, r := range res.Replaced {
+			if slices.Contains(res.Skills, r.Old) || !slices.Contains(res.Skills, r.New) || !r.Old.clashes(r.New) {
+				t.Fatalf("Resolve(%q): %s is not a real replacement in %v", line, r.Detail(), res.Skills)
+			}
+		}
+		// Replay the list with removals only: what's still selected either
+		// loaded or was replaced.
+		var selected []Skill
+		for _, sel := range parse(t, line) {
+			for _, s := range idx.Skills(sel.Group) {
+				if sel.Kind == selector.Skill && s.Folder != sel.Name && s.Name != sel.Name {
+					continue
+				}
+				if sel.Remove {
+					selected = slices.DeleteFunc(selected, func(o Skill) bool { return o == s })
+				} else if !slices.Contains(selected, s) {
+					selected = append(selected, s)
+				}
+			}
+		}
+		for _, s := range selected {
+			lost := slices.ContainsFunc(res.Replaced, func(r Replacement) bool { return r.Old == s })
+			if slices.Contains(res.Skills, s) == lost {
+				t.Fatalf("Resolve(%q): %s loaded=%v replaced=%v", line, s, !lost, lost)
+			}
 		}
 	}
 }
