@@ -77,9 +77,9 @@ func (e *ReferenceError) Is(target error) bool { return target == ErrReference }
 // ErrInvalid error for anything else that isn't a selector.
 func Parse(word string) (Selector, error) {
 	rest, remove := strings.CutPrefix(word, "-")
-	if rest == "" {
+	if strings.TrimSpace(rest) == "" {
 		if remove {
-			return Selector{}, invalid(word, "it removes nothing")
+			return Selector{}, invalid("-", "it removes nothing")
 		}
 		return Selector{}, invalidError("a selector can't be empty")
 	}

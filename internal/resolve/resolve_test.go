@@ -87,7 +87,7 @@ var vault = index{
 	},
 }
 
-func parse(t *testing.T, words string) []selector.Selector {
+func parse(t testing.TB, words string) []selector.Selector {
 	t.Helper()
 	var sels []selector.Selector
 	for w := range strings.FieldsSeq(words) {
@@ -345,6 +345,19 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
+			name:  "A warning before a removed set still shows",
+			words: "nope -@bottom",
+			warnings: []string{
+				"nope   matches no group",
+				"review/old-name   matches no skill (in @bottom)",
+			},
+		},
+		{
+			name:     "A warning from a set and from its removal shows once",
+			words:    "@bottom -@bottom",
+			warnings: []string{"review/old-name   matches no skill (in @bottom)"},
+		},
+		{
 			name:     "The same warning shows once",
 			words:    "nope nope",
 			warnings: []string{"nope   matches no group"},
@@ -588,6 +601,8 @@ func TestResolveSetError(t *testing.T) {
 	}
 }
 
+func clash(a, b Skill) bool { return foldNames(a).clashes(foldNames(b)) }
+
 // What must hold for any list: no two loaded skills clash, every replacement is
 // real, and a selected skill only goes missing through a removal or a clash.
 func TestResolveInvariants(t *testing.T) {
@@ -611,13 +626,13 @@ func TestResolveInvariants(t *testing.T) {
 		}
 		for i, s := range res.Skills {
 			for _, o := range res.Skills[i+1:] {
-				if s.clashes(o) {
+				if clash(s, o) {
 					t.Fatalf("Resolve(%q): %s and %s clash", line, s, o)
 				}
 			}
 		}
 		for _, r := range res.Replaced {
-			if slices.Contains(res.Skills, r.Old) || !slices.Contains(res.Skills, r.New) || !r.Old.clashes(r.New) {
+			if slices.Contains(res.Skills, r.Old) || !slices.Contains(res.Skills, r.New) || !clash(r.Old, r.New) {
 				t.Fatalf("Resolve(%q): %s is not a real replacement in %v", line, r.Detail(), res.Skills)
 			}
 		}

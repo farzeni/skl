@@ -18,6 +18,11 @@ func TestFold(t *testing.T) {
 		{"\u00e9", "e\u0301", true},
 		{"É", "e\u0301", true},
 		{"straße", "STRASSE", true},
+		// Folding can leave a pair NFC would join: only the last NFC finds these.
+		{"ß\u0301", "S\u015a", true},
+		// U+0345 reorders under NFC, then folds to a letter that blocks the
+		// accent: only the first NFC finds these.
+		{"\u03b1\u0345\u0301", "\u1fb4", true},
 		// Folding has no locale: the Turkish letters stay their own.
 		{"ı", "i", false},
 		{"ı", "I", false},
