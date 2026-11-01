@@ -4,7 +4,6 @@ package selector
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"unicode"
@@ -45,8 +44,17 @@ func (s Selector) String() string {
 	return word
 }
 
-// ErrInvalid is a word that is neither a selector nor a reference.
-var ErrInvalid = errors.New("invalid selector")
+// ErrInvalid is a word that is neither a selector nor a reference, or an owner
+// with no valid group name.
+var ErrInvalid = errors.New("invalid name")
+
+// invalidError is an error that is ErrInvalid and reads as its own sentence.
+type invalidError string
+
+func (e invalidError) Error() string { return string(e) }
+
+// Is reports whether target is ErrInvalid.
+func (e invalidError) Is(target error) bool { return target == ErrInvalid }
 
 // ErrReference is a word that names something in someone else's repo. Parse
 // returns it as a *ReferenceError.
@@ -66,6 +74,15 @@ func (e *ReferenceError) Is(target error) bool { return target == ErrReference }
 // ErrInvalid error for anything else that isn't a selector.
 func Parse(word string) (Selector, error) {
 	rest, remove := strings.CutPrefix(word, "-")
+	if rest == "" {
+		if remove {
+			return Selector{}, invalid(word, "it removes nothing")
+		}
+		return Selector{}, invalidError("a selector can't be empty")
+	}
+	if strings.HasPrefix(rest, "-") {
+		return Selector{}, invalid(word, badName)
+	}
 	if isReference(rest) {
 		return Selector{}, &ReferenceError{Ref: rest}
 	}
@@ -91,15 +108,20 @@ func Parse(word string) (Selector, error) {
 const badName = "a name has letters, digits, - and _, and starts with a letter or a digit"
 
 func invalid(word, why string) error {
-	return fmt.Errorf("%w %s: %s", ErrInvalid, word, why)
+	return invalidError(word + " is not a valid selector: " + why)
 }
 
 // isReference follows the Grammar's "Anything else is a reference", with word
 // already free of its "-". A "#" counts too: it only ever pins a reference.
-// A "@" word with a dot is a bad set name, not a host.
+// A "@" word with a dot is a bad set name, not a host. Past a path's first
+// character, a word with a space is no reference: a path can hold one, the rest
+// can't.
 func isReference(word string) bool {
 	if strings.HasPrefix(word, "~") || strings.HasPrefix(word, "/") || strings.HasPrefix(word, ".") {
 		return true
+	}
+	if strings.ContainsFunc(word, unicode.IsSpace) {
+		return false
 	}
 	if strings.Contains(word, "://") || isSCP(word) {
 		return true
@@ -121,20 +143,31 @@ func isSCP(word string) bool {
 }
 
 // ValidName reports whether name fits the grammar's name: letters, digits,
-// "-" and "_", starting with a letter or a digit.
+// "-" and "_", starting with a letter or a digit. A letter may carry combining
+// marks, so a name in NFD or in a script that needs them is valid.
 func ValidName(name string) bool {
+	afterLetter := false
 	for i, r := range name {
-		alnum := unicode.IsLetter(r) || unicode.IsDigit(r)
-		if !alnum && (i == 0 || (r != '-' && r != '_')) {
+		switch {
+		case unicode.IsLetter(r):
+			afterLetter = true
+		case unicode.IsMark(r):
+			if !afterLetter {
+				return false
+			}
+		case unicode.IsDigit(r), i > 0 && (r == '-' || r == '_'):
+			afterLetter = false
+		default:
 			return false
 		}
 	}
 	return name != ""
 }
 
-// ReservedGroup reports whether a group can't have this name.
+// ReservedGroup reports whether a group can't have this name, in any case: on
+// a case-insensitive disk, Sets is the folder sets.
 func ReservedGroup(name string) bool {
-	return slices.Contains([]string{"sets", "lessons", "h"}, name)
+	return slices.Contains([]string{"sets", "lessons", "h"}, strings.ToLower(name))
 }
 
 // OwnerGroup returns the group for a new skill whose group would be owner:
@@ -146,7 +179,7 @@ func OwnerGroup(owner string) (string, error) {
 	}
 	group := owner + "-skills"
 	if !ValidName(group) {
-		return "", fmt.Errorf("%w group for owner %s: %s", ErrInvalid, owner, badName)
+		return "", invalidError("the owner " + owner + " gives no valid group name: " + badName)
 	}
 	return group, nil
 }

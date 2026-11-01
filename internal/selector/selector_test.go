@@ -21,6 +21,9 @@ func TestParse(t *testing.T) {
 		{"name: letters, digits, - and _", "a_1-b/C2_d-e", Selector{Kind: Skill, Group: "a_1-b", Name: "C2_d-e"}},
 		{"name: starting with a digit", "1a", Selector{Kind: Group, Group: "1a"}},
 		{"name: letters beyond ASCII", "résumé", Selector{Kind: Group, Group: "résumé"}},
+		{"name: a combining mark after a letter (NFD)", "re\u0301sume\u0301", Selector{Kind: Group, Group: "re\u0301sume\u0301"}},
+		{"name: combining marks in a script that needs them", "हिन्दी/हिन्दी", Selector{Kind: Skill, Group: "हिन्दी", Name: "हिन्दी"}},
+		{"reserved names only as a whole word", "Sets-x", Selector{Kind: Group, Group: "Sets-x"}},
 		{"reserved names are for groups: a skill", "review/sets", Selector{Kind: Skill, Group: "review", Name: "sets"}},
 		{"reserved names are for groups: a skill set", "@h", Selector{Kind: Set, Name: "h"}},
 	}
@@ -70,6 +73,10 @@ func TestParseReference(t *testing.T) {
 		{"-someone/agent-skills/pdf", "someone/agent-skills/pdf"},
 		{"-https://example.com/a", "https://example.com/a"},
 		{"-~/code/skills", "~/code/skills"},
+		// A path can hold a space.
+		{"~/my code/skills", ""},
+		{"/srv/my skills", ""},
+		{"-./my skills", "./my skills"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.word, func(t *testing.T) {
@@ -115,6 +122,11 @@ func TestParseInvalid(t *testing.T) {
 		{"Every name is free of dots: a skill", "review/pr.review"},
 		{"Every name is free of dots: a set", "@back.end"},
 		{"name: no other characters", "re view"},
+		{"a word with a space and three parts is no reference", "a b/c/d"},
+		{"a URL with a space is no reference", "https://example.com/a b"},
+		{"-- -word never gives a reference starting with -", "--a/b/c"},
+		{"-- -word: a URL", "--https://example.com/a"},
+		{"-- -word: a path", "--./a"},
 		{"name: no other characters, in a skill", "review/a:b"},
 		{"group / skill: both parts", "review/"},
 		{"@ only starts a set, one part", "@a/b"},
@@ -127,6 +139,14 @@ func TestParseInvalid(t *testing.T) {
 		{"A group can't be named h: a skill in it", "h/x"},
 		{"A group can't be named sets: removing it", "-sets"},
 		{"-h is help, never a removal", "-h"},
+		{"Reserved names ignore case: Sets", "Sets"},
+		{"Reserved names ignore case: LESSONS", "LESSONS"},
+		{"Reserved names ignore case: H", "H"},
+		{"Reserved names ignore case: a skill in it", "SETS/x"},
+		{"Reserved names ignore case: removing it", "-Sets"},
+		{"name: a combining mark can't start a word", "\u0301e"},
+		{"name: a combining mark only after a letter, not a digit", "1\u0301"},
+		{"name: a combining mark only after a letter, not -", "a-\u0301"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.word, func(t *testing.T) {
@@ -141,9 +161,29 @@ func TestParseInvalid(t *testing.T) {
 	}
 }
 
+// Each message reads as a sentence of its own.
+func TestInvalidMessages(t *testing.T) {
+	for word, want := range map[string]string{
+		"":        "a selector can't be empty",
+		"-":       "- is not a valid selector: it removes nothing",
+		"re view": "re view is not a valid selector: " + badName,
+		"sets":    "sets is not a valid selector: a group can't be named sets",
+	} {
+		if _, err := Parse(word); err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %v, want %q", word, err, want)
+		}
+	}
+	want := "the owner my.org gives no valid group name: " + badName
+	if _, err := OwnerGroup("my.org"); err == nil || err.Error() != want {
+		t.Errorf("OwnerGroup(my.org) = %v, want %q", err, want)
+	}
+}
+
 func TestValidName(t *testing.T) {
 	for name, want := range map[string]bool{
 		"a": true, "A1": true, "1-a_b": true, "é": true,
+		"e\u0301": true, "e\u0301\u0302": true, "हिन्दी": true,
+		"\u0301": false, "1\u0301": false, "a_\u0301": false,
 		"": false, "-a": false, "_a": false, "a.b": false, "a/b": false, "a b": false, "@a": false,
 	} {
 		if got := ValidName(name); got != want {
@@ -164,6 +204,8 @@ func TestOwnerGroup(t *testing.T) {
 		{owner: "sets", want: "sets-skills"},
 		{owner: "lessons", want: "lessons-skills"},
 		{owner: "h", want: "h-skills"},
+		{owner: "Sets", want: "Sets-skills"},
+		{owner: "H", want: "H-skills"},
 		// GitHub allows neither of these, but a local repo's folder can be one.
 		{owner: "-x", wantErr: true},
 		{owner: "my.org", wantErr: true},
