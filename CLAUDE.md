@@ -61,7 +61,7 @@ Stub tests (spec tests) turn doc statements into executable checks before the co
 
 - They are [testscript](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript) scripts, one txtar file per doc page or section: `spec/testdata/<page>[-<section>].txtar` (`skill-sets-status.txtar` ↔ `docs/guide/skill-sets.md` "What's loaded").
 - The first line names the page (`# docs/guide/skill-sets.md`). Each block is preceded by the sentence it checks: `# "<doc sentence>"`.
-- `skl` runs in-process. `spec/spec_test.go` uses `testscript.Main`, so the test binary acts as `skl` through the real `main` path, and coverage counts.
+- `skl` runs in-process. `spec/spec_test.go` uses `testscript.Main`, so the test binary acts as `skl` through the real `main` path, and coverage counts (`make cover`).
 - Each script gets `HOME=$WORK/home`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=$HOME/.gitconfig`, `COLUMNS=80`, and a `.gitconfig` that maps `https://github.com/` to local bare repos under `$REMOTES`, so skl needs no test hook.
 - Helper commands live in `spec/spec_test.go`; add one when a script needs it. `remote <owner/repo> [dir]` creates a bare repo, seeded from `dir` if given. `exitcode <n> <program> [args…]` runs like `exec` and checks the exact exit code (`! exec` only checks non-zero). `spec/testdata/harness/` tests the harness itself.
 - Expected output is golden (`cmp stderr want.txt`). `make golden` (`UPDATE=1 go test ./...`) rewrites it, in spec scripts and in package `testdata/*.golden` alike. Review the diff.

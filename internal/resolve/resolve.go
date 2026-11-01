@@ -22,10 +22,19 @@ type Skill struct {
 // String returns the skill as "group/folder".
 func (s Skill) String() string { return s.Group + "/" + s.Folder }
 
+// names holds a skill's names in the form they compare in, selector.Fold.
+type names struct {
+	folder, name string
+}
+
+func foldNames(s Skill) names {
+	return names{folder: selector.Fold(s.Folder), name: selector.Fold(s.Name)}
+}
+
 // clashes reports whether two skills share a name. A skill's names are its
 // folder name and its frontmatter name.
-func (s Skill) clashes(o Skill) bool {
-	return s.Folder == o.Folder || s.Folder == o.Name || s.Name == o.Folder || (s.Name != "" && s.Name == o.Name)
+func (n names) clashes(o names) bool {
+	return n.folder == o.folder || n.folder == o.name || n.name == o.folder || (n.name != "" && n.name == o.name)
 }
 
 // ErrNoSet is what Index.Set returns for a skill set that doesn't exist.
@@ -99,11 +108,38 @@ func (e *CycleError) Error() string {
 	return fmt.Sprintf("skill set @%s includes itself: @%s", e.Cycle[0], strings.Join(e.Cycle, " → @"))
 }
 
+// AmbiguousGroupError is a selector whose group matches two or more vault
+// groups that differ only by case or Unicode form.
+type AmbiguousGroupError struct {
+	Group  string   // as typed
+	Groups []string // the vault's groups, as written
+}
+
+func (e *AmbiguousGroupError) Error() string {
+	return fmt.Sprintf("%s matches %d groups: %s", e.Group, len(e.Groups), strings.Join(e.Groups, ", "))
+}
+
+// AmbiguousSkillError is a selector whose name matches two or more skills in its
+// group, and no folder exactly.
+type AmbiguousSkillError struct {
+	Name   string  // the selector's group/name, as typed
+	Skills []Skill // the group's skills, as written
+}
+
+func (e *AmbiguousSkillError) Error() string {
+	list := make([]string, len(e.Skills))
+	for i, s := range e.Skills {
+		list[i] = s.String()
+	}
+	return fmt.Sprintf("%s matches %d skills: %s", e.Name, len(list), strings.Join(list, ", "))
+}
+
 // Resolve applies sels left to right: each removal takes away what the earlier
 // selectors selected. Then, among what's left, the later of two skills that
 // clash wins. A selector that matches nothing is a warning. A set that includes
-// itself, a set line that isn't a selector, or a set that can't be read is an
-// error.
+// itself, a set line that isn't a selector, a set that can't be read, a group
+// that matches two vault groups, or a name that matches two skills in its group
+// is an error.
 func Resolve(sels []selector.Selector, idx Index) (Result, error) {
 	r := resolver{idx: idx}
 	if err := r.apply(sels, ""); err != nil {
@@ -114,14 +150,16 @@ func Resolve(sels []selector.Selector, idx Index) (Result, error) {
 	return res, nil
 }
 
-// selection is a selected skill and when it was last selected. A skill selected
-// again keeps its place in the list, and counts as selected then in a clash.
+// selection is a selected skill, its folded names and when it was last selected.
+// A skill selected again keeps its place in the list, and counts as selected then
+// in a clash. Settling compares every pair, so the names are folded only here.
 type selection struct {
 	skill Skill
+	names names
 	last  int
 }
 
-func (s selection) clashes(o selection) bool { return s.skill.clashes(o.skill) }
+func (s selection) clashes(o selection) bool { return s.names.clashes(o.names) }
 
 type resolver struct {
 	idx      Index
@@ -141,7 +179,11 @@ func (r *resolver) apply(sels []selector.Selector, in string) error {
 			}
 			continue
 		}
-		for _, s := range r.match(sel, in) {
+		skills, err := r.match(sel, in)
+		if err != nil {
+			return err
+		}
+		for _, s := range skills {
 			if sel.Remove {
 				r.remove(s)
 			} else {
@@ -191,48 +233,86 @@ func (r *resolver) applySet(sel selector.Selector, in string) error {
 
 // match returns the skills a group or skill selector names, and warns if
 // there are none.
-func (r *resolver) match(sel selector.Selector, in string) []Skill {
-	skills := r.idx.Skills(sel.Group)
+func (r *resolver) match(sel selector.Selector, in string) ([]Skill, error) {
+	group, exists, err := r.group(sel.Group)
+	if err != nil {
+		return nil, err
+	}
+	skills := r.idx.Skills(group)
 	if sel.Kind == selector.Skill {
-		if s, ok := find(skills, sel.Name); ok {
-			return []Skill{s}
+		found := find(skills, sel.Name)
+		switch len(found) {
+		case 0:
+			r.warn(sel, NoSkill, in, "")
+			return nil, nil
+		case 1:
+			return found, nil
 		}
-		r.warn(sel, NoSkill, in, "")
-		return nil
+		return nil, &AmbiguousSkillError{Name: sel.Group + "/" + sel.Name, Skills: found}
 	}
 	if len(skills) > 0 {
-		return skills
+		return skills, nil
 	}
-	if slices.Contains(r.idx.Groups(), sel.Group) {
+	if exists {
 		r.warn(sel, NoSkill, in, "")
-		return nil
+		return nil, nil
 	}
 	suggest := ""
 	if s, ok := r.skillNamed(sel.Group); ok {
 		suggest = s.String()
 	}
 	r.warn(sel, NoGroup, in, suggest)
-	return nil
+	return nil, nil
 }
 
-// find looks a name up in one group: a folder name first, then a frontmatter
-// name. Folders are unique in a group; of two equal frontmatter names, the
-// first wins.
-func find(skills []Skill, name string) (Skill, bool) {
+// group finds the vault group a selector's group means, in any case or form.
+// Two matches are an error, even if one is exact.
+func (r *resolver) group(typed string) (group string, exists bool, err error) {
+	want := selector.Fold(typed)
+	var found []string
+	for _, g := range r.idx.Groups() {
+		if selector.Fold(g) == want {
+			found = append(found, g)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return typed, false, nil
+	case 1:
+		return found[0], true, nil
+	}
+	return "", false, &AmbiguousGroupError{Group: typed, Groups: found}
+}
+
+// find looks a name up in one group, in any case or form: an exact folder name
+// first, then folder names, then frontmatter names. It returns every skill the
+// first of those that matches finds. An exact folder name is one skill, so each
+// skill can always be named.
+func find(skills []Skill, name string) []Skill {
 	if i := slices.IndexFunc(skills, func(s Skill) bool { return s.Folder == name }); i >= 0 {
-		return skills[i], true
+		return skills[i : i+1]
 	}
-	if i := slices.IndexFunc(skills, func(s Skill) bool { return s.Name == name }); i >= 0 {
-		return skills[i], true
+	want := selector.Fold(name)
+	var byFolder, byName []Skill
+	for _, s := range skills {
+		if selector.Fold(s.Folder) == want {
+			byFolder = append(byFolder, s)
+		} else if selector.Fold(s.Name) == want {
+			byName = append(byName, s)
+		}
 	}
-	return Skill{}, false
+	if byFolder != nil {
+		return byFolder
+	}
+	return byName
 }
 
-// skillNamed looks a name up in every group, in the index's order.
+// skillNamed looks a name up in every group, in the index's order, and takes the
+// first it finds: this only makes a suggestion.
 func (r *resolver) skillNamed(name string) (Skill, bool) {
 	for _, g := range r.idx.Groups() {
-		if s, ok := find(r.idx.Skills(g), name); ok {
-			return s, true
+		if found := find(r.idx.Skills(g), name); len(found) > 0 {
+			return found[0], true
 		}
 	}
 	return Skill{}, false
@@ -252,7 +332,7 @@ func (r *resolver) add(s Skill) {
 		r.selected[i].last = r.count
 		return
 	}
-	r.selected = append(r.selected, selection{skill: s, last: r.count})
+	r.selected = append(r.selected, selection{skill: s, names: foldNames(s), last: r.count})
 }
 
 func (r *resolver) remove(s Skill) {

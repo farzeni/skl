@@ -7,6 +7,9 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Kind is what a selector names.
@@ -74,9 +77,9 @@ func (e *ReferenceError) Is(target error) bool { return target == ErrReference }
 // ErrInvalid error for anything else that isn't a selector.
 func Parse(word string) (Selector, error) {
 	rest, remove := strings.CutPrefix(word, "-")
-	if rest == "" {
+	if strings.TrimSpace(rest) == "" {
 		if remove {
-			return Selector{}, invalid(word, "it removes nothing")
+			return Selector{}, invalid("-", "it removes nothing")
 		}
 		return Selector{}, invalidError("a selector can't be empty")
 	}
@@ -164,10 +167,27 @@ func ValidName(name string) bool {
 	return name != ""
 }
 
-// ReservedGroup reports whether a group can't have this name, in any case: on
-// a case-insensitive disk, Sets is the folder sets.
+// Fold returns the form names are compared in: Unicode NFC and case folding.
+// Two names with the same Fold are one name (skill-sets.md "Names and clashes").
+// Folding has no locale: ß folds to ss, while the Turkish ı stays its own letter.
+func Fold(name string) string {
+	folded := cases.Fold().String(norm.NFC.String(name))
+	return norm.NFC.String(strings.Map(cherokeeUpper, folded))
+}
+
+// cherokeeUpper puts a Cherokee letter in the case Unicode folds it to, the
+// upper one. x/text's Fold swaps the two cases, so a pair would never match.
+func cherokeeUpper(r rune) rune {
+	if unicode.Is(unicode.Cherokee, r) {
+		return unicode.ToUpper(r)
+	}
+	return r
+}
+
+// ReservedGroup reports whether a group can't have this name, in any case or
+// form: on a case-insensitive disk, Sets is the folder sets.
 func ReservedGroup(name string) bool {
-	return slices.Contains([]string{"sets", "lessons", "h"}, strings.ToLower(name))
+	return slices.Contains([]string{"sets", "lessons", "h"}, Fold(name))
 }
 
 // OwnerGroup returns the group for a new skill whose group would be owner:
