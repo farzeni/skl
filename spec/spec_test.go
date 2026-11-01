@@ -14,13 +14,11 @@ import (
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
-
-	"github.com/farzeni/skl/internal/cli"
 )
 
 func TestMain(m *testing.M) {
 	testscript.Main(m, map[string]func(){
-		"skl": func() { os.Exit(cli.Run()) },
+		"skl": runSkl,
 	})
 }
 

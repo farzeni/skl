@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"slices"
@@ -322,16 +323,20 @@ func TestSSHPrecedence(t *testing.T) {
 }
 
 // docs/design/architecture.md "Fetching from remotes": "Ctrl-C or a timeout
-// stops the running git and everything it started, such as ssh."
+// stops a git that may contact a remote and everything it started, such as
+// ssh."
 func TestStopKillsChildren(t *testing.T) {
 	tests := []struct {
 		name string
 		// set runs before git starts.
 		set func(g *Git)
 		is  error
+		ssh bool // through a real ls-remote and a fake ssh, not an alias
 	}{
-		{"Ctrl-C", nil, context.Canceled},
-		{"timeout", func(g *Git) { g.Timeout = 500 * time.Millisecond }, ErrUnreachable},
+		{"Ctrl-C", nil, context.Canceled, false},
+		{"timeout", func(g *Git) { g.Timeout = 500 * time.Millisecond }, ErrUnreachable, false},
+		{"ls-remote Ctrl-C", nil, context.Canceled, true},
+		{"ls-remote timeout", func(g *Git) { g.Timeout = 500 * time.Millisecond }, ErrUnreachable, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -343,7 +348,12 @@ func TestStopKillsChildren(t *testing.T) {
 			pidFile := filepath.Join(t.TempDir(), "pid")
 			// sleep is git's child's child, as ssh can be. It lets go of the
 			// pipes, so only the signal can stop it.
-			script := "!sleep 300 >/dev/null 2>&1 </dev/null & echo $! > '" + pidFile + "'; wait"
+			script := "sleep 300 >/dev/null 2>&1 </dev/null & echo $! > '" + pidFile + "'; wait"
+			args := []string{"-c", "alias.hang=!" + script, "hang"}
+			if tt.ssh {
+				t.Setenv("GIT_SSH", writeScript(t, "ssh", script+"\n"))
+				args = []string{"ls-remote", "ssh://git@example.invalid/you/skills"}
+			}
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -366,7 +376,7 @@ func TestStopKillsChildren(t *testing.T) {
 			}()
 
 			start := time.Now()
-			_, err := g.Run(ctx, "", "-c", "alias.hang="+script, "hang")
+			_, err := g.Run(ctx, "", args...)
 			<-ready
 			if pid == 0 {
 				t.Fatal("the child never started")
@@ -604,13 +614,33 @@ func TestClassify(t *testing.T) {
 		// docs/reference/commands.md "Errors": "✗ can't reach github.com (Could not resolve host)"
 		{"fatal: unable to access 'https://github.com/you/skills/': Could not resolve host: github.com\n", ErrUnreachable, "Could not resolve host"},
 		{"ssh: Could not resolve hostname github.com: Name or service not known\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Could not resolve host"},
-		{"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Permission denied"},
-		{"Host key verification failed.\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Host key verification failed"},
-		{"remote: Repository not found.\nfatal: repository 'https://github.com/you/nope/' not found\n", ErrUnreachable, "Repository not found"},
-		{"fatal: Authentication failed for 'https://github.com/you/skills/'\n", ErrUnreachable, "Authentication failed"},
+		{"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n", ErrNoAccess, "Permission denied"},
+		{"Host key verification failed.\nfatal: Could not read from remote repository.\n", ErrNoAccess, "Host key verification failed"},
+		{"remote: Repository not found.\nfatal: repository 'https://github.com/you/nope/' not found\n", ErrNoAccess, "Repository not found"},
+		{"fatal: Authentication failed for 'https://github.com/you/skills/'\n", ErrNoAccess, "Authentication failed"},
 		{"fatal: not a git repository (or any of the parent directories): .git\n", ErrNotRepo, ""},
 		{"fatal: bad revision 'nope'\n", nil, ""},
-		{"fatal: repository '/home/you/agent-skills' does not exist\n", ErrUnreachable, "does not exist"},
+		{"fatal: repository '/home/you/agent-skills' does not exist\n", ErrNoAccess, "does not exist"},
+		// A host answering 404, in git's words (TestHTTPAnswers runs it).
+		{"fatal: repository 'https://git.example.com/you/nope/' not found\n", ErrNoAccess, "Repository not found"},
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 403\n", ErrNoAccess, "The requested URL returned error: 403"},
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 404 Not Found\n", ErrNoAccess, "The requested URL returned error: 404 Not Found"},
+		// The network or the server failed: app shows git's reason.
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 500\n", ErrUnreachable, "The requested URL returned error: 500"},
+		{"fatal: unable to access 'https://x/y/': The requested URL returned error: 503\n", ErrUnreachable, "The requested URL returned error: 503"},
+		{"Connection closed by remote host\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection closed by remote host"},
+		{"Connection closed by 192.0.2.1 port 22\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection closed by remote host"},
+		{"Connection reset by 192.0.2.1 port 22\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Connection reset"},
+		{"fatal: unable to access 'https://x/y/': SSL certificate problem: self-signed certificate\n", ErrUnreachable, "SSL certificate problem: self-signed certificate"},
+		// "Could not read" alone can't tell why: the line before it is the reason.
+		{"remote: \nremote: ERROR: The project you were looking for could not be found.\nremote: \nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n", ErrUnreachable, "ERROR: The project you were looking for could not be found."},
+		{"Bad owner or permissions on /home/you/.ssh/config\r\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Bad owner or permissions on /home/you/.ssh/config"},
+		{"sh: 1: git-upload-pack: not found\nfatal: Could not read from remote repository.\n", ErrUnreachable, "sh: 1: git-upload-pack: not found"},
+		{"Cloning into 'x'...\nWarning: Permanently added 'x' to the list of known hosts.\nfatal: Could not read from remote repository.\n", ErrUnreachable, "Could not read from remote repository"},
+		{"fatal: Could not read from remote repository.\n", ErrUnreachable, "Could not read from remote repository"},
+		// Other lines that say "not found" are not about a remote repo.
+		{"warning: Could not find remote branch nope to clone.\nfatal: Remote branch nope not found in upstream origin\n", nil, ""},
+		{"fatal: pathspec 'x' not found\n", nil, ""},
 		// Local problems are not an unreachable remote.
 		{"fatal: cannot mkdir /ro/x: Permission denied\n", nil, ""},
 		{"Cloning into '/ro/y'...\nfatal: could not create work tree dir '/ro/y': Permission denied\n", nil, ""},
@@ -618,7 +648,8 @@ func TestClassify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		reason, _, kind := classify(tt.stderr)
-		if !errors.Is(kind, tt.kind) || reason != tt.reason {
+		// Both ways: ErrNoAccess also matches ErrUnreachable.
+		if !errors.Is(kind, tt.kind) || !errors.Is(tt.kind, kind) || reason != tt.reason {
 			t.Errorf("classify(%q) = %v, %q; want %v, %q", tt.stderr, kind, reason, tt.kind, tt.reason)
 		}
 	}
@@ -635,5 +666,469 @@ func TestMessage(t *testing.T) {
 		if got := Message(tt.stderr); got != tt.want {
 			t.Errorf("Message(%q) = %q, want %q", tt.stderr, got, tt.want)
 		}
+	}
+}
+
+// writeScript writes an executable shell script and returns its path.
+func writeScript(t *testing.T, name, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// heldPid reads the pid a script left in file and kills it when the test ends.
+func heldPid(t *testing.T, file string) {
+	t.Helper()
+	b, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("the background child never started: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	if err := syscall.Kill(pid, 0); err != nil {
+		t.Errorf("the background child %d is gone (%v), so nothing held the pipe", pid, err)
+	}
+}
+
+// fakeSSH is an ssh that leaves a child holding its standard error, as an
+// ssh ControlPersist master does, then serves git over the local repo.
+func fakeSSH(t *testing.T, pidFile string) string {
+	t.Helper()
+	return writeScript(t, "ssh", "sleep 60 </dev/null >/dev/null &\necho $! > '"+pidFile+"'\n"+
+		"while [ $# -gt 1 ]; do shift; done\neval \"exec $1\"\n")
+}
+
+// A git that exited 0 succeeded, even if something it started outlives it and
+// keeps its output open.
+func TestPipesHeldAfterSuccess(t *testing.T) {
+	t.Run("ls-remote through ssh", func(t *testing.T) {
+		isolate(t)
+		g := New(nil)
+		src := newRepo(t, g)
+		if _, err := g.Run(t.Context(), src, "commit", "--quiet", "--allow-empty", "-m", "first"); err != nil {
+			t.Fatal(err)
+		}
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		t.Setenv("GIT_SSH", fakeSSH(t, pidFile))
+		out, err := g.Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid"+filepath.ToSlash(src))
+		heldPid(t, pidFile)
+		if err != nil {
+			t.Fatalf("Run = %v, want success", err)
+		}
+		if !strings.Contains(out, "refs/heads/main") {
+			t.Errorf("stdout = %q, want what git wrote", out)
+		}
+	})
+
+	t.Run("clone through ssh", func(t *testing.T) {
+		isolate(t)
+		g := New(nil)
+		src := newRepo(t, g)
+		if _, err := g.Run(t.Context(), src, "commit", "--quiet", "--allow-empty", "-m", "first"); err != nil {
+			t.Fatal(err)
+		}
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		t.Setenv("GIT_SSH", fakeSSH(t, pidFile))
+		dst := filepath.Join(t.TempDir(), "clone")
+		_, err := g.Run(t.Context(), "", "clone", "--quiet", "ssh://git@example.invalid"+filepath.ToSlash(src), dst)
+		heldPid(t, pidFile)
+		if err != nil {
+			t.Fatalf("Run = %v, want success", err)
+		}
+		if out, err := g.Run(t.Context(), dst, "log", "--format=%s"); err != nil || out != "first\n" {
+			t.Errorf("log in the clone = %q, %v", out, err)
+		}
+	})
+
+	t.Run("stdout held", func(t *testing.T) {
+		isolate(t)
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		script := "!sleep 60 </dev/null 2>/dev/null & echo $! > '" + pidFile + "'; echo out"
+		var buf bytes.Buffer
+		g := New(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+		out, err := g.Run(t.Context(), "", "-c", "alias.hold="+script, "hold")
+		heldPid(t, pidFile)
+		if err != nil || out != "out\n" {
+			t.Fatalf("Run = %q, %v, want %q", out, err, "out\n")
+		}
+		if n := strings.Count(buf.String(), "still holds"); n != 1 {
+			t.Errorf("debug log = %q, want one line saying a child still holds the output", buf.String())
+		}
+	})
+
+	t.Run("a failed git still fails", func(t *testing.T) {
+		isolate(t)
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		script := "!sleep 60 </dev/null >/dev/null & echo $! > '" + pidFile + "'; exit 3"
+		_, err := New(nil).Run(t.Context(), "", "-c", "alias.hold="+script, "hold")
+		heldPid(t, pidFile)
+		var e *Error
+		if !errors.As(err, &e) || e.Code != 3 {
+			t.Fatalf("err = %v, want an *Error with code 3", err)
+		}
+	})
+
+	t.Run("local command", func(t *testing.T) {
+		isolate(t)
+		g := New(nil)
+		dir := newRepo(t, g)
+		pidFile := filepath.Join(t.TempDir(), "pid")
+		hook := "#!/bin/sh\nsleep 60 </dev/null >/dev/null &\necho $! > '" + pidFile + "'\n"
+		if err := os.WriteFile(filepath.Join(dir, ".git", "hooks", "post-commit"), []byte(hook), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		_, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "first")
+		heldPid(t, pidFile)
+		if err != nil {
+			t.Fatalf("Run = %v, want success", err)
+		}
+	})
+}
+
+// commitWithHook makes a repo whose pre-commit hook runs body.
+func commitWithHook(t *testing.T, g *Git, body string) string {
+	t.Helper()
+	dir := newRepo(t, g)
+	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// docs/design/architecture.md "Fetching from remotes": "A git that may sign or
+// run a hook, such as `git commit`, keeps your terminal" stays in skl's process
+// group. "Any other local git, such as `git status`, ... doesn't share your
+// terminal", and neither does a command that may contact a remote: each leads
+// its own group.
+func TestProcessGroup(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	pgidFile := filepath.Join(t.TempDir(), "pgid")
+	pgid := func() int {
+		t.Helper()
+		b, err := os.ReadFile(pgidFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	report := "ps -o pgid= -p $$ > '" + pgidFile + "'\n"
+
+	dir := commitWithHook(t, g, report)
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := pgid(), syscall.Getpgrp(); got != want {
+		t.Errorf("commit ran in group %d, want skl's, %d", got, want)
+	}
+
+	// The reference-transaction hook runs under update-ref.
+	hook := writeScript(t, "reference-transaction", "cat >/dev/null\n"+report)
+	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+filepath.Dir(hook), "update-ref", "refs/heads/x", "HEAD"); err != nil {
+		t.Fatal(err)
+	}
+	if got := pgid(); got == syscall.Getpgrp() {
+		t.Errorf("update-ref ran in skl's group %d, want its own", got)
+	}
+
+	ssh := writeScript(t, "ssh", report+"exit 255\n")
+	t.Setenv("GIT_SSH", ssh)
+	if _, err := g.Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills"); err == nil {
+		t.Fatal("ls-remote through a failing ssh succeeded")
+	}
+	if got := pgid(); got == syscall.Getpgrp() {
+		t.Errorf("ls-remote ran in skl's group %d, want its own", got)
+	}
+}
+
+// docs/design/architecture.md "Fetching from remotes": "it has no timeout";
+// "Any other local git, such as `git status`, has no timeout".
+func TestLocalHasNoTimeout(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	g.Timeout = 100 * time.Millisecond
+	dir := commitWithHook(t, New(nil), "sleep 1\n")
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--allow-empty", "-m", "slow"); err != nil {
+		t.Fatalf("a commit slower than the timeout: %v", err)
+	}
+	hook := writeScript(t, "reference-transaction", "cat >/dev/null\nsleep 1\n")
+	if _, err := g.Run(t.Context(), dir, "-c", "core.hooksPath="+filepath.Dir(hook), "update-ref", "refs/heads/slow", "HEAD"); err != nil {
+		t.Fatalf("an update-ref slower than the timeout: %v", err)
+	}
+}
+
+// Canceling a local command interrupts git rather than killing it, so git
+// removes its lock files: a killed commit would leave .git/index.lock and
+// every later commit in the vault would fail.
+func TestLocalCancelLeavesNoLock(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	armed := filepath.Join(t.TempDir(), "armed")
+	started := filepath.Join(t.TempDir(), "started")
+	dir := commitWithHook(t, g, "if [ -e '"+armed+"' ]; then rm '"+armed+"'; : > '"+started+"'; exec sleep 3; fi\n")
+	file := filepath.Join(dir, "SKILL.md")
+	for _, args := range [][]string{{"add", "SKILL.md"}, {"commit", "--quiet", "-m", "first"}} {
+		if err := os.WriteFile(file, []byte("# pdf\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := g.Run(t.Context(), dir, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(file, []byte("# changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(armed, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		for ctx.Err() == nil {
+			if _, err := os.Stat(started); err == nil {
+				time.Sleep(50 * time.Millisecond)
+				cancel()
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	// With -a, git holds index.lock all through the hook.
+	_, err := g.Run(ctx, dir, "commit", "--quiet", "--all", "-m", "x")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "index.lock")); err == nil {
+		t.Error("git left .git/index.lock behind")
+	}
+	if _, err := g.Run(t.Context(), dir, "commit", "--quiet", "--all", "-m", "again"); err != nil {
+		t.Errorf("the next commit: %v", err)
+	}
+}
+
+func TestModeOf(t *testing.T) {
+	tests := []struct {
+		args []string
+		want mode
+	}{
+		{[]string{"clone", "x"}, modeRemote},
+		{[]string{"fetch"}, modeRemote},
+		{[]string{"pull"}, modeRemote},
+		{[]string{"push"}, modeRemote},
+		{[]string{"ls-remote", "x"}, modeRemote},
+		{[]string{"remote", "update"}, modeRemote},
+		{[]string{"submodule", "update"}, modeRemote},
+		// These fetch missing blobs in a partial clone, so a dead remote could
+		// hang them: they keep the timeout, and their own group, like plumbing.
+		{[]string{"cat-file", "-p", "x"}, modeRemote},
+		{[]string{"checkout", "main"}, modeRemote},
+		{[]string{"switch", "main"}, modeRemote},
+		{[]string{"sparse-checkout", "set", "x"}, modeRemote},
+		{[]string{"diff"}, modeRemote},
+		{[]string{"show", "x"}, modeRemote},
+		// A command not listed as local may contact a remote.
+		{[]string{"something-new"}, modeRemote},
+		{[]string{"-c", "a=b", "fetch"}, modeRemote},
+
+		{[]string{"commit", "-S", "-m", "x"}, modeTerminal},
+		{[]string{"commit-tree", "-S", "x"}, modeTerminal},
+		{[]string{"tag", "-s", "x"}, modeTerminal},
+		{[]string{"merge", "x"}, modeTerminal},
+		{[]string{"rebase", "x"}, modeTerminal},
+		{[]string{"am"}, modeTerminal},
+		{[]string{"cherry-pick", "x"}, modeTerminal},
+		{[]string{"revert", "x"}, modeTerminal},
+		{[]string{"worktree", "add", "x"}, modeTerminal},
+
+		{[]string{"merge-tree", "--write-tree", "a", "b"}, modeQuiet},
+		{[]string{"read-tree", "x"}, modeQuiet},
+		{[]string{"write-tree"}, modeQuiet},
+		{[]string{"update-ref", "x", "y"}, modeQuiet},
+		{[]string{"status"}, modeQuiet},
+		{[]string{"rev-parse", "HEAD"}, modeQuiet},
+		{[]string{"rev-list", "HEAD"}, modeQuiet},
+		{[]string{"ls-tree", "HEAD"}, modeQuiet},
+		{[]string{"ls-files"}, modeQuiet},
+		{[]string{"hash-object", "x"}, modeQuiet},
+		{[]string{"var", "GIT_EDITOR"}, modeQuiet},
+		{[]string{"add", "--all"}, modeQuiet},
+		{[]string{"init"}, modeQuiet},
+		{[]string{"version"}, modeQuiet},
+		{[]string{"config", "--get", "x"}, modeQuiet},
+		// git's own options don't hide the command.
+		{[]string{"-c", "a=b", "commit"}, modeTerminal},
+		{[]string{"-C", "dir", "commit"}, modeTerminal},
+		{[]string{"--git-dir", "commit.git", "--work-tree", "x", "commit"}, modeTerminal},
+		{[]string{"--git-dir=x", "commit"}, modeTerminal},
+		{[]string{"--git-dir", "fetch", "commit"}, modeTerminal},
+	}
+	for _, tt := range tests {
+		if got := modeOf(tt.args); got != tt.want {
+			t.Errorf("modeOf(%q) = %v, want %v", tt.args, got, tt.want)
+		}
+	}
+}
+
+// docs/design/architecture.md "Fetching from remotes": "Git works only on the
+// folder skl names. `GIT_DIR`, `GIT_WORK_TREE` and the other variables that point
+// git at a repo are dropped".
+func TestRepoEnvDropped(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	dir, other := newRepo(t, g), newRepo(t, g)
+	gitDir := filepath.Join(other, ".git")
+	for name, value := range map[string]string{
+		"GIT_DIR":              gitDir,
+		"GIT_WORK_TREE":        other,
+		"GIT_INDEX_FILE":       filepath.Join(gitDir, "index"),
+		"GIT_OBJECT_DIRECTORY": filepath.Join(gitDir, "objects"),
+		"GIT_COMMON_DIR":       gitDir,
+		"GIT_NAMESPACE":        "other",
+		"GIT_PREFIX":           "sub/",
+	} {
+		t.Setenv(name, value)
+	}
+
+	// The calibration: plain git with this environment goes to the other repo.
+	plain := exec.Command("git", "rev-parse", "--absolute-git-dir")
+	plain.Dir = dir
+	// git prints the resolved path: macOS's temp dir is behind a symlink.
+	want, err := filepath.EvalSymlinks(gitDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := plain.Output(); err != nil || strings.TrimSpace(string(out)) != want {
+		t.Fatalf("plain git in dir = %q, %v; want the other repo, %s", out, err, want)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("# pdf\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "SKILL.md"}, {"commit", "--quiet", "-m", "first"}} {
+		if _, err := g.Run(t.Context(), dir, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := g.Run(t.Context(), dir, "ls-tree", "--name-only", "HEAD"); err != nil || out != "SKILL.md\n" {
+		t.Errorf("dir's HEAD = %q, %v; want the commit", out, err)
+	}
+	if _, err := g.Run(t.Context(), other, "rev-parse", "--verify", "--quiet", "HEAD"); err == nil {
+		t.Error("the commit landed in the repo GIT_DIR names")
+	}
+	if out, err := g.Run(t.Context(), other, "ls-files"); err != nil || out != "" {
+		t.Errorf("the other repo's index = %q, %v; want it empty", out, err)
+	}
+}
+
+// Every variable git calls local to a repo is dropped, or kept on purpose. A
+// new git that adds one fails here, so it gets a decision.
+func TestRepoEnvCoversGit(t *testing.T) {
+	isolate(t)
+	out, err := New(nil).Run(t.Context(), "", "rev-parse", "--local-env-vars")
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := []string{"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT"}
+	for name := range strings.Lines(out) {
+		name = strings.TrimSpace(name)
+		if !slices.Contains(repoEnv, name) && !slices.Contains(kept, name) {
+			t.Errorf("%s: not in repoEnv, and not kept on purpose", name)
+		}
+	}
+}
+
+// What git needs from the user's environment stays: the spec harness depends on
+// GIT_CONFIG_GLOBAL, and users on the rest.
+func TestBaseEnvKeeps(t *testing.T) {
+	keep := []string{"GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_SSH", "GIT_SSH_COMMAND", "GIT_CEILING_DIRECTORIES", "GIT_AUTHOR_NAME"}
+	for _, name := range keep {
+		t.Setenv(name, "x")
+	}
+	for _, name := range repoEnv {
+		t.Setenv(name, "x")
+	}
+	env := baseEnv()
+	for _, name := range keep {
+		if !slices.Contains(env, name+"=x") {
+			t.Errorf("baseEnv dropped %s", name)
+		}
+	}
+	for _, name := range repoEnv {
+		if slices.Contains(env, name+"=x") {
+			t.Errorf("baseEnv kept %s", name)
+		}
+	}
+}
+
+// docs/reference/commands.md "Errors": "When the network or the remote fails, skl
+// shows git's error and stops." Real git against a real server: app tells a
+// missing or forbidden repo from a server failure with ErrNoAccess.
+func TestHTTPAnswers(t *testing.T) {
+	isolate(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		code, _ := strconv.Atoi(strings.Split(r.URL.Path, "/")[1])
+		w.WriteHeader(code)
+	}))
+	defer srv.Close()
+	t.Setenv("NO_PROXY", "*")
+	tests := []struct {
+		code     string
+		noAccess bool
+		reason   string
+	}{
+		{"404", true, "Repository not found"},
+		{"403", true, "The requested URL returned error: 403"},
+		{"401", true, "terminal prompts disabled"},
+		{"500", false, "The requested URL returned error: 500"},
+		{"502", false, "The requested URL returned error: 502"},
+		{"503", false, "The requested URL returned error: 503"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			_, err := New(nil).Run(t.Context(), "", "ls-remote", srv.URL+"/"+tt.code+"/you/skills.git")
+			e, ok := errors.AsType[*Error](err)
+			if !ok || !errors.Is(err, ErrUnreachable) {
+				t.Fatalf("err = %v, want ErrUnreachable", err)
+			}
+			if errors.Is(err, ErrNoAccess) != tt.noAccess || e.Reason() != tt.reason {
+				t.Errorf("noAccess = %v, Reason() = %q; want %v, %q (stderr %q)", errors.Is(err, ErrNoAccess), e.Reason(), tt.noAccess, tt.reason, e.Stderr)
+			}
+		})
+	}
+}
+
+// ssh's own failures, through real git: not the host saying no, and git's line
+// doesn't hide the cause.
+func TestSSHFailures(t *testing.T) {
+	tests := []struct{ name, script, reason string }{
+		{"connection closed", "echo 'Connection closed by remote host' >&2\nexit 255\n", "Connection closed by remote host"},
+		{"bad config", "echo 'Bad owner or permissions on /x/config' >&2\nexit 255\n", "Bad owner or permissions on /x/config"},
+		{"silent", "exit 255\n", "Could not read from remote repository"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolate(t)
+			t.Setenv("GIT_SSH", writeScript(t, "ssh", tt.script))
+			_, err := New(nil).Run(t.Context(), "", "ls-remote", "ssh://git@example.invalid/you/skills")
+			e, ok := errors.AsType[*Error](err)
+			if !ok || !errors.Is(err, ErrUnreachable) || errors.Is(err, ErrNoAccess) {
+				t.Fatalf("err = %v, want ErrUnreachable and not ErrNoAccess", err)
+			}
+			if e.Reason() != tt.reason || !strings.Contains(err.Error(), tt.reason) {
+				t.Errorf("Reason() = %q, Error() = %q; want %q", e.Reason(), err, tt.reason)
+			}
+		})
 	}
 }

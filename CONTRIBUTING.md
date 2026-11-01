@@ -38,7 +38,7 @@ tools/            go.mod pinning golangci-lint, gofumpt, govulncheck
 
 **Dependencies.** Standard library first. Each new module is justified in the PR that adds it.
 
-**Context.** Every function that does I/O takes `ctx context.Context` first. Ctrl-C cancels it; a command returns the `context.Canceled` error, and skl exits 130. A step that must not stop halfway, such as swapping loaded folders or a commit, runs under `context.WithoutCancel(ctx)` and is kept short. A second Ctrl-C kills the process.
+**Context.** Every function that does I/O takes `ctx context.Context` first. Ctrl-C cancels it; a command returns the `context.Canceled` error, and skl exits 130. A step that must not stop halfway, such as swapping loaded folders, runs under `context.WithoutCancel(ctx)` and is kept short. A step whose git can be interrupted from the terminal, such as a commit (`gitx` says which), undoes what it did on `context.Canceled`, even under `WithoutCancel`. A second Ctrl-C kills the process.
 
 **Errors.**
 - Domain packages return wrapped errors, with sentinels or types the caller checks with `errors.Is` and `errors.As` (`vault.ErrNoVault`, `gitx.ErrUnreachable`).

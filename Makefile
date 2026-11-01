@@ -2,7 +2,7 @@
 TOOL       := go tool -modfile=tools/go.mod
 GORELEASER := $(shell command -v goreleaser 2>/dev/null || echo go run github.com/goreleaser/goreleaser/v2@v2.19.0)
 
-.PHONY: check fmt-check lint test vuln release-check fmt golden docs build
+.PHONY: check fmt-check lint test cover vuln release-check fmt golden docs build
 
 check: fmt-check lint test vuln release-check
 
@@ -13,6 +13,11 @@ build:
 
 test:
 	go test -race ./...
+
+# Coverage of all of skl: -coverpkg counts what the spec scripts reach through
+# the skl they run, not only each package's own statements.
+cover:
+	@out=$$(mktemp); go test -coverpkg=./... -coverprofile=$$out ./... && go tool cover -func=$$out | tail -n 1; status=$$?; rm -f $$out; exit $$status
 
 fmt-check:
 	@out=$$($(TOOL) gofumpt -l .); if [ -n "$$out" ]; then echo "not formatted (make fmt):"; echo "$$out"; exit 1; fi
