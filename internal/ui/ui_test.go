@@ -3,8 +3,10 @@ package ui
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -357,5 +359,44 @@ func TestPadCountsColumns(t *testing.T) {
 	}
 	if got := Width("a\x1b[31mb"); got != 2 {
 		t.Errorf("Width = %d", got)
+	}
+}
+
+// A name from the vault can't drive a terminal through JSON, and a script still
+// reads the real name back.
+func TestReportJSONEscapesControls(t *testing.T) {
+	u, s := testUI(colorprofile.NoTTY, 80, Options{})
+	name := "a\x7f\u009b\u202e\U000E0001\x1b<é日"
+	if err := u.ReportJSON(map[string]string{"name": name}); err != nil {
+		t.Fatal(err)
+	}
+	want := "{\n  \"name\": \"a\\u007f\\u009b\\u202e\\udb40\\udc01\\u001b<é日\"\n}\n"
+	if s.stdout.String() != want {
+		t.Errorf("got %q, want %q", s.stdout.String(), want)
+	}
+	var back map[string]string
+	if err := json.Unmarshal(s.stdout.Bytes(), &back); err != nil {
+		t.Fatal(err)
+	}
+	if back["name"] != name {
+		t.Errorf("read back %q, want %q", back["name"], name)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+// commands.md "skl status > status.txt saves the report": when it can't, that's an
+// error, and the first failure is the one reported.
+func TestReportErr(t *testing.T) {
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: failingWriter{}, Stderr: io.Discard}, colorprofile.NoTTY, 80, false)
+	if u.ReportErr() != nil {
+		t.Fatal("error before any write")
+	}
+	u.ReportLine("a", "")
+	u.ReportWarn("b", "c")
+	if err := u.ReportErr(); err == nil || err.Error() != "disk full" {
+		t.Errorf("ReportErr = %v", err)
 	}
 }

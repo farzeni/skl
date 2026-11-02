@@ -181,6 +181,7 @@ cp state.keep $HOME/.skl/state.json
 # Card: "status with a held lock still runs". While a use holds the lock in bin/git:
 # commands.md "One skl runs at a time" is about changing things.
 chmod 755 bin/git
+env ORIGPATH=$PATH
 env PATH=$WORK/bin:$PATH
 mkdir hold
 exec skl use writing/changelog &held&
@@ -198,6 +199,52 @@ stderr '^✓ generation '
 
 # Usage: status takes no words.
 exitcode 2 skl status review
+
+# skill-sets.md "everything that needs you": a git that fails can't be read as nothing
+# to push. CLAUDE.md "gitx stops with ✗ skl needs git 2.38 or later (found X)"
+chmod 755 oldbin/git
+env PATH=$WORK/oldbin:$ORIGPATH
+exitcode 1 skl status
+stderr '^✗ skl needs git 2\.38 or later \(found 2\.30\.1\) · update git$'
+! stdout .
+env PATH=$SKLBIN
+exitcode 1 skl status
+stderr '^✗ skl needs git · install git 2\.38 or later$'
+! stdout .
+env PATH=$ORIGPATH
+
+# A vault git can't read is no vault with nothing to push.
+exec mv $HOME/.skl/vault/.git/refs $WORK/refs-away
+exitcode 1 skl status
+stderr '^✗ '
+! stdout .
+exec mv $WORK/refs-away $HOME/.skl/vault/.git/refs
+exec skl status
+stdout '^vault           [0-9]+ changes? not pushed'
+
+# A vault with no commit yet has nothing to push, and the report still prints.
+env SKL_HOME=$WORK/unborn
+mkdir $WORK/unborn/vault
+exec git -C $WORK/unborn/vault init -q
+exec skl status
+stdout '^loaded \(user\)$'
+! stdout '^vault'
+! stderr .
+env SKL_HOME=
+
+# A name from the vault can't drive a terminal through --json either: control and
+# format characters are escaped, so a script still gets the real name.
+exec sh -c 'for n in "$(printf "a\302\23331mred")" "$(printf "b\342\200\256x")"; do mkdir "$HOME/.claude/skills/$n"; cp own.md "$HOME/.claude/skills/$n/SKILL.md"; done'
+exec skl status --json
+stdout '"name": "a\\u009b31mred"'
+stdout '"name": "b\\u202ex"'
+! stdout '\x{9b}'
+! stdout '\x{202e}'
+exec skl status
+stdout '^  a31mred +· skl import a31mred$'
+stdout '^  bx +· skl import bx$'
+! stdout '\x{9b}'
+! stdout '\x{202e}'
 
 -- seed/review/pr-review/SKILL.md --
 ---
@@ -253,6 +300,9 @@ if [ -d "$WORK/hold" ] && [ ! -d "$WORK/started" ]; then
 	done
 fi
 exec git "$@"
+-- oldbin/git --
+#!/bin/sh
+echo git version 2.30.1
 -- nothing.txt --
 nothing loaded · skl use <selectors>
 skill sets  @backend  @base

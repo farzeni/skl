@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -37,7 +36,7 @@ func (a *App) Status(ctx context.Context, asJSON bool) error {
 		return hinted(a.printStatusJSON(ctx, r), "skl status")
 	}
 	a.printStatus(r)
-	return nil
+	return hinted(a.ui.ReportErr(), "skl status")
 }
 
 func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
@@ -62,7 +61,7 @@ func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
 		return nil, err
 	}
 	current := st.Scopes[state.User]
-	res, notes := activeSkills(current.Selectors, idx)
+	res, notes := activeSkills(current.Selectors, idx, "edit "+a.shown(a.paths.State))
 	found, err := load.Inspect(ctx, load.Input{Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: home})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -90,26 +89,25 @@ func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
 
 // notPushed is the vault's commits origin doesn't have. A vault with no commit yet
 // has none, and that's for the first command that changes something to sort out.
+// Any other failure stops: a report that left this out would look clean.
 func (a *App) notPushed(ctx context.Context, v *vault.Vault) (int, error) {
-	if _, err := v.Head(ctx); err != nil {
-		if ctx.Err() != nil {
-			return 0, ctx.Err()
-		}
-		return 0, nil
+	born, err := v.Born(ctx)
+	if err != nil || !born {
+		return 0, err
 	}
 	return v.Ahead(ctx)
 }
 
 // activeSkills resolves the active skill set for a report, which doesn't stop for
 // a line that can't be used: each such line is a warning, and the rest still count.
-func activeSkills(lines []string, idx *vault.Index) (resolve.Result, []note) {
+func activeSkills(lines []string, idx *vault.Index, editState string) (resolve.Result, []note) {
 	s := selection{verb: "status"}
 	var notes []note
 	var kept []selector.Selector
 	for _, line := range lines {
 		sel, err := selector.Parse(line)
-		if err != nil {
-			notes = append(notes, note{msg: err.Error(), hint: ui.CommandLine([]string{"drop", line})})
+		if err != nil { // only a hand edit of state.json puts one here, and drop can't parse it either
+			notes = append(notes, note{msg: err.Error(), hint: editState})
 			continue
 		}
 		if _, err := resolve.Resolve([]selector.Selector{sel}, idx); err != nil {
@@ -239,10 +237,7 @@ func (a *App) printStatusJSON(ctx context.Context, r *statusReport) error {
 		}
 		out.Scopes = append(out.Scopes, sc)
 	}
-	enc := json.NewEncoder(a.ui.Report())
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return a.ui.ReportJSON(out)
 }
 
 // statusNeeds is the lines of the report that need you, in the same order.

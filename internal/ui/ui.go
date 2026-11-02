@@ -6,11 +6,14 @@
 package ui
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf16"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
@@ -40,6 +43,7 @@ type UI struct {
 	stdout      io.Writer
 	stderr      io.Writer // colorprofile.Writer: escapes are cut to what the terminal shows
 	report      io.Writer // stdout, as a colorprofile.Writer, for a report's marks
+	reportErr   error     // the first write to report that failed
 	plan        io.Writer // where → and + ~ − go: stderr, or stdout for a dry run
 	tty         io.Writer // the raw stderr, for Bubble Tea, which needs its fd and its cursor moves
 	profile     colorprofile.Profile
@@ -158,13 +162,57 @@ func (u *UI) ReportLine(text, hint string) {
 	if hint == "" {
 		text = strings.TrimRight(text, " ")
 	}
-	fmt.Fprintln(u.report, u.fitted(text, hint))
+	u.reportLine(u.fitted(text, hint))
 }
 
 // ReportWarn is a report's "! <msg> · <hint>". Unlike Warn it goes to standard
 // output: the warning is part of what was asked for.
 func (u *UI) ReportWarn(msg, hint string) {
-	fmt.Fprintln(u.report, u.hinted(markWarn, msg, hint))
+	u.reportLine(u.hinted(markWarn, msg, hint))
+}
+
+func (u *UI) reportLine(s string) {
+	if _, err := fmt.Fprintln(u.report, s); err != nil && u.reportErr == nil {
+		u.reportErr = err
+	}
+}
+
+// ReportErr is the first write that failed, for a report going to a full disk:
+// `skl status > status.txt` didn't save it, so the command must say so.
+func (u *UI) ReportErr() error { return u.reportErr }
+
+// ReportJSON prints v as indented JSON on standard output. encoding/json escapes
+// only what JSON requires, so it also escapes every other control and format
+// character: a name from the vault can't drive a terminal that shows the output,
+// and a script still gets the real name.
+func (u *UI) ReportJSON(v any) error {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		return err
+	}
+	_, err := io.WriteString(u.stdout, escapeControls(b.String()))
+	return err
+}
+
+// escapeControls writes control and format characters as JSON escapes. The ones
+// below U+0020 left in encoded JSON are its own layout, and stay.
+func escapeControls(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x20 || (!unicode.IsControl(r) && !unicode.Is(unicode.Cf, r)) {
+			b.WriteRune(r)
+			continue
+		}
+		if hi, lo := utf16.EncodeRune(r); hi != unicode.ReplacementChar {
+			fmt.Fprintf(&b, `\u%04x\u%04x`, hi, lo)
+			continue
+		}
+		fmt.Fprintf(&b, `\u%04x`, r)
+	}
+	return b.String()
 }
 
 // Pad cleans s and pads it with spaces to width columns, for a report's columns.
