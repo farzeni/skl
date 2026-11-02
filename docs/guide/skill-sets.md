@@ -25,6 +25,20 @@ skl use @backend writing/changelog -someone/pdf
 | `skl drop <selectors>` | Remove from it |
 | `skl status` | Show what's loaded, where it came from, your named skill sets, and what needs you |
 
+`use`, `add` and `drop` first say what they're about to do, with `load`, `add` or `drop` and the selectors you typed, then what changed:
+
+```
+→ add review/test-gaps
++ test-gaps
+✓ generation 4 · skl rollback to undo
+```
+
+They also bring your loaded skills in line with your vault. A skill that changed there is copied again, and so is a loaded folder you deleted by hand, so use `skl drop` to unload a skill. Both show the same line:
+
+```
+~ pr-review   updated
+```
+
 Add `--dry-run` to any of them to see the changes without applying them: see [Dry run](../reference/commands#dry-run).
 
 Loaded skills are plain folders. Changes you make to them are saved back to your vault: see [Your skills](./skills).
@@ -259,6 +273,8 @@ skl use @backend -someone/pr-review
 ```
 
 A skill loses a clash only to a later skill that stays loaded, so every `~` line is a real replacement.
+
+A skill that lost a clash is still selected, so you can drop it. After `skl use review someone/pr-review`, `skl drop review/pr-review` adds the line `-review/pr-review` to your active skill set and changes no folder. Dropping `someone/pr-review` later then unloads `pr-review` instead of bringing `review/pr-review` back.
 
 Claude Code prefers a user skill to a project skill with the same name. When a skill you loaded with `--scope project` is hidden that way, `skl status` warns about it.
 
