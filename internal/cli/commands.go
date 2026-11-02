@@ -40,6 +40,15 @@ func (c *cli) commands() []*Command {
 				return a.Init(ctx, in.Args[0], in.Has("dry-run"))
 			},
 		},
+		c.loadCommand("use", "Replace the active skill set",
+			"Load exactly the skills these selectors name, and unload the rest.", "skl use review someone/pdf -review/test-gaps",
+			(*app.App).Use),
+		c.loadCommand("add", "Add to the active skill set",
+			"Load these selectors too, after the ones already active.", "skl add review/pr-review",
+			(*app.App).Add),
+		c.loadCommand("drop", "Remove from the active skill set",
+			"Unload what these selectors name.", "skl drop review/test-gaps",
+			(*app.App).Drop),
 		{
 			Name:    "help",
 			Args:    "[command]",
@@ -59,6 +68,29 @@ func (c *cli) commands() []*Command {
 				c.printHelp(cmd)
 				return nil
 			},
+		},
+	}
+}
+
+// loadCommand is use, add or drop: they take the same words and the same flags.
+func (c *cli) loadCommand(name, summary, help, example string, run func(*app.App, context.Context, []string, bool) error) *Command {
+	return &Command{
+		Name:    name,
+		Args:    "<selectors>",
+		Summary: summary,
+		Help: help + "\n" +
+			"A selector is a group, group/skill or @set from your vault; -selector removes.\n" +
+			"A skill from someone else's repo gets in with skl learn first.",
+		Example: example,
+		Flags:   []Flag{dryRun},
+		MinArgs: 1,
+		MaxArgs: -1,
+		Run: func(ctx context.Context, in Input) error {
+			a, err := c.app(ctx)
+			if err != nil {
+				return err
+			}
+			return run(a, ctx, in.Args, in.Has("dry-run"))
 		},
 	}
 }
