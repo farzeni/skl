@@ -54,9 +54,9 @@ func TestExitCodes(t *testing.T) {
 		{[]string{"fail", "usage"}, 2, "✗ x is someone else's skill · skl learn x\n"},
 		{[]string{"fail", "canceled"}, 130, ""},
 		// "2: A usage error: an unknown command or flag, a missing argument"
-		{[]string{"stauts"}, 2, "✗ unknown command stauts · skl help\n"},
+		{[]string{"stauts"}, 2, "✗ unknown command stauts · skl status\n"},
 		{[]string{"imprt"}, 2, "✗ unknown command imprt · skl import\n"},
-		{[]string{"stauts", "-h"}, 2, "✗ unknown command stauts · skl help\n"},
+		{[]string{"stauts", "-h"}, 2, "✗ unknown command stauts · skl status\n"},
 		{[]string{"help", "imprt"}, 2, "✗ unknown command imprt · skl help import\n"},
 		{[]string{"import"}, 2, "✗ skl import needs <name>… · skl help import\n"},
 		{[]string{"help", "a", "b"}, 2, "✗ unexpected argument b · skl help help\n"},
@@ -72,7 +72,7 @@ func TestExitCodes(t *testing.T) {
 		{[]string{"help", "--version", "--group=w", "--version"}, 2, "✗ skl help doesn't take --version · skl help help\n"},
 		// An empty or spaced command is named, quoted.
 		{[]string{""}, 2, "✗ unknown command \"\" · skl help\n"},
-		{[]string{"st atus"}, 2, "✗ unknown command \"st atus\" · skl help\n"},
+		{[]string{"st atus"}, 2, "✗ unknown command \"st atus\" · skl status\n"},
 	}
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {

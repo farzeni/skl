@@ -312,3 +312,50 @@ func TestEveryLineIsCleaned(t *testing.T) {
 		t.Errorf("%d lines: %q", lines, out.String())
 	}
 }
+
+// commands.md "Where output goes": a report's lines, its marks included, go to
+// standard output. "A command that doesn't fit on the line moves to the next one,
+// after ·; one that fits stays on the line."
+func TestReportLines(t *testing.T) {
+	u, s := testUI(colorprofile.NoTTY, 30, Options{})
+	u.ReportLine("vault   1 change", "skl sync")
+	u.ReportLine(Pad("name", 8), "")
+	u.ReportLine(Pad("name", 7), "skl sync")
+	u.ReportLine(Pad("a long name that won't fit", 30), "skl sync")
+	u.ReportWarn("lint   skipped", "skl import lint")
+	want := "vault   1 change · skl sync\n" +
+		"name\n" +
+		"name    · skl sync\n" +
+		"a long name that won't fit\n  · skl sync\n" +
+		"! lint   skipped\n  · skl import lint\n"
+	if s.stdout.String() != want {
+		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), want)
+	}
+	if s.stderr.Len() != 0 {
+		t.Errorf("stderr %q", s.stderr.String())
+	}
+}
+
+// A report's mark has color on a terminal, and the text never does.
+func TestReportWarnColor(t *testing.T) {
+	u, s := testUI(colorprofile.TrueColor, 80, Options{})
+	u.ReportWarn("a\x1b[31mb", "skl sync")
+	if !strings.Contains(s.stdout.String(), "\x1b[") {
+		t.Errorf("no color: %q", s.stdout.String())
+	}
+	if got := ansi.Strip(s.stdout.String()); got != "! ab · skl sync\n" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestPadCountsColumns(t *testing.T) {
+	if got := Pad("日本", 6); got != "日本  " {
+		t.Errorf("Pad = %q", got)
+	}
+	if got := Pad("long", 2); got != "long" {
+		t.Errorf("Pad = %q", got)
+	}
+	if got := Width("a\x1b[31mb"); got != 2 {
+		t.Errorf("Width = %d", got)
+	}
+}

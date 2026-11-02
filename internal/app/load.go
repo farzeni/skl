@@ -90,6 +90,11 @@ func (a *App) userRoot() (string, error) {
 	if a.cfg.Scope != config.User {
 		return "", errs.Hint(errors.New(`scope = "project" isn't supported yet`), "edit scope in "+a.shown(a.paths.Config))
 	}
+	return a.homeRoot()
+}
+
+// homeRoot is the home folder, which the user scope's skills folders are under.
+func (a *App) homeRoot() (string, error) {
 	home := a.getenv("HOME")
 	if home == "" {
 		return "", errs.Hint(errors.New("HOME is not set, so skl can't find your skills folders"), "set HOME")

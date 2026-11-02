@@ -3,7 +3,18 @@
 # "✗ no vault on this machine · skl init <repo>"
 # "Every command except init, help, completion and open with someone else's repo
 # needs your vault."
-# init is the only command that changes something so far. internal/app tests
-# the frame (TestChangingWithoutVault); the first command built on it adds the
-# block here, through the real binary.
-skip 'pending: docs/reference/commands.md "Errors": no other command needs the vault yet'
+exitcode 1 skl status
+cmp stderr no-vault.txt
+! stdout .
+exitcode 1 skl status --json
+cmp stderr no-vault.txt
+! stdout .
+exitcode 1 skl use review
+cmp stderr no-vault.txt
+exitcode 1 skl add review
+cmp stderr no-vault.txt
+exitcode 1 skl drop review
+cmp stderr no-vault.txt
+
+-- no-vault.txt --
+✗ no vault on this machine · skl init <repo>

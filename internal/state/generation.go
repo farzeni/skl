@@ -109,6 +109,19 @@ func (s *Store) Generations(ctx context.Context) ([]Generation, error) {
 	return gens, nil
 }
 
+// LastGeneration returns the newest generation's number, 0 if there is none. It
+// reads no generation, so one that can't be read doesn't get in the way.
+func (s *Store) LastGeneration(ctx context.Context) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	numbers, err := s.numbers()
+	if err != nil || len(numbers) == 0 {
+		return 0, err
+	}
+	return slices.Max(numbers), nil
+}
+
 func (s *Store) generationPath(n int) string {
 	return filepath.Join(s.generations, strconv.Itoa(n)+".json")
 }

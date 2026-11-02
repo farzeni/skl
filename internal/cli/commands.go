@@ -50,6 +50,21 @@ func (c *cli) commands() []*Command {
 			"Unload what these selectors name.", "skl drop review/test-gaps",
 			(*app.App).Drop),
 		{
+			Name:    "status",
+			Summary: "Show what's loaded and what needs you",
+			Help: "Show what's loaded and from which vault skill, your named skill sets, and\n" +
+				"everything that needs you, each with the command to run. Works offline.",
+			Example: "skl status --json",
+			Flags:   []Flag{{Name: "json", Usage: "Print JSON instead of text"}, dryRun},
+			Run: func(ctx context.Context, in Input) error {
+				a, err := c.app(ctx)
+				if err != nil {
+					return err
+				}
+				return a.Status(ctx, in.Has("json"))
+			},
+		},
+		{
 			Name:    "help",
 			Args:    "[command]",
 			Summary: "List the commands, or show one command's help",

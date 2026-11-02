@@ -39,6 +39,7 @@ type UI struct {
 	stdin       io.Reader
 	stdout      io.Writer
 	stderr      io.Writer // colorprofile.Writer: escapes are cut to what the terminal shows
+	report      io.Writer // stdout, as a colorprofile.Writer, for a report's marks
 	plan        io.Writer // where → and + ~ − go: stderr, or stdout for a dry run
 	tty         io.Writer // the raw stderr, for Bubble Tea, which needs its fd and its cursor moves
 	profile     colorprofile.Profile
@@ -54,6 +55,7 @@ func New(o Options) *UI {
 	u := newUI(o, pickProfile(o.Stderr, o.Getenv), pickWidth(o.Stderr, o.Getenv),
 		isTerminal(o.Stdin) && isTerminal(o.Stderr))
 	u.dumb = o.Getenv("TERM") == "dumb"
+	u.report = &colorprofile.Writer{Forward: o.Stdout, Profile: pickProfile(o.Stdout, o.Getenv)}
 	if o.DryRun {
 		u.plan = &colorprofile.Writer{Forward: o.Stdout, Profile: pickProfile(o.Stdout, o.Getenv)}
 	}
@@ -66,6 +68,7 @@ func newUI(o Options, profile colorprofile.Profile, width int, interactive bool)
 		stdin:       o.Stdin,
 		stdout:      o.Stdout,
 		stderr:      stderr,
+		report:      &colorprofile.Writer{Forward: o.Stdout, Profile: profile},
 		plan:        stderr,
 		tty:         o.Stderr,
 		profile:     profile,
@@ -146,6 +149,32 @@ func mark(s string, st lipgloss.Style) string { return st.Render(s) }
 // Report is standard output, for what the user asked for: a report, a list,
 // a URL, a --dry-run plan, --json, help.
 func (u *UI) Report() io.Writer { return u.stdout }
+
+// ReportLine prints one line of a report on standard output. Its hint goes after
+// " · ", on the line if it fits, else on the next one, so text can be padded up to
+// a column for the "·".
+func (u *UI) ReportLine(text, hint string) {
+	text = Clean(text)
+	if hint == "" {
+		text = strings.TrimRight(text, " ")
+	}
+	fmt.Fprintln(u.report, u.fitted(text, hint))
+}
+
+// ReportWarn is a report's "! <msg> · <hint>". Unlike Warn it goes to standard
+// output: the warning is part of what was asked for.
+func (u *UI) ReportWarn(msg, hint string) {
+	fmt.Fprintln(u.report, u.hinted(markWarn, msg, hint))
+}
+
+// Pad cleans s and pads it with spaces to width columns, for a report's columns.
+func Pad(s string, width int) string {
+	s = Clean(s)
+	return s + strings.Repeat(" ", max(0, width-lipgloss.Width(s)))
+}
+
+// Width is how many columns s takes once it's clean.
+func Width(s string) int { return lipgloss.Width(Clean(s)) }
 
 // Plan prints "→ <what skl is about to do>".
 func (u *UI) Plan(format string, a ...any) {
@@ -245,7 +274,11 @@ func (u *UI) line(s string) { fmt.Fprintln(u.stderr, s) }
 // "·" when the whole doesn't fit in the width (commands.md "Output"). A hint
 // of several lines always goes there, so its lines stay aligned.
 func (u *UI) hinted(mark, msg, hint string) string {
-	line := mark + " " + Clean(msg)
+	return u.fitted(mark+" "+Clean(msg), hint)
+}
+
+// fitted is line, already clean, with its hint.
+func (u *UI) fitted(line, hint string) string {
 	hint = cleanLines(hint)
 	if hint == "" {
 		return line
@@ -253,7 +286,7 @@ func (u *UI) hinted(mark, msg, hint string) string {
 	if one := line + " · " + hint; !strings.Contains(hint, "\n") && lipgloss.Width(one) <= u.width {
 		return one
 	}
-	return line + "\n  · " + hint
+	return strings.TrimRight(line, " ") + "\n  · " + hint
 }
 
 // shellQuote quotes the words of a command line that a shell would split
