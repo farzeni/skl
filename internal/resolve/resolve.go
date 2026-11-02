@@ -108,7 +108,8 @@ type Warning struct {
 	Selector selector.Selector
 	Problem  Problem
 	Set      string // the named skill set that holds the line, if any
-	Suggest  string // the skill a one-word name probably meant, as group/folder
+	Suggest  string // what a one-word name probably meant: a selector that resolves
+	Skill    Skill  // the skill Suggest selects, if any
 }
 
 // Message returns the warning without a hint:
@@ -199,8 +200,8 @@ func Resolve(sels []selector.Selector, idx Index) (Result, error) {
 // selection is a selected skill, its folded names and when it was last selected.
 // A skill selected again keeps its place in the list, and counts as selected then
 // in a clash. Settling compares every pair, so the names are folded only here.
-// group is the group selector that last selected it, counted from 1, or 0 if a
-// selector named it on its own.
+// group is the group selector that last selected it, counted from 1, or 0 if no
+// group selector did.
 type selection struct {
 	skill Skill
 	names names
@@ -258,7 +259,7 @@ func (r *resolver) applySet(sel selector.Selector, in string) error {
 	}
 	lines, err := r.idx.Set(sel.Name)
 	if errors.Is(err, ErrNoSet) {
-		r.warn(sel, NoSet, in, "")
+		r.warn(sel, NoSet, in, suggestion{})
 		return nil
 	}
 	if err != nil {
@@ -308,7 +309,7 @@ func (r *resolver) match(sel selector.Selector, in string) ([]Skill, error) {
 		found := find(skills, sel.Name)
 		switch len(found) {
 		case 0:
-			r.warn(sel, NoSkill, in, "")
+			r.warn(sel, NoSkill, in, suggestion{})
 			return nil, nil
 		case 1:
 			return found, nil
@@ -319,14 +320,10 @@ func (r *resolver) match(sel selector.Selector, in string) ([]Skill, error) {
 		return skills, nil
 	}
 	if exists {
-		r.warn(sel, NoSkill, in, "")
+		r.warn(sel, NoSkill, in, suggestion{})
 		return nil, nil
 	}
-	suggest := ""
-	if s, ok := r.skillNamed(sel.Group); ok {
-		suggest = s.String()
-	}
-	r.warn(sel, NoGroup, in, suggest)
+	r.warn(sel, NoGroup, in, r.suggest(sel.Group))
 	return nil, nil
 }
 
@@ -372,20 +369,35 @@ func find(skills []Skill, name string) []Skill {
 	return byName
 }
 
-// skillNamed looks a name up in every group, in the index's order, and takes the
-// first it finds: this only makes a suggestion.
-func (r *resolver) skillNamed(name string) (Skill, bool) {
+// suggestion is a selector to offer instead of a word, and the skill it selects.
+type suggestion struct {
+	word  string
+	skill Skill
+}
+
+// suggest looks a name up in every group, in the index's order, and offers the first
+// skill a selector can reach: a folder or a group outside the grammar can't be typed.
+func (r *resolver) suggest(name string) suggestion {
 	for _, g := range r.idx.Groups() {
-		if found := find(r.idx.Skills(g), name); len(found) > 0 {
-			return found[0], true
+		skills := r.idx.Skills(g)
+		for _, s := range find(skills, name) {
+			for _, n := range []string{s.Folder, s.Name} {
+				word := g + "/" + n
+				if _, err := selector.Parse(word); n == "" || err != nil {
+					continue
+				}
+				if found := find(skills, n); len(found) == 1 && found[0] == s {
+					return suggestion{word: word, skill: s}
+				}
+			}
 		}
 	}
-	return Skill{}, false
+	return suggestion{}
 }
 
 // warn adds a warning once.
-func (r *resolver) warn(sel selector.Selector, problem Problem, in, suggest string) {
-	w := Warning{Selector: sel, Problem: problem, Set: in, Suggest: suggest}
+func (r *resolver) warn(sel selector.Selector, problem Problem, in string, s suggestion) {
+	w := Warning{Selector: sel, Problem: problem, Set: in, Suggest: s.word, Skill: s.skill}
 	if !slices.Contains(r.warnings, w) {
 		r.warnings = append(r.warnings, w)
 	}
@@ -395,7 +407,9 @@ func (r *resolver) add(s Skill, group int) {
 	r.count++
 	if i := slices.IndexFunc(r.selected, func(o selection) bool { return o.skill == s }); i >= 0 {
 		r.selected[i].last = r.count
-		r.selected[i].group = group
+		if group != 0 { // naming a skill doesn't say which of a group's clashing skills
+			r.selected[i].group = group
+		}
 		return
 	}
 	r.selected = append(r.selected, selection{skill: s, names: foldNames(s), last: r.count, group: group})

@@ -369,10 +369,13 @@ func (a *App) indexNotes(idx *vault.Index, plan *load.Plan) []note {
 func (a *App) skipNotes(p *load.Plan) []note {
 	notes := make([]note, 0, len(p.Skipped))
 	for _, sk := range p.Skipped {
-		notes = append(notes, note{
+		n := note{
 			msg:  fmt.Sprintf("%s   skipped: %s is not in your vault", sk.Skill.Folder, a.shown(sk.Path)),
 			hint: ui.CommandLine([]string{"import", ui.Clean(sk.Foreign)}),
-		})
+		}
+		if !slices.Contains(notes, n) { // two skills with one folder name say the same
+			notes = append(notes, n)
+		}
 	}
 	return notes
 }

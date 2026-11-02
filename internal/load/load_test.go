@@ -395,7 +395,7 @@ func TestCtrlCDuringTheSwapFinishesIt(t *testing.T) {
 	defer cancel()
 	l := NewLoader(f.staging)
 	l.rename = func(from, to string) error {
-		if strings.Contains(to, "old") { // the swap's first move
+		if filepath.Base(filepath.Dir(to)) == "old" { // the swap's first move
 			cancel()
 		}
 		return os.Rename(from, to)

@@ -9,39 +9,25 @@ exec sh -c 'mkdir "$HOME/.skl/vault/evil"; d="$HOME/.skl/vault/evil/$(printf "a\
 
 # "Loading a whole group stops if two skills in it clash ... skl lists both, loads
 # nothing and exits with 1"
-exitcode 1 skl use data
+# "or two skills with the same frontmatter name"
+exitcode 1 skl use shared
 cmp stderr group-clash.txt
 ! exists $HOME/.claude/skills
 ! exists $HOME/.skl/state.json
 # "This goes for skl use data and for a line data in a named skill set."
-exitcode 1 skl use @hasdata
+exitcode 1 skl use @hasshared
 cmp stderr group-clash.txt
-# "or two skills with the same frontmatter name"
-exitcode 1 skl use shared
-cmp stderr shared-clash.txt
-# Removals come first, so a removal says which one you mean.
-# "A removal still applies before the clash is settled"
-exec skl use data -data/PDF
-exists $HOME/.claude/skills/pdf
-! exists $HOME/.claude/skills/PDF
-# A group that clashes can still be dropped.
-exec skl use review/a
-exec skl add data/pdf
-exec skl drop data/pdf
+# Naming one of them, before or after, doesn't settle it; only a removal does.
+exitcode 1 skl use shared shared/one
+cmp stderr group-clash.txt
+exitcode 1 skl use shared/one shared
+cmp stderr group-clash.txt
+# "Removals apply first, so skl use data -data/PDF loads data/pdf and doesn't stop."
+exec skl use shared -shared/one
+exists $HOME/.claude/skills/two
+! exists $HOME/.claude/skills/one
 exec skl use review/a
 
-# "With data/PDF and data/pdf, data/pdf selects the second, and data/Pdf stops and
-# lists both."
-exitcode 1 skl add data/Pdf
-cmp stderr ambiguous-skill.txt
-# "Group names clash the same way: Review and review make a selector ambiguous, so
-# skl stops and lists both"
-exitcode 1 skl add dup/x
-cmp stderr ambiguous-group.txt
-
-# "With Dup.toml and dup.toml, @dup selects the second, and @DUP stops and lists both."
-exitcode 1 skl add @DUP
-cmp stderr ambiguous-set.txt
 # "@BASE loads base.toml"
 exec skl add @BASE
 exists $HOME/.claude/skills/b
@@ -63,8 +49,6 @@ cmp stderr dangling.txt
 # A line of a set: which set, and that file.
 exitcode 1 skl add @hasref
 cmp stderr set-reference.txt
-exitcode 1 skl add @hasamb
-cmp stderr set-ambiguous.txt
 # None of them changed anything.
 exists $HOME/.claude/skills/a
 ! exists $HOME/.claude/skills/b
@@ -93,6 +77,19 @@ exec skl drop -a
 cmp stderr drop-suggest-removal.txt
 exec skl drop zzz
 cmp stderr drop-none.txt
+# A line already held, in another case, adds nothing.
+exec skl add REVIEW/A
+cmp stderr add-held.txt
+# The hint is a command that works: a folder outside the grammar through its
+# frontmatter name, and nothing to replace the word with in a group outside it.
+exec skl add valid --dry-run
+cmp stderr suggest-name.txt
+exec skl add only --dry-run
+cmp stderr suggest-none.txt
+exec skl add names/valid
+exec skl drop valid
+cmp stderr drop-suggest-name.txt
+exec skl drop names/valid
 
 # Hints are for the line, not the flag: --dry-run isn't repeated, and it goes anywhere.
 exec skl --dry-run drop review/a
@@ -169,15 +166,7 @@ exitcode 1 skl add review/c --dry-run
 stderr '^✗ can''t read '
 
 -- group-clash.txt --
-✗ data/PDF and data/pdf have the same name · rename one in your vault
--- shared-clash.txt --
 ✗ shared/one and shared/two have the same name · rename one in your vault
--- ambiguous-skill.txt --
-✗ data/Pdf matches 2 skills: data/PDF, data/pdf · skl add data/PDF
--- ambiguous-group.txt --
-✗ dup matches 2 groups: Dup, dup · rename one of them in your vault
--- ambiguous-set.txt --
-✗ @DUP matches 2 skill sets: @Dup, @dup · skl add @Dup
 -- cycle.txt --
 ✗ skill set @self includes itself: @self → @SELF · edit sets/self.toml
 -- cycle-folded.txt --
@@ -190,8 +179,6 @@ stderr '^✗ can''t read '
 -- set-reference.txt --
 ✗ @hasref: someone/agent-skills/pdf is someone else's skill
   · edit sets/hasref.toml
--- set-ambiguous.txt --
-✗ @hasamb: data/Pdf matches 2 skills: data/PDF, data/pdf · edit sets/hasamb.toml
 -- outside-grammar.txt --
 → add names
 + a.b
@@ -202,6 +189,15 @@ stderr '^✗ can''t read '
 ✓ nothing to change
 -- drop-suggest-removal.txt --
 ! -a   matches no group · skl drop review/a
+✓ nothing to change
+-- add-held.txt --
+✓ nothing to change
+-- suggest-name.txt --
+! valid   matches no group · skl add names/valid
+-- suggest-none.txt --
+! only   matches no group · skl drop only
+-- drop-suggest-name.txt --
+! valid   matches no group · skl drop names/valid
 ✓ nothing to change
 -- drop-none.txt --
 ! zzz   isn't in the active skill set · skl status
@@ -247,14 +243,6 @@ description: c
 ---
 description: b
 ---
--- seed/data/PDF/SKILL.md --
----
-description: upper
----
--- seed/data/pdf/SKILL.md --
----
-description: lower
----
 -- seed/shared/one/SKILL.md --
 ---
 name: same
@@ -262,14 +250,6 @@ name: same
 -- seed/shared/two/SKILL.md --
 ---
 name: same
----
--- seed/Dup/x/SKILL.md --
----
-description: x
----
--- seed/dup/y/SKILL.md --
----
-description: y
 ---
 -- seed/badfm/nofront/SKILL.md --
 Just text.
@@ -285,20 +265,20 @@ description: hidden
 ---
 name: valid
 ---
+-- seed/a.b/only/SKILL.md --
+---
+description: only
+---
 -- seed/a.b/x/SKILL.md --
 ---
 description: x
 ---
 -- seed/sets/x.y.toml --
 select = ["review/a"]
--- seed/sets/hasdata.toml --
-select = ["data"]
+-- seed/sets/hasshared.toml --
+select = ["shared"]
 -- seed/sets/base.toml --
 select = ["other/b"]
--- seed/sets/Dup.toml --
-select = ["review/a"]
--- seed/sets/dup.toml --
-select = ["review/a"]
 -- seed/sets/self.toml --
 select = ["@SELF"]
 -- seed/sets/badtoml.toml --
@@ -307,5 +287,3 @@ select = [
 other = 1
 -- seed/sets/hasref.toml --
 select = ["someone/agent-skills/pdf"]
--- seed/sets/hasamb.toml --
-select = ["data/Pdf"]

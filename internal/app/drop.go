@@ -76,7 +76,7 @@ func dropWord(lines []string, word string, sel selector.Selector, idx *vault.Ind
 // word is one skill's name and that skill is loaded, it says how to drop that.
 func notInActive(word string, named resolve.Result, loaded []resolve.Skill) *note {
 	for _, w := range named.Warnings {
-		if w.Suggest != "" && slices.ContainsFunc(loaded, func(s resolve.Skill) bool { return s.String() == w.Suggest }) {
+		if w.Suggest != "" && slices.Contains(loaded, w.Skill) {
 			return &note{msg: word + "   " + w.Problem.String(), hint: "skl drop " + w.Suggest}
 		}
 	}

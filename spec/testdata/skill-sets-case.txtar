@@ -1,0 +1,103 @@
+# docs/guide/skill-sets.md "Names and clashes": names that differ only by case. A
+# disk like the macOS default can't hold them side by side, so skill-sets-errors.txtar holds
+# what doesn't need them, and these are made here, after the check.
+[!casesensitive] skip 'needs a case-sensitive disk'
+mkdir seed/data seed/Dup seed/dup seed/sets
+mv src/upper seed/data/PDF
+mv src/lower seed/data/pdf
+mv src/x seed/Dup/x
+mv src/y seed/dup/y
+mv src/Dup.toml seed/sets/Dup.toml
+mv src/dup.toml seed/sets/dup.toml
+
+remote you/skills seed
+exec skl init you/skills
+
+# "Loading a whole group stops if two skills in it clash, such as data/PDF and
+# data/pdf ... skl lists both, loads nothing and exits with 1"
+exitcode 1 skl use data
+cmp stderr group-clash.txt
+! exists $HOME/.claude/skills
+! exists $HOME/.skl/state.json
+# "This goes for skl use data and for a line data in a named skill set."
+exitcode 1 skl use @hasdata
+cmp stderr group-clash.txt
+# Only removals settle it: naming one, before or after, doesn't.
+exitcode 1 skl use data data/PDF
+cmp stderr group-clash.txt
+exitcode 1 skl use data/PDF data
+cmp stderr group-clash.txt
+! exists $HOME/.claude/skills
+
+# "Removals apply first, so skl use data -data/PDF loads data/pdf and doesn't stop."
+exec skl use data -data/PDF
+exists $HOME/.claude/skills/pdf/.skl-copy.toml
+grep '"skill": "data/pdf"' $HOME/.skl/state.json
+! grep '"skill": "data/PDF"' $HOME/.skl/state.json
+# A group that clashes can still be dropped.
+exec skl drop data
+! exists $HOME/.claude/skills/pdf
+
+# "With data/PDF and data/pdf, data/pdf selects the second, and data/Pdf stops and
+# lists both."
+exec skl add data/pdf
+grep 'lower' $HOME/.claude/skills/pdf/SKILL.md
+exec skl drop data/pdf
+exitcode 1 skl add data/Pdf
+cmp stderr ambiguous-skill.txt
+exitcode 1 skl add @hasamb
+cmp stderr set-ambiguous.txt
+
+# "Group names clash the same way: Review and review make a selector ambiguous, so
+# skl stops and lists both"
+exitcode 1 skl add dup/x
+cmp stderr ambiguous-group.txt
+
+# "With Dup.toml and dup.toml, @dup selects the second, and @DUP stops and lists both."
+exitcode 1 skl add @DUP
+cmp stderr ambiguous-set.txt
+exec skl add @dup
+exists $HOME/.claude/skills/a/.skl-copy.toml
+
+-- group-clash.txt --
+✗ data/PDF and data/pdf have the same name · rename one in your vault
+-- ambiguous-skill.txt --
+✗ data/Pdf matches 2 skills: data/PDF, data/pdf · skl add data/PDF
+-- ambiguous-group.txt --
+✗ dup matches 2 groups: Dup, dup · rename one of them in your vault
+-- ambiguous-set.txt --
+✗ @DUP matches 2 skill sets: @Dup, @dup · skl add @Dup
+-- set-ambiguous.txt --
+✗ @hasamb: data/Pdf matches 2 skills: data/PDF, data/pdf · edit sets/hasamb.toml
+-- src/upper/SKILL.md --
+---
+description: upper
+---
+-- src/lower/SKILL.md --
+---
+description: lower
+---
+-- src/x/SKILL.md --
+---
+description: x
+---
+-- src/y/SKILL.md --
+---
+description: y
+---
+-- src/Dup.toml --
+select = ["review/b"]
+-- src/dup.toml --
+select = ["review/a"]
+-- seed/review/a/SKILL.md --
+---
+description: a
+---
+-- seed/review/b/SKILL.md --
+---
+description: b
+---
+-- seed/sets/hasdata.toml --
+select = ["data"]
+-- seed/sets/hasamb.toml --
+select = ["data/Pdf"]

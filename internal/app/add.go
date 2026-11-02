@@ -20,7 +20,8 @@ func (a *App) Add(ctx context.Context, words []string, dryRun bool) error {
 		next: func(active []string, sels []selector.Selector, idx *vault.Index) ([]string, []note, error) {
 			next := slices.Clone(active)
 			for i, word := range words {
-				if slices.Contains(next, word) && noEffect(next, sels[i], idx) {
+				held := slices.ContainsFunc(next, func(l string) bool { return sameLine(l, sels[i]) })
+				if held && noEffect(next, sels[i], idx) {
 					continue
 				}
 				next = append(next, word)

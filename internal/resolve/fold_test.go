@@ -25,7 +25,6 @@ func TestResolveFoldedClash(t *testing.T) {
 		{"a folder and a frontmatter name differ by case", "a/caf\u00e9 b/x", []string{"b/x"}, []string{"b/x replaces a/caf\u00e9"}, []string{"a/caf\u00e9", "b/x=CAFÉ"}},
 		{"a frontmatter name and a folder differ by case", "b/x a/caf\u00e9", []string{"a/caf\u00e9"}, []string{"a/caf\u00e9 replaces b/x"}, []string{"a/caf\u00e9", "b/x=CAFÉ"}},
 		{"two of one group, each named", "g/PDF g/pdf", []string{"g/pdf"}, []string{"g/pdf replaces g/PDF"}, []string{"g/PDF", "g/pdf"}},
-		{"a group then one of its skills", "g g/PDF", []string{"g/PDF"}, []string{"g/PDF replaces g/pdf"}, []string{"g/PDF", "g/pdf"}},
 		{"a removal settles a group", "g -g/PDF", []string{"g/pdf"}, nil, []string{"g/PDF", "g/pdf"}},
 		{"ß and SS", "a/straße b/STRASSE", []string{"b/STRASSE"}, []string{"b/STRASSE replaces a/straße"}, []string{"a/straße", "b/STRASSE"}},
 		{"dotless i is its own letter", "a/ı b/I", []string{"a/ı", "b/I"}, nil, []string{"a/ı", "b/I"}},
@@ -152,6 +151,40 @@ func TestResolveAmbiguousSkill(t *testing.T) {
 	}
 }
 
+// repos.md "Grammar": "the hint repeats your command with only that word replaced",
+// so what it offers has to work: names outside the grammar can't be typed.
+func TestResolveSuggestCanBeTyped(t *testing.T) {
+	tests := []struct {
+		word  string
+		vault []string
+		want  string
+		skill Skill
+	}{
+		{"one", []string{"a.b/one"}, "", Skill{}},
+		{"one", []string{"a.b/one", "z/one"}, "z/one", Skill{Group: "z", Folder: "one"}},
+		{"nice", []string{"weird/c.d=nice"}, "weird/nice", Skill{Group: "weird", Folder: "c.d", Name: "nice"}},
+		{"nice", []string{"weird/c.d=nice", "weird/e.f=nice"}, "", Skill{}},
+		{"nice", []string{"weird/nice=x"}, "weird/nice", Skill{Group: "weird", Folder: "nice", Name: "x"}},
+	}
+	for _, tt := range tests {
+		idx := index{skills: tt.vault}
+		res, err := Resolve(parse(t, tt.word), idx)
+		if err != nil || len(res.Warnings) != 1 {
+			t.Fatalf("Resolve(%q) in %v = %+v, %v", tt.word, tt.vault, res, err)
+		}
+		if w := res.Warnings[0]; w.Suggest != tt.want || w.Skill != tt.skill {
+			t.Errorf("Resolve(%q) in %v suggests %q %+v, want %q", tt.word, tt.vault, w.Suggest, w.Skill, tt.want)
+		}
+		if tt.want == "" {
+			continue
+		}
+		got, err := Resolve(parse(t, tt.want), idx)
+		if err != nil || len(got.Skills) != 1 || got.Skills[0] != tt.skill {
+			t.Errorf("following %s: %+v, %v", tt.want, got, err)
+		}
+	}
+}
+
 // A one-word name that isn't a group only warns, so two matches don't stop it.
 // The suggestion is a folder name as written, which an exact match can follow.
 func TestResolveSuggestAmbiguous(t *testing.T) {
@@ -213,6 +246,8 @@ func TestResolveOneGroupClash(t *testing.T) {
 		{"a folder and a frontmatter name", "g", []string{"g/a=x", "g/x"}, "g/a", "g/x"},
 		{"through a set", "@s", []string{"g/PDF", "g/pdf"}, "g/PDF", "g/pdf"},
 		{"selected twice", "g g", []string{"g/PDF", "g/pdf"}, "g/PDF", "g/pdf"},
+		{"a group then one of its skills", "g g/PDF", []string{"g/PDF", "g/pdf"}, "g/PDF", "g/pdf"},
+		{"one of its skills then a group", "g/PDF g", []string{"g/PDF", "g/pdf"}, "g/PDF", "g/pdf"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
