@@ -10,10 +10,13 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"golang.org/x/term"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Options are what New needs from the process.
@@ -146,14 +149,14 @@ func (u *UI) Report() io.Writer { return u.stdout }
 
 // Plan prints "→ <what skl is about to do>".
 func (u *UI) Plan(format string, a ...any) {
-	fmt.Fprintln(u.plan, markPlan+" "+fmt.Sprintf(format, a...))
+	fmt.Fprintln(u.plan, markPlan+" "+Clean(fmt.Sprintf(format, a...)))
 }
 
 // Step prints "◇ <label> <detail>", the label padded to 10 columns so the
 // details line up.
 func (u *UI) Step(label, detail string) {
 	if detail == "" {
-		u.line(markStep + " " + label)
+		u.line(markStep + " " + Clean(label))
 		return
 	}
 	u.line(stepLine(label, detail))
@@ -167,15 +170,63 @@ func (u *UI) StepHint(label, detail, hint string) {
 }
 
 func stepLine(label, detail string) string {
-	return fmt.Sprintf("%s %-10s %s", markStep, label, detail)
+	return fmt.Sprintf("%s %-10s %s", markStep, Clean(label), Clean(detail))
 }
 
 // Change prints "+ name", "~ name" or "− name", then the detail if any.
 func (u *UI) Change(k Kind, name, detail string) {
+	name = Clean(name)
 	if detail != "" {
-		name += "   " + detail
+		name += "   " + Clean(detail)
 	}
 	fmt.Fprintln(u.plan, changeMarks[k]+" "+name)
+}
+
+// Names prints names that have no detail, all of one kind, side by side as far as
+// the width allows: "+ sql-explain   + api-design".
+func (u *UI) Names(k Kind, names []string) {
+	var row string
+	for _, n := range names {
+		item := changeMarks[k] + " " + Clean(n)
+		switch {
+		case row == "":
+			row = item
+		case lipgloss.Width(row)+3+lipgloss.Width(item) <= u.width:
+			row += "   " + item
+		default:
+			fmt.Fprintln(u.plan, row)
+			row = item
+		}
+	}
+	if row != "" {
+		fmt.Fprintln(u.plan, row)
+	}
+}
+
+// Clean makes text safe to print on one line, wherever it came from: a skill's
+// folder name, a frontmatter field, a message from git. It removes escape sequences
+// and control characters, and puts names that are one name in one form, NFC.
+func Clean(s string) string {
+	s = ansi.Strip(strings.ToValidUTF8(s, "\uFFFD"))
+	s = strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n', r == '\r', r == '\t', r == '\v', r == '\f', r == '\u2028', r == '\u2029':
+			return ' '
+		case unicode.IsControl(r), unicode.Is(unicode.Cf, r):
+			return -1
+		}
+		return r
+	}, s)
+	return norm.NFC.String(s)
+}
+
+// cleanLines is Clean for a hint, which may hold several lines of its own.
+func cleanLines(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = Clean(l)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Warn prints "! <msg> · <hint>". A warning never changes the exit code.
@@ -186,7 +237,7 @@ func (u *UI) Warn(msg, hint string) { u.line(u.hinted(markWarn, msg, hint)) }
 func (u *UI) Error(msg, hint string) { u.line(u.hinted(markError, msg, hint)) }
 
 // Done prints "✓ <msg>", the result, last.
-func (u *UI) Done(msg string) { u.line(markDone + " " + msg) }
+func (u *UI) Done(msg string) { u.line(markDone + " " + Clean(msg)) }
 
 func (u *UI) line(s string) { fmt.Fprintln(u.stderr, s) }
 
@@ -194,7 +245,8 @@ func (u *UI) line(s string) { fmt.Fprintln(u.stderr, s) }
 // "·" when the whole doesn't fit in the width (commands.md "Output"). A hint
 // of several lines always goes there, so its lines stay aligned.
 func (u *UI) hinted(mark, msg, hint string) string {
-	line := mark + " " + msg
+	line := mark + " " + Clean(msg)
+	hint = cleanLines(hint)
 	if hint == "" {
 		return line
 	}

@@ -1,0 +1,459 @@
+# docs/guide/skill-sets.md "Load, add and drop", "Selectors", "Names and clashes",
+# "Skills skl didn't create", "Which agents read them"
+
+remote you/skills seed
+exec skl init you/skills
+exists $HOME/.skl/vault/review/pr-review/SKILL.md
+
+# "skl use <selectors>": "Replace the active skill set"
+# "`review/pr-review` becomes `~/.claude/skills/pr-review`"
+exec skl use review/pr-review data
+cmp stderr use-first.txt
+! stdout .
+exists $HOME/.claude/skills/pr-review/SKILL.md
+exists $HOME/.claude/skills/sql-explain/SKILL.md
+! exists $HOME/.claude/skills/test-gaps
+exists $HOME/.skl/generations/2.json
+grep '"command": "use review/pr-review data"' $HOME/.skl/generations/2.json
+
+# docs/reference/files.md "Loaded skills": the three fields, and the tree hash of
+# the folder as git would write it.
+grep '^source = "review/pr-review"$' $HOME/.claude/skills/pr-review/.skl-copy.toml
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout head.txt
+exec git -C $HOME/.skl/vault rev-parse HEAD:review/pr-review
+cp stdout tree.txt
+exec sh -c 'grep -q "^commit = \"$(cat head.txt)\"$" $HOME/.claude/skills/pr-review/.skl-copy.toml'
+exec sh -c 'grep -q "^tree = \"$(cat tree.txt)\"$" $HOME/.claude/skills/pr-review/.skl-copy.toml'
+# docs/design/architecture.md "Saving back": "`.skl-copy.toml` never enters the
+# vault, and `.skl-origin.toml` stays in the vault".
+! exists $HOME/.skl/vault/review/pr-review/.skl-copy.toml
+exists $HOME/.skl/vault/review/test-gaps/.skl-origin.toml
+
+# docs/reference/commands.md "Output": "A command that changes nothing makes no
+# generation and ends with ✓ nothing to change."
+exec skl use review/pr-review data
+cmp stderr nothing.txt
+! exists $HOME/.skl/generations/3.json
+
+# Skills with the same result but other selectors are still a change: the active
+# skill set is what skl save stores.
+exec skl use data review/pr-review
+cmp stderr use-reordered.txt
+exists $HOME/.skl/generations/3.json
+
+# "skl add <selectors>": "Add to it"
+exec skl add review/test-gaps
+cmp stderr add.txt
+exists $HOME/.claude/skills/test-gaps/SKILL.md
+exists $HOME/.claude/skills/pr-review/SKILL.md
+exec skl add review/test-gaps
+cmp stderr nothing.txt
+
+# "skl drop <selectors>": "Remove from it"
+exec skl drop review/test-gaps
+cmp stderr drop.txt
+! exists $HOME/.claude/skills/test-gaps
+exists $HOME/.claude/skills/pr-review/SKILL.md
+
+# docs/reference/repos.md: "`skl drop` of a selector that isn't in your active
+# skill set warns, whether or not it names something real"
+exec skl drop nope
+cmp stderr drop-nope.txt
+exec skl drop review/test-gaps
+cmp stderr drop-real.txt
+
+# "-review/test-gaps": "Removes a skill that an earlier selector added"
+exec skl use review -review/test-gaps
+exists $HOME/.claude/skills/pr-review
+! exists $HOME/.claude/skills/test-gaps
+! exists $HOME/.claude/skills/sql-explain
+# "`-` removes what the rest of the selector names": a group.
+exec skl use review data -review
+! exists $HOME/.claude/skills/pr-review
+exists $HOME/.claude/skills/sql-explain
+# And a skill set.
+exec skl use review data -@base
+! exists $HOME/.claude/skills/pr-review
+exists $HOME/.claude/skills/test-gaps
+exists $HOME/.claude/skills/sql-explain
+
+# "@backend": "A named skill set from your vault"
+# Dropping one skill of a loaded group or set keeps the rest, as a removal line.
+exec skl use @base
+exists $HOME/.claude/skills/pr-review
+exists $HOME/.claude/skills/changelog
+exec skl drop writing/changelog
+! exists $HOME/.claude/skills/changelog
+exists $HOME/.claude/skills/pr-review
+grep '"-writing/changelog"' $HOME/.skl/state.json
+exec skl drop @base
+! exists $HOME/.claude/skills/pr-review
+
+# "Add `--dry-run` to any of them to see the changes without applying them"
+# docs/reference/commands.md "Dry run": "prints its plan, the → line and the + ~ − lines,
+# then stops with exit code 0. Nothing is written"
+exec skl use review/pr-review
+exec skl use review/test-gaps --dry-run
+cmp stdout dry-use.txt
+! stderr .
+! exists $HOME/.claude/skills/test-gaps
+exists $HOME/.claude/skills/pr-review
+exec skl add review/test-gaps --dry-run
+cmp stdout dry-add.txt
+! exists $HOME/.claude/skills/test-gaps
+exec skl drop review/pr-review --dry-run
+cmp stdout dry-drop.txt
+exists $HOME/.claude/skills/pr-review
+exec skl use review/pr-review --dry-run
+! stdout .
+cmp stderr nothing.txt
+! grep 'test-gaps' $HOME/.skl/state.json
+exec ls $HOME/.skl/generations
+cp stdout gens-before.txt
+exec skl use review/test-gaps --dry-run
+exec ls $HOME/.skl/generations
+cmp stdout gens-before.txt
+
+# "Given a reference to someone else's repo, use, add and drop stop and say so"
+# "A usage error: ... a selector or reference that can't be parsed. Nothing changed."
+exitcode 2 skl use someone/agent-skills/pdf
+cmp stderr reference.txt
+exitcode 2 skl add someone/agent-skills/pdf
+cmp stderr reference.txt
+exitcode 2 skl drop -someone/agent-skills/pdf
+cmp stderr reference.txt
+exists $HOME/.claude/skills/pr-review
+# "Any other word is invalid, and the command stops with a usage error"
+exitcode 2 skl use review/pr.review
+stderr '^✗ review/pr.review is not a valid selector'
+# Before it looks for a vault: the words are wrong on any machine.
+env SKL_HOME=$WORK/novault
+exitcode 2 skl use someone/agent-skills/pdf
+env SKL_HOME=
+# docs/reference/commands.md "Exit codes": "a missing argument"
+exitcode 2 skl use
+stderr '^✗ skl use needs <selectors> · skl help use$'
+# docs/reference/commands.md "Errors"
+env SKL_HOME=$WORK/novault
+exitcode 1 skl use review
+cmp stderr no-vault.txt
+env SKL_HOME=
+
+# "Selectors are applied left to right, and on a name clash the later one wins."
+# "skl says which skill replaced which"
+exec skl use review someone/pr-review
+cmp stderr clash.txt
+grep '^source = "someone/pr-review"$' $HOME/.claude/skills/pr-review/.skl-copy.toml
+exec skl use review someone/pr-review
+cmp stderr nothing.txt
+# "Removals apply before clashes are settled, so a skill you removed replaces nothing"
+exec skl use review someone/pr-review -someone/pr-review
+cmp stderr clash-removed.txt
+grep '^source = "review/pr-review"$' $HOME/.claude/skills/pr-review/.skl-copy.toml
+# "If @backend holds review and someone/pr-review, this keeps review/pr-review
+# loaded, with no ~ line"
+exec skl use review @withtheirs -someone/pr-review
+! stderr '~'
+grep '^source = "review/pr-review"$' $HOME/.claude/skills/pr-review/.skl-copy.toml
+# "Two skills clash when they share a name, so a/x and b/y with name: x clash."
+exec skl use writing/changelog other/log
+cmp stderr clash-frontmatter.txt
+exists $HOME/.claude/skills/log
+! exists $HOME/.claude/skills/changelog
+
+# Vault changes reach a skill with its next load.
+exec skl use review/pr-review
+cp new-skill.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl use review/pr-review
+cmp stderr updated.txt
+cmp $HOME/.claude/skills/pr-review/SKILL.md new-skill.md
+exec git -C $HOME/.skl/vault checkout -q -- review/pr-review
+exec skl use review/pr-review
+
+# "A selector that matches nothing is a warning." docs/reference/commands.md
+# "Exit codes": a warning keeps 0.
+exec skl use nope
+cmp stderr nomatch.txt
+exec skl use nope
+cmp stderr nomatch-again.txt
+# "the hint repeats your command with only that word replaced"
+exec skl use review/pr-review test-gaps
+cmp stderr suggest.txt
+exec skl use review -test-gaps
+cmp stderr suggest-removal.txt
+# "A line in a named skill set hints at its file"
+exec skl use @broken
+cmp stderr set-line.txt
+# "A line in your active skill set that matches nothing is removed without a warning."
+exec skl use nope review/pr-review
+stderr '^! nope   matches no group · skl drop nope$'
+exec skl drop nope
+cmp stderr drop-line.txt
+! grep 'nope' $HOME/.skl/state.json
+
+# "If a hand-made skill already has a name that a loaded skill needs, skl skips
+# its own skill, loads the rest, and warns you. The command still succeeds"
+exec skl use data
+mkdir $HOME/.claude/skills/pr-review
+cp own.md $HOME/.claude/skills/pr-review/SKILL.md
+exec skl use review/pr-review data
+cmp stderr foreign.txt
+cmp $HOME/.claude/skills/pr-review/SKILL.md own.md
+! exists $HOME/.claude/skills/pr-review/.skl-copy.toml
+exec skl use review/pr-review data
+cmp stderr foreign-again.txt
+# "skl never changes or removes them."
+exec skl use data
+cmp $HOME/.claude/skills/pr-review/SKILL.md own.md
+# Its frontmatter name counts too: "A skill's names are its folder name and the
+# name in its SKILL.md frontmatter."
+mkdir $HOME/.claude/skills/mine
+cp named.md $HOME/.claude/skills/mine/SKILL.md
+exec skl add review/test-gaps
+cmp stderr foreign-named.txt
+! exists $HOME/.claude/skills/test-gaps
+# "skipped ... until the name is free"
+rm $HOME/.claude/skills/mine
+rm $HOME/.claude/skills/pr-review
+exec skl use review
+exists $HOME/.claude/skills/pr-review/.skl-copy.toml
+exists $HOME/.claude/skills/test-gaps/.skl-copy.toml
+
+# An edit to a copy is never thrown away: "A change made to a loaded copy is never
+# discarded without asking" (docs/design/architecture.md "Guarantees").
+exec skl use review/pr-review
+cp own.md $HOME/.claude/skills/pr-review/SKILL.md
+exitcode 1 skl use data
+cmp stderr edited.txt
+cmp $HOME/.claude/skills/pr-review/SKILL.md own.md
+! exists $HOME/.claude/skills/sql-explain
+cp $HOME/.skl/vault/review/pr-review/SKILL.md $HOME/.claude/skills/pr-review/SKILL.md
+
+# "To load into both, set targets in your config"
+# "Each target then holds its own copy of every loaded skill"
+cp targets.toml $HOME/.skl/config.toml
+exec skl use review/pr-review
+cmp stderr two-targets.txt
+exists $HOME/.claude/skills/pr-review/.skl-copy.toml
+exists $HOME/.agents/skills/pr-review/.skl-copy.toml
+cmp $HOME/.claude/skills/pr-review/.skl-copy.toml $HOME/.agents/skills/pr-review/.skl-copy.toml
+exec skl use review/pr-review
+cmp stderr nothing.txt
+# A foreign skill in one target skips only that target's copy.
+mkdir $HOME/.agents/skills/sql-explain
+cp own.md $HOME/.agents/skills/sql-explain/SKILL.md
+exec skl add data
+cmp stderr two-targets-foreign.txt
+exists $HOME/.claude/skills/sql-explain/.skl-copy.toml
+cmp $HOME/.agents/skills/sql-explain/SKILL.md own.md
+rm $HOME/.agents/skills/sql-explain
+exec skl drop review/pr-review
+! exists $HOME/.claude/skills/pr-review
+! exists $HOME/.agents/skills/pr-review
+
+# Out of the target list, its copies are unloaded on the next load.
+exec skl use review/pr-review
+rm $HOME/.skl/config.toml
+exec skl use review/pr-review
+cmp stderr target-gone.txt
+exists $HOME/.claude/skills/pr-review
+! exists $HOME/.agents/skills/pr-review
+
+# docs/design/architecture.md "Loading pipeline": "Loading never touches the
+# network." The remote is gone and everything still works.
+rm $REMOTES/github.com/you/skills.git
+exec skl use review/test-gaps
+exists $HOME/.claude/skills/test-gaps
+stderr '^✓ generation '
+
+# The commands list themselves once built.
+exec skl help use
+stdout 'skl use review someone/pdf'
+exec skl help
+stdout '^  use '
+stdout '^  add '
+stdout '^  drop '
+
+-- use-first.txt --
+→ load review/pr-review data
++ pr-review   + sql-explain
+✓ generation 2 · skl rollback to undo
+-- nothing.txt --
+✓ nothing to change
+-- use-reordered.txt --
+→ load data review/pr-review
+✓ generation 3 · skl rollback to undo
+-- add.txt --
+→ add review/test-gaps
++ test-gaps
+✓ generation 4 · skl rollback to undo
+-- drop.txt --
+→ drop review/test-gaps
+− test-gaps
+✓ generation 5 · skl rollback to undo
+-- drop-nope.txt --
+! nope   isn't in the active skill set · skl status
+✓ nothing to change
+-- drop-real.txt --
+! review/test-gaps   isn't in the active skill set · skl status
+✓ nothing to change
+-- dry-use.txt --
+→ load review/test-gaps
++ test-gaps
+− pr-review
+-- dry-add.txt --
+→ add review/test-gaps
++ test-gaps
+-- dry-drop.txt --
+→ drop review/pr-review
+− pr-review
+-- reference.txt --
+✗ someone/agent-skills/pdf is someone else's skill
+  · skl learn someone/agent-skills/pdf
+-- no-vault.txt --
+✗ no vault on this machine · skl init <repo>
+-- clash.txt --
+→ load review someone/pr-review
++ test-gaps
+~ pr-review   someone/pr-review replaces review/pr-review
+✓ generation 13 · skl rollback to undo
+-- clash-removed.txt --
+→ load review someone/pr-review -someone/pr-review
+~ pr-review   review/pr-review replaces someone/pr-review
+✓ generation 14 · skl rollback to undo
+-- clash-frontmatter.txt --
+→ load writing/changelog other/log
+~ log   other/log replaces writing/changelog
+− pr-review   − test-gaps
+✓ generation 16 · skl rollback to undo
+-- updated.txt --
+→ load review/pr-review
+~ pr-review   updated
+✓ generation 18 · skl rollback to undo
+-- nomatch.txt --
+→ load nope
+− pr-review
+! nope   matches no group · skl drop nope
+✓ generation 20 · skl rollback to undo
+-- nomatch-again.txt --
+! nope   matches no group · skl drop nope
+✓ nothing to change
+-- suggest.txt --
+→ load review/pr-review test-gaps
++ pr-review
+! test-gaps   matches no group · skl use review/pr-review review/test-gaps
+✓ generation 21 · skl rollback to undo
+-- suggest-removal.txt --
+→ load review -test-gaps
++ test-gaps
+! -test-gaps   matches no group · skl use review -review/test-gaps
+✓ generation 22 · skl rollback to undo
+-- set-line.txt --
+→ load @broken
++ sql-explain
+− pr-review   − test-gaps
+! writing/old-name   matches no skill (in @broken) · edit sets/broken.toml
+✓ generation 23 · skl rollback to undo
+-- drop-line.txt --
+→ drop nope
+✓ generation 25 · skl rollback to undo
+-- foreign.txt --
+→ load review/pr-review data
+! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
+  · skl import pr-review
+✓ generation 27 · skl rollback to undo
+-- foreign-again.txt --
+! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
+  · skl import pr-review
+✓ nothing to change
+-- foreign-named.txt --
+→ add review/test-gaps
+! test-gaps   skipped: ~/.claude/skills/mine is not in your vault
+  · skl import mine
+✓ generation 29 · skl rollback to undo
+-- edited.txt --
+✗ ~/.claude/skills/pr-review has changes not saved back
+  · move it aside, then skl use data
+-- two-targets.txt --
+→ load review/pr-review
++ pr-review
+✓ generation 32 · skl rollback to undo
+-- two-targets-foreign.txt --
+→ add data
++ sql-explain
+! sql-explain   skipped: ~/.agents/skills/sql-explain is not in your vault
+  · skl import sql-explain
+✓ generation 33 · skl rollback to undo
+-- target-gone.txt --
+→ load review/pr-review
+− pr-review   from ~/.agents/skills
+✓ generation 36 · skl rollback to undo
+-- new-skill.md --
+---
+name: pr-review
+description: now better
+---
+Better.
+-- own.md --
+---
+description: my own
+---
+Mine.
+-- named.md --
+---
+name: test-gaps
+---
+Mine too.
+-- targets.toml --
+targets = ["claude", "agents"]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
+Review.
+-- seed/review/test-gaps/SKILL.md --
+---
+description: find gaps
+---
+Gaps.
+-- seed/review/test-gaps/.skl-origin.toml --
+[source]
+url = "https://github.com/someone/agent-skills//test-gaps"
+-- seed/someone/pr-review/SKILL.md --
+---
+description: their review
+---
+Theirs.
+-- seed/data/sql-explain/SKILL.md --
+---
+description: explain SQL
+---
+SQL.
+-- seed/writing/changelog/SKILL.md --
+---
+description: write a changelog
+---
+Log.
+-- seed/other/log/SKILL.md --
+---
+name: changelog
+description: another changelog
+---
+Other.
+-- seed/sets/base.toml --
+select = [
+  "review/pr-review",
+  "writing/changelog",
+]
+-- seed/sets/withtheirs.toml --
+select = [
+  "review",
+  "someone/pr-review",
+]
+-- seed/sets/broken.toml --
+select = [
+  "data",
+  "writing/old-name",
+]

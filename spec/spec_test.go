@@ -6,6 +6,7 @@ package spec
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,12 +42,32 @@ func params(dir string) testscript.Params {
 		RequireUniqueNames:  true,
 		UpdateScripts:       os.Getenv("UPDATE") == "1",
 		Setup:               setup,
+		Condition:           condition,
 		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){
 			"remote":   cmdRemote,
 			"exitcode": cmdExitcode,
 			"waitfile": cmdWaitfile,
 		},
 	}
+}
+
+// condition adds [casesensitive]: the disk can hold two names that differ only by
+// case. A txtar archive with two such names can't even unpack on one that can't, so
+// a script makes them after this check.
+func condition(cond string) (bool, error) {
+	if cond != "casesensitive" {
+		return false, fmt.Errorf("unknown condition %q", cond)
+	}
+	dir, err := os.MkdirTemp("", "skl-case")
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	if err := os.WriteFile(filepath.Join(dir, "a"), nil, 0o644); err != nil {
+		return false, err
+	}
+	_, err = os.Stat(filepath.Join(dir, "A"))
+	return errors.Is(err, os.ErrNotExist), nil
 }
 
 // setup gives each script HOME=$WORK/home and $REMOTES, and points

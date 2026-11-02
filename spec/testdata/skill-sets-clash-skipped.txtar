@@ -1,0 +1,82 @@
+# docs/guide/skill-sets.md "Names and clashes", "Skills skl didn't create"
+
+remote you/skills seed
+exec skl init you/skills
+mkdir $HOME/.claude/skills/log
+cp own.md $HOME/.claude/skills/log/SKILL.md
+
+# "A skill loses a clash only to a later skill that stays loaded, so every `~` line
+# is a real replacement."
+exec skl use writing/changelog other/log
+cmp stderr first.txt
+exists $HOME/.claude/skills/changelog/.skl-copy.toml
+cmp $HOME/.claude/skills/log/SKILL.md own.md
+
+# Adding the skipped skill doesn't unload what's loaded.
+exec skl use writing/changelog
+exec skl add other/log
+cmp stderr add.txt
+exists $HOME/.claude/skills/changelog/.skl-copy.toml
+
+# Dropping the skill that's loaded works, though on paper it loses the clash.
+exec skl drop writing/changelog
+cmp stderr drop.txt
+! exists $HOME/.claude/skills/changelog
+
+# "skipped ... until the name is free": then it loads and the clash goes its way.
+rm $HOME/.claude/skills/log
+exec skl use writing/changelog other/log
+cmp stderr free.txt
+exists $HOME/.claude/skills/log/.skl-copy.toml
+! exists $HOME/.claude/skills/changelog
+
+# Someone else's skill holds a name in one target's folder only, so each target
+# settles the clash for itself.
+exec skl use writing/changelog
+env SKL_TARGETS=claude,agents
+mkdir $HOME/.agents/skills/log
+cp own.md $HOME/.agents/skills/log/SKILL.md
+exec skl use writing/changelog other/log
+cmp stderr targets.txt
+exists $HOME/.claude/skills/log/.skl-copy.toml
+! exists $HOME/.claude/skills/changelog
+exists $HOME/.agents/skills/changelog/.skl-copy.toml
+cmp $HOME/.agents/skills/log/SKILL.md own.md
+
+-- first.txt --
+→ load writing/changelog other/log
++ changelog
+! log   skipped: ~/.claude/skills/log is not in your vault · skl import log
+✓ generation 2 · skl rollback to undo
+-- add.txt --
+→ add other/log
+! log   skipped: ~/.claude/skills/log is not in your vault · skl import log
+✓ generation 4 · skl rollback to undo
+-- drop.txt --
+→ drop writing/changelog
+− changelog
+! log   skipped: ~/.claude/skills/log is not in your vault · skl import log
+✓ generation 5 · skl rollback to undo
+-- free.txt --
+→ load writing/changelog other/log
+~ log   other/log replaces writing/changelog
+✓ generation 6 · skl rollback to undo
+-- targets.txt --
+→ load writing/changelog other/log
+~ log   other/log replaces writing/changelog
++ changelog
+! log   skipped: ~/.agents/skills/log is not in your vault · skl import log
+✓ generation 8 · skl rollback to undo
+-- own.md --
+---
+description: mine
+---
+-- seed/writing/changelog/SKILL.md --
+---
+description: changelog
+---
+-- seed/other/log/SKILL.md --
+---
+name: changelog
+description: log
+---
