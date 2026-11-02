@@ -7,8 +7,8 @@ mv src/upper seed/data/PDF
 mv src/lower seed/data/pdf
 mv src/x seed/Dup/x
 mv src/y seed/dup/y
-mv src/Dup.toml seed/sets/Dup.toml
-mv src/dup.toml seed/sets/dup.toml
+mv src/set-upper.toml seed/sets/Dup.toml
+mv src/set-lower.toml seed/sets/dup.toml
 
 remote you/skills seed
 exec skl init you/skills
@@ -85,9 +85,9 @@ description: x
 ---
 description: y
 ---
--- src/Dup.toml --
+-- src/set-upper.toml --
 select = ["review/b"]
--- src/dup.toml --
+-- src/set-lower.toml --
 select = ["review/a"]
 -- seed/review/a/SKILL.md --
 ---
