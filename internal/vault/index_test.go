@@ -3,6 +3,7 @@ package vault
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -439,6 +440,125 @@ func TestIndexSetClash(t *testing.T) {
 	}
 	if want := "@DUP matches 2 skill sets: @Dup, @dup"; err.Error() != want {
 		t.Errorf("message = %q, want %q", err, want)
+	}
+}
+
+// files.md "Your vault": "hidden folders are skipped at both levels: .git and
+// .github aren't groups, and review/.x/SKILL.md isn't a skill. A hidden file in
+// sets/ isn't a skill set either."
+func TestIndexHidden(t *testing.T) {
+	idx := index(t, tree(t, map[string]string{
+		"review/x/SKILL.md":       plain,
+		"review/.x/SKILL.md":      "---\nname: secret\ndescription: hidden\n---\n",
+		"review/.broken/SKILL.md": "no frontmatter, and no warning about it",
+		"only-hidden/.y/SKILL.md": plain,
+		".github/s/SKILL.md":      plain,
+		".git/s/SKILL.md":         plain,
+		"sets/visible.toml":       "select = [\"review\"]\n",
+		"sets/.secret.toml":       "select = [\"review\"]\n",
+	}))
+	if got, want := idx.Groups(), []string{"only-hidden", "review"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Groups() = %q, want %q", got, want)
+	}
+	if got, want := skills(idx, "review"), []string{"review/x"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Skills(review) = %q, want %q", got, want)
+	}
+	for _, group := range []string{"only-hidden", ".github", ".git"} {
+		if got := idx.Skills(group); len(got) != 0 {
+			t.Errorf("Skills(%s) = %v", group, got)
+		}
+	}
+	if got := messages(idx); len(got) != 0 {
+		t.Errorf("warnings = %q", got)
+	}
+	if got, want := idx.Sets(), []string{"visible"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Sets() = %q, want %q", got, want)
+	}
+	for _, name := range []string{".secret", "secret"} {
+		if lines, err := idx.Set(name); !errors.Is(err, resolve.ErrNoSet) {
+			t.Errorf("Set(%q) = %q, %v, want ErrNoSet", name, lines, err)
+		}
+	}
+}
+
+// A hidden folder doesn't count: its frontmatter name finds nothing and clashes
+// with nothing. skill-sets.md "Names and clashes" stops a group on two skills with
+// one name, so review/x would stop here if review/.a were a skill.
+func TestIndexHiddenDoesntCount(t *testing.T) {
+	idx := index(t, tree(t, map[string]string{
+		"review/x/SKILL.md":  plain,
+		"review/.a/SKILL.md": "---\nname: x\n---\n",
+		"review/.b/SKILL.md": "---\nname: secret\n---\n",
+	}))
+	for word, want := range map[string][]string{
+		"review":        {"review/x"},
+		"review/x":      {"review/x"},
+		"review/secret": nil,
+	} {
+		sel, err := selector.Parse(word)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := resolve.Resolve([]selector.Selector{sel}, idx)
+		if err != nil {
+			t.Errorf("Resolve(%q): %v", word, err)
+			continue
+		}
+		var got []string
+		for _, s := range res.Skills {
+			got = append(got, s.String())
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Resolve(%q) = %q, want %q", word, got, want)
+		}
+	}
+}
+
+// lock takes every permission from a folder until the test ends, in time for
+// t.TempDir to remove it.
+func lock(t *testing.T, dir string) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+}
+
+// "A folder that can't be listed is an error": a group that reads as empty would
+// unload its skills.
+func TestIndexUnreadableGroup(t *testing.T) {
+	v := tree(t, map[string]string{"data/s/SKILL.md": plain, "review/s/SKILL.md": plain})
+	lock(t, filepath.Join(v.dir, "review"))
+	idx, err := v.Index(context.Background())
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("Index() = %v, want a permission error", err)
+	}
+	if idx != nil {
+		t.Errorf("Index() returned %+v with its error", idx)
+	}
+	if !strings.Contains(err.Error(), "review") {
+		t.Errorf("the error doesn't name the group: %v", err)
+	}
+}
+
+// A hidden folder is never opened, so one that can't be read stops nothing.
+func TestIndexUnreadableHidden(t *testing.T) {
+	v := tree(t, map[string]string{
+		"review/x/SKILL.md":  plain,
+		"review/.x/SKILL.md": plain,
+		".locked/s/SKILL.md": plain,
+	})
+	lock(t, filepath.Join(v.dir, ".locked"))
+	lock(t, filepath.Join(v.dir, "review/.x"))
+	idx := index(t, v)
+	if got, want := skills(idx, "review"), []string{"review/x"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Skills(review) = %q, want %q", got, want)
+	}
+	if got := messages(idx); len(got) != 0 {
+		t.Errorf("warnings = %q", got)
 	}
 }
 
