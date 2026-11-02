@@ -37,7 +37,7 @@ exitcode 2 skl stauts
 cmp stderr stauts-80.txt
 
 -- stauts-80.txt --
-✗ unknown command stauts · skl help
+✗ unknown command stauts · skl status
 -- stauts-30.txt --
 ✗ unknown command stauts
-  · skl help
+  · skl status

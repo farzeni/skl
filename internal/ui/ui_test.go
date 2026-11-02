@@ -3,8 +3,10 @@ package ui
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -310,5 +312,91 @@ func TestEveryLineIsCleaned(t *testing.T) {
 	}
 	if lines := strings.Count(out.String(), "\n"); lines > 9 {
 		t.Errorf("%d lines: %q", lines, out.String())
+	}
+}
+
+// commands.md "Where output goes": a report's lines, its marks included, go to
+// standard output. "A command that doesn't fit on the line moves to the next one,
+// after ·; one that fits stays on the line."
+func TestReportLines(t *testing.T) {
+	u, s := testUI(colorprofile.NoTTY, 30, Options{})
+	u.ReportLine("vault   1 change", "skl sync")
+	u.ReportLine(Pad("name", 8), "")
+	u.ReportLine(Pad("name", 7), "skl sync")
+	u.ReportLine(Pad("a long name that won't fit", 30), "skl sync")
+	u.ReportWarn("lint   skipped", "skl import lint")
+	want := "vault   1 change · skl sync\n" +
+		"name\n" +
+		"name    · skl sync\n" +
+		"a long name that won't fit\n  · skl sync\n" +
+		"! lint   skipped\n  · skl import lint\n"
+	if s.stdout.String() != want {
+		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), want)
+	}
+	if s.stderr.Len() != 0 {
+		t.Errorf("stderr %q", s.stderr.String())
+	}
+}
+
+// A report's mark has color on a terminal, and the text never does.
+func TestReportWarnColor(t *testing.T) {
+	u, s := testUI(colorprofile.TrueColor, 80, Options{})
+	u.ReportWarn("a\x1b[31mb", "skl sync")
+	if !strings.Contains(s.stdout.String(), "\x1b[") {
+		t.Errorf("no color: %q", s.stdout.String())
+	}
+	if got := ansi.Strip(s.stdout.String()); got != "! ab · skl sync\n" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestPadCountsColumns(t *testing.T) {
+	if got := Pad("日本", 6); got != "日本  " {
+		t.Errorf("Pad = %q", got)
+	}
+	if got := Pad("long", 2); got != "long" {
+		t.Errorf("Pad = %q", got)
+	}
+	if got := Width("a\x1b[31mb"); got != 2 {
+		t.Errorf("Width = %d", got)
+	}
+}
+
+// A name from the vault can't drive a terminal through JSON, and a script still
+// reads the real name back.
+func TestReportJSONEscapesControls(t *testing.T) {
+	u, s := testUI(colorprofile.NoTTY, 80, Options{})
+	name := "a\x7f\u009b\u202e\U000E0001\x1b<é日"
+	if err := u.ReportJSON(map[string]string{"name": name}); err != nil {
+		t.Fatal(err)
+	}
+	want := "{\n  \"name\": \"a\\u007f\\u009b\\u202e\\udb40\\udc01\\u001b<é日\"\n}\n"
+	if s.stdout.String() != want {
+		t.Errorf("got %q, want %q", s.stdout.String(), want)
+	}
+	var back map[string]string
+	if err := json.Unmarshal(s.stdout.Bytes(), &back); err != nil {
+		t.Fatal(err)
+	}
+	if back["name"] != name {
+		t.Errorf("read back %q, want %q", back["name"], name)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+// commands.md "skl status > status.txt saves the report": when it can't, that's an
+// error, and the first failure is the one reported.
+func TestReportErr(t *testing.T) {
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: failingWriter{}, Stderr: io.Discard}, colorprofile.NoTTY, 80, false)
+	if u.ReportErr() != nil {
+		t.Fatal("error before any write")
+	}
+	u.ReportLine("a", "")
+	u.ReportWarn("b", "c")
+	if err := u.ReportErr(); err == nil || err.Error() != "disk full" {
+		t.Errorf("ReportErr = %v", err)
 	}
 }

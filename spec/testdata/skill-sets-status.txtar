@@ -1,0 +1,414 @@
+# docs/guide/skill-sets.md "What's loaded", docs/guide/getting-started.md "Work as
+# usual", docs/reference/commands.md "JSON", "Where output goes"
+
+remote you/skills seed
+exec skl init you/skills
+
+# Nothing loaded yet. The docs show no line for this; see the card's PR.
+exec skl status
+cmp stdout nothing.txt
+! stderr .
+exec skl status --json
+cmpenv stdout nothing.json
+! stderr .
+
+mkdir $HOME/.claude/skills/lint
+cp own.md $HOME/.claude/skills/lint/SKILL.md
+exec skl use @backend writing/changelog
+mkdir $HOME/.claude/skills/my-new-skill
+cp own.md $HOME/.claude/skills/my-new-skill/SKILL.md
+# "Folders next to it, such as the pr-review-workspace/ that skill-creator writes
+# its test runs to, stay out of your vault." So it's no skill to import either.
+mkdir $HOME/.claude/skills/pr-review-workspace
+cp own.md $HOME/.claude/skills/pr-review-workspace/notes.md
+cp own.md $HOME/.claude/skills/pr-review/SKILL.md
+exec git -C $HOME/.skl/vault commit --allow-empty -qm one
+exec git -C $HOME/.skl/vault commit --allow-empty -qm two
+cp $HOME/.skl/state.json state-before.json
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout head-before.txt
+
+# "`skl status` shows each scope you have skills in, what's loaded there and from
+# which vault skill, then everything that needs you, each with the command to run"
+# commands.md "What you asked for goes to standard output: the report of skl status"
+exec skl status
+cmp stdout report.txt
+! stderr .
+
+# commands.md "skl status --json ... print one JSON object to standard output, with
+# no marks, no color and no questions." "needs holds the lines of skl status that
+# need you, each with the command that deals with it."
+exec skl status --json
+cmpenv stdout report.json
+! stderr .
+
+# commands.md "status, history and help change nothing, so --dry-run makes no
+# difference to them."
+exec skl status --dry-run
+cmp stdout report.txt
+! stderr .
+
+# getting-started.md "skl status itself changes nothing."
+# skills.md "The other commands that change something ... also save them first.
+# status and history don't."
+cmp $HOME/.skl/state.json state-before.json
+exists $HOME/.skl/generations/2.json
+! exists $HOME/.skl/generations/3.json
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cmp stdout head-before.txt
+cmp $HOME/.claude/skills/pr-review/SKILL.md own.md
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+
+# "`skl status` never goes online"
+exec mv $REMOTES/github.com/you/skills.git $WORK/away.git
+exec skl status
+cmp stdout report.txt
+! stderr .
+exec mv $WORK/away.git $REMOTES/github.com/you/skills.git
+
+# commands.md "A command that doesn't fit on the line moves to the next one, after ·"
+env COLUMNS=40
+exec skl status
+stdout '^vault           2 changes not pushed$'
+stdout '^  · skl sync$'
+env COLUMNS=80
+
+# A bad line in a set doesn't stop the report: it says which file to edit, and the
+# rest still prints. Without the set's skills resolved, lint is one more skill that
+# isn't in the vault.
+cp $HOME/.skl/vault/sets/backend.toml backend.keep
+cp hasref.toml $HOME/.skl/vault/sets/backend.toml
+exec skl status
+cmp stdout badline.txt
+! stderr .
+exec skl status --json
+stdout '"state": "someone/agent-skills/pdf is someone else''s skill \(in @backend\)"'
+stdout '"command": "edit sets/backend.toml"'
+
+cp noselect.toml $HOME/.skl/vault/sets/backend.toml
+exec skl status
+stdout '^! sets/backend.toml: has no select = \[\.\.\.\] · edit sets/backend\.toml$'
+stdout '^  changelog     writing/changelog$'
+
+cp cycle.toml $HOME/.skl/vault/sets/backend.toml
+exec skl status
+stdout '^! skill set @backend includes itself: @backend → @backend$'
+stdout '^  · edit sets/backend\.toml$'
+stdout '^  changelog     writing/changelog$'
+cp backend.keep $HOME/.skl/vault/sets/backend.toml
+
+# A folder deleted by hand isn't loaded, and the command on its line brings it back.
+rm $HOME/.claude/skills/sql-explain
+exec skl status
+! stdout '^  sql-explain'
+stdout '^! sql-explain   folder is gone: ~/.claude/skills/sql-explain$'
+stdout '^  · skl use @backend writing/changelog$'
+cp $HOME/.claude/skills/pr-review/SKILL.md edited.md
+cp seed/review/pr-review/SKILL.md $HOME/.claude/skills/pr-review/SKILL.md
+exec skl use @backend writing/changelog
+exists $HOME/.claude/skills/sql-explain/SKILL.md
+exec skl status
+! stdout 'folder is gone'
+! stdout changed
+
+# A copy state.json doesn't list is still loaded: the folder is what the agent reads.
+exec cp -r $HOME/.claude/skills/changelog $HOME/.claude/skills/orphan
+exec skl status
+stdout '^  orphan        writing/changelog$'
+! stdout '· skl import orphan'
+rm $HOME/.claude/skills/orphan
+
+# `not in your vault` "from the folders of every target". A hidden folder is no skill.
+# lint is held in ~/.claude/skills only, so it loads in ~/.agents/skills and is skipped
+# in the other: both lines are true. One edited copy of two is one `changed` line.
+env SKL_TARGETS=claude,agents
+mkdir $HOME/.agents/skills/agent-only
+cp own.md $HOME/.agents/skills/agent-only/SKILL.md
+mkdir $HOME/.agents/skills/my-new-skill
+cp own.md $HOME/.agents/skills/my-new-skill/SKILL.md
+mkdir $HOME/.claude/skills/.hidden
+cp own.md $HOME/.claude/skills/.hidden/SKILL.md
+exec skl use @backend writing/changelog
+cp own.md $HOME/.agents/skills/changelog/SKILL.md
+exec skl status
+cmp stdout targets.txt
+exec skl status --json
+stdout '"paths": \['
+stdout '"'$HOME'/.claude/skills"'
+stdout '"'$HOME'/.agents/skills"'
+cp seed/writing/changelog/SKILL.md $HOME/.agents/skills/changelog/SKILL.md
+rm $HOME/.agents/skills/agent-only $HOME/.agents/skills/my-new-skill
+env SKL_TARGETS=
+
+# The scope in the config picks where a load goes; status shows the user scope anyway.
+env SKL_SCOPE=project
+exec skl status
+stdout '^loaded \(user\)  @backend writing/changelog$'
+env SKL_SCOPE=
+
+# files.md "hidden folders are skipped at both levels"; a hidden set file too.
+mkdir $HOME/.skl/vault/.secret/inner
+cp own.md $HOME/.skl/vault/.secret/inner/SKILL.md
+mkdir $HOME/.skl/vault/review/.hidden
+cp own.md $HOME/.skl/vault/review/.hidden/SKILL.md
+cp hasref.toml $HOME/.skl/vault/sets/.hidden.toml
+exec skl status
+stdout '^skill sets      @backend  @base$'
+! stdout 'secret'
+! stdout 'hidden'
+exec skl status --json
+! stdout 'secret'
+! stdout 'hidden'
+rm $HOME/.skl/vault/.secret $HOME/.skl/vault/review/.hidden $HOME/.skl/vault/sets/.hidden.toml
+
+# Whatever a folder is called, it can't drive the terminal.
+exec sh -c 'd="$HOME/.claude/skills/$(printf "a\033[31mred")"; mkdir "$d"; cp own.md "$d/SKILL.md"'
+exec skl status
+stdout '^  ared +· skl import ared$'
+! stdout '\x1b'
+exec sh -c 'rm -r "$HOME/.claude/skills/$(printf "a\033[31mred")"'
+
+# files.md "If skl can't use state.json, it stops instead of overwriting it"
+cp $HOME/.skl/state.json state.keep
+cp own.md $HOME/.skl/state.json
+exitcode 1 skl status
+stderr '^✗ can''t read ~/.skl/state.json: '
+stderr 'move it aside, then run skl status$'
+! stdout .
+cp state.keep $HOME/.skl/state.json
+
+# Card: "status with a held lock still runs". While a use holds the lock in bin/git:
+# commands.md "One skl runs at a time" is about changing things.
+chmod 755 bin/git
+env ORIGPATH=$PATH
+env PATH=$WORK/bin:$PATH
+mkdir hold
+exec skl use writing/changelog &held&
+waitfile started
+exitcode 1 skl add review/pr-review
+stderr '^✗ another skl is running'
+exec skl status
+stdout '^loaded \(user\)  @backend writing/changelog$'
+! stderr .
+exec skl status --json
+stdout '"generation": '
+mkdir go
+wait held
+stderr '^✓ generation '
+
+# Usage: status takes no words.
+exitcode 2 skl status review
+
+# skill-sets.md "everything that needs you": a git that fails can't be read as nothing
+# to push. CLAUDE.md "gitx stops with ✗ skl needs git 2.38 or later (found X)"
+chmod 755 oldbin/git
+env PATH=$WORK/oldbin:$ORIGPATH
+exitcode 1 skl status
+stderr '^✗ skl needs git 2\.38 or later \(found 2\.30\.1\) · update git$'
+! stdout .
+env PATH=$SKLBIN
+exitcode 1 skl status
+stderr '^✗ skl needs git · install git 2\.38 or later$'
+! stdout .
+env PATH=$ORIGPATH
+
+# A vault git can't read is no vault with nothing to push.
+exec mv $HOME/.skl/vault/.git/refs $WORK/refs-away
+exitcode 1 skl status
+stderr '^✗ '
+! stdout .
+exec mv $WORK/refs-away $HOME/.skl/vault/.git/refs
+exec skl status
+stdout '^vault           [0-9]+ changes? not pushed'
+
+# A vault with no commit yet has nothing to push, and the report still prints.
+env SKL_HOME=$WORK/unborn
+mkdir $WORK/unborn/vault
+exec git -C $WORK/unborn/vault init -q
+exec skl status
+stdout '^loaded \(user\)$'
+! stdout '^vault'
+! stderr .
+env SKL_HOME=
+
+# A name from the vault can't drive a terminal through --json either: control and
+# format characters are escaped, so a script still gets the real name.
+exec sh -c 'for n in "$(printf "a\302\23331mred")" "$(printf "b\342\200\256x")"; do mkdir "$HOME/.claude/skills/$n"; cp own.md "$HOME/.claude/skills/$n/SKILL.md"; done'
+exec skl status --json
+stdout '"name": "a\\u009b31mred"'
+stdout '"name": "b\\u202ex"'
+! stdout '\x{9b}'
+! stdout '\x{202e}'
+exec skl status
+stdout '^  a31mred +· skl import a31mred$'
+stdout '^  bx +· skl import bx$'
+! stdout '\x{9b}'
+! stdout '\x{202e}'
+
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: Review a pull request
+---
+-- seed/data/sql-explain/SKILL.md --
+---
+name: sql-explain
+description: Explain a query
+---
+-- seed/writing/changelog/SKILL.md --
+---
+name: changelog
+description: Write a changelog
+---
+-- seed/writing/lint/SKILL.md --
+---
+name: lint
+description: Lint prose
+---
+-- seed/sets/backend.toml --
+select = [
+  "review/pr-review",
+  "data/sql-explain",
+  "review/old-name",
+  "writing/lint",
+]
+-- seed/sets/base.toml --
+select = ["review"]
+-- own.md --
+---
+name: mine
+description: Made by hand
+---
+-- hasref.toml --
+select = ["someone/agent-skills/pdf"]
+-- noselect.toml --
+other = 1
+-- cycle.toml --
+select = ["@backend"]
+-- bin/git --
+#!/bin/sh
+PATH=${PATH#*:}
+# Only the first rev-parse holds: that's the use, which has the lock by then.
+if [ -d "$WORK/hold" ] && [ ! -d "$WORK/started" ]; then
+	for a; do
+		if [ "$a" = rev-parse ]; then
+			mkdir -p "$WORK/started"
+			while [ ! -d "$WORK/go" ]; do sleep 0.02; done
+			break
+		fi
+	done
+fi
+exec git "$@"
+-- oldbin/git --
+#!/bin/sh
+echo git version 2.30.1
+-- nothing.txt --
+nothing loaded · skl use <selectors>
+skill sets  @backend  @base
+-- nothing.json --
+{
+  "generation": 1,
+  "scopes": [],
+  "sets": [
+    "backend",
+    "base"
+  ],
+  "needs": []
+}
+-- report.txt --
+loaded (user)  @backend writing/changelog
+  pr-review     review/pr-review   changed · skl sync
+  sql-explain   data/sql-explain
+  changelog     writing/changelog
+! review/old-name   matches no skill (in @backend) · edit sets/backend.toml
+! lint   skipped: ~/.claude/skills/lint is not in your vault · skl import lint
+not in your vault
+  my-new-skill  · skl import my-new-skill
+skill sets      @backend  @base
+vault           2 changes not pushed · skl sync
+-- report.json --
+{
+  "generation": 2,
+  "scopes": [
+    {
+      "scope": "user",
+      "paths": [
+        "$HOME/.claude/skills"
+      ],
+      "selectors": [
+        "@backend",
+        "writing/changelog"
+      ],
+      "skills": [
+        {
+          "name": "pr-review",
+          "skill": "review/pr-review"
+        },
+        {
+          "name": "sql-explain",
+          "skill": "data/sql-explain"
+        },
+        {
+          "name": "changelog",
+          "skill": "writing/changelog"
+        }
+      ]
+    }
+  ],
+  "sets": [
+    "backend",
+    "base"
+  ],
+  "needs": [
+    {
+      "skill": "review/pr-review",
+      "state": "changed",
+      "command": "skl sync"
+    },
+    {
+      "name": "review/old-name",
+      "state": "matches no skill (in @backend)",
+      "command": "edit sets/backend.toml"
+    },
+    {
+      "name": "lint",
+      "state": "skipped: ~/.claude/skills/lint is not in your vault",
+      "command": "skl import lint"
+    },
+    {
+      "name": "my-new-skill",
+      "state": "not in your vault",
+      "command": "skl import my-new-skill"
+    },
+    {
+      "state": "2 changes not pushed",
+      "command": "skl sync"
+    }
+  ]
+}
+-- badline.txt --
+loaded (user)  @backend writing/changelog
+  pr-review     review/pr-review   changed · skl sync
+  sql-explain   data/sql-explain
+  changelog     writing/changelog
+! someone/agent-skills/pdf is someone else's skill (in @backend)
+  · edit sets/backend.toml
+not in your vault
+  lint          · skl import lint
+  my-new-skill  · skl import my-new-skill
+skill sets      @backend  @base
+vault           2 changes not pushed · skl sync
+-- targets.txt --
+loaded (user)  @backend writing/changelog
+  pr-review     review/pr-review
+  sql-explain   data/sql-explain
+  changelog     writing/changelog  changed · skl sync
+  lint          writing/lint
+! review/old-name   matches no skill (in @backend) · edit sets/backend.toml
+! lint   skipped: ~/.claude/skills/lint is not in your vault · skl import lint
+not in your vault
+  agent-only    · skl import agent-only
+  my-new-skill  · skl import my-new-skill
+skill sets      @backend  @base
+vault           2 changes not pushed · skl sync

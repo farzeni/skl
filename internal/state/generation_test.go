@@ -143,3 +143,19 @@ func TestCorruptGeneration(t *testing.T) {
 		t.Errorf("Generations: %v", err)
 	}
 }
+
+func TestLastGeneration(t *testing.T) {
+	s, _ := testStore(t)
+	ctx := t.Context()
+	if n, err := s.LastGeneration(ctx); err != nil || n != 0 {
+		t.Fatalf("no generations: %d, %v", n, err)
+	}
+	for _, want := range []int{1, 2} {
+		if _, err := s.addGeneration(ctx, Generation{Command: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		if n, err := s.LastGeneration(ctx); err != nil || n != want {
+			t.Fatalf("LastGeneration = %d, %v, want %d", n, err, want)
+		}
+	}
+}

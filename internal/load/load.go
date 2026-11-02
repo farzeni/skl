@@ -335,6 +335,8 @@ func (c *changes) list() []Change {
 type held struct {
 	owned   map[string]ownedCopy // skl's copies, by folded folder name
 	foreign map[string]string    // every name of someone else's skills → its folder
+	copies  []ownedCopy          // skl's copies, each one, in folder order
+	others  []string             // the folders and files of someone else's, in order
 }
 
 type ownedCopy struct {
@@ -374,8 +376,10 @@ func scan(dir string) (held, error) {
 		path := filepath.Join(dir, name)
 		if m, ok := readManifest(e, path); ok {
 			h.owned[selector.Fold(name)] = ownedCopy{folder: name, manifest: m}
+			h.copies = append(h.copies, ownedCopy{folder: name, manifest: m})
 			continue
 		}
+		h.others = append(h.others, name)
 		h.foreign[selector.Fold(name)] = name
 		if fm, err := readForeignName(path); err == nil && fm != "" {
 			if _, taken := h.foreign[selector.Fold(fm)]; !taken {
