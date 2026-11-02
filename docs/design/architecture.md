@@ -17,7 +17,7 @@ skl is not built yet. This page describes the planned behavior.
 2. **Plan.** Diff against what's loaded now. `--dry-run` stops here.
 3. **Apply.** Write the new copies in a staging folder, swap them in, then save a generation.
 
-Loading never touches the network. If the plan is empty, nothing is applied and no generation is made.
+Loading never touches the network. A generation is made whenever the active skill set changes, even if no skill folder does, such as after a reorder or dropping a line that matches nothing, so [`skl rollback`](../guide/rollback) restores it. If neither changes, nothing is applied, no generation is made, and the command ends with `✓ nothing to change`.
 
 If a step fails, the previous set stays in place. A skill whose name is taken by a skill skl didn't create is dropped at the plan step, with a warning.
 

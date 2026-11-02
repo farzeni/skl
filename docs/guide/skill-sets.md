@@ -94,6 +94,13 @@ Every selector names something in your vault. To use a skill or a skill set from
   · skl learn someone/agent-skills/pdf
 ```
 
+A line in a named skill set that names someone else's repo stops too, loads nothing and [exits with `1`](../reference/commands#exit-codes). Learning the skill wouldn't change the line, so skl points at the file:
+
+```
+✗ @backend: someone/agent-skills/pdf is someone else's skill
+  · edit sets/backend.toml
+```
+
 ## For one repo only
 
 Load a skill set for one repo only, next to the one you load everywhere. Say you want `@reviews` in every repo, `@frontend` only in `prj1` and `@backend` only in `prj2`:
@@ -189,6 +196,14 @@ targets = ["claude", "agents"]
 
 Each target then holds its own copy of every loaded skill, and changes to either copy are [saved back](./skills#edit-as-usual) to your vault.
 
+Take a target out of `targets` and the next load unloads its copies, naming the folder:
+
+```
+− pr-review   from ~/.agents/skills
+```
+
+skl never removes a copy with changes that aren't saved back.
+
 | Agent | Reads `claude` | Reads `agents` | After `skl use` |
 |---|---|---|---|
 | Claude Code | yes | not in its docs | sees the change, except a new skills folder, below |
@@ -234,7 +249,7 @@ skl use review someone/pr-review
 ```
 
 ```
-  ~ pr-review   someone/pr-review replaces review/pr-review
+~ pr-review   someone/pr-review replaces review/pr-review
 ```
 
 Removals apply before clashes are settled, so a skill you removed replaces nothing. If `@backend` holds `review` and `someone/pr-review`, this keeps `review/pr-review` loaded, with no `~` line:
