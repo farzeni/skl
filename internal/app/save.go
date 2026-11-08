@@ -21,7 +21,11 @@ import (
 // frame, so without a terminal it stops before anything is saved back or written.
 func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
 	if !selector.ValidName(name) {
-		return errs.Usagef("skl help save", "%s is not a valid skill set name: %s", name, nameRule)
+		hint := "skl help save"
+		if bare, ok := strings.CutPrefix(name, "@"); ok && selector.ValidName(bare) {
+			hint = ui.CommandLine([]string{"save", bare}) // the name, not the selector
+		}
+		return errs.Usagef(hint, "%s is not a valid skill set name: %s", name, nameRule)
 	}
 	if _, err := a.userRoot(); err != nil {
 		return err

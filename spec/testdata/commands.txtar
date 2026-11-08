@@ -80,6 +80,7 @@ Commands
   use     Replace the active skill set
   add     Add to the active skill set
   drop    Remove from the active skill set
+  save    Save the active skill set as a named skill set
   status  Show what's loaded and what needs you
   help    List the commands, or show one command's help
 
