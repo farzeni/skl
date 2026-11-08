@@ -77,7 +77,7 @@ func (s *Store) Generation(ctx context.Context, n int) (Generation, error) {
 		return Generation{}, &NoGenerationError{N: n}
 	}
 	if err != nil {
-		return Generation{}, fmt.Errorf("generations: %w", err)
+		return Generation{}, fmt.Errorf("%w %s: %w", ErrCorrupt, path, osReason(err))
 	}
 	var g Generation
 	if err := json.Unmarshal(data, &g); err != nil {
@@ -134,7 +134,7 @@ func (s *Store) numbers() ([]int, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("generations: %w", err)
+		return nil, fmt.Errorf("%w %s: %w", ErrCorrupt, s.generations, osReason(err))
 	}
 	var numbers []int
 	for _, e := range entries {
