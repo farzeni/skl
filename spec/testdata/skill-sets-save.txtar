@@ -1,0 +1,218 @@
+# docs/guide/skill-sets.md "Named skill sets", docs/reference/repos.md "Grammar",
+# docs/reference/commands.md "Questions"
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @base review -review/test-gaps notes/todo
+exec skl drop notes/todo
+
+# "saves the selectors of your active skill set as sets/backend.toml in your
+# vault, one selector per line"
+exec skl save backend
+cmp stderr save-new.txt
+! stdout .
+cmp $HOME/.skl/vault/sets/backend.toml backend-1.toml
+# Commits the vault, makes a generation.
+exec git -C $HOME/.skl/vault log -1 --format=%s
+stdout '^skl save backend$'
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+grep '"command": "save backend"' $HOME/.skl/generations/4.json
+# The saved set loads anywhere with @backend.
+exec skl use @backend
+exists $HOME/.claude/skills/pr-review
+! exists $HOME/.claude/skills/test-gaps
+
+# docs/reference/commands.md "Output": "A command that changes nothing makes no
+# generation and ends with ✓ nothing to change."
+exec skl use @base review -review/test-gaps
+exec skl save backend
+cmp stderr nothing.txt
+! exists $HOME/.skl/generations/7.json
+
+# "Later add and drop commands change your active skill set, not the file"
+exec skl add data
+cmp $HOME/.skl/vault/sets/backend.toml backend-1.toml
+
+# docs/reference/commands.md "Dry run": save shows "the files it would write".
+exec skl save backend --dry-run
+cmp stdout overwrite-plan.txt
+! stderr .
+cmp $HOME/.skl/vault/sets/backend.toml backend-1.toml
+
+# "If backend already exists, skl shows how its selectors change and asks before
+# overwriting it."
+# commands.md: "Without a terminal and without --yes, a question stops the command
+# before it changes anything"
+exitcode 1 skl save backend
+cmp stderr overwrite-no-terminal.txt
+cmp $HOME/.skl/vault/sets/backend.toml backend-1.toml
+! exists $HOME/.skl/generations/8.json
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+
+# commands.md "Questions": "skl save: overwrite a named skill set? | yes", and
+# "--yes takes the first answer to every question without showing it"
+exec skl save backend --yes
+cmp stderr overwrite-yes.txt
+cmp $HOME/.skl/vault/sets/backend.toml backend-2.toml
+
+# "If your active skill set includes @backend itself, skl writes the lines of
+# @backend in its place, so the file keeps its old lines plus your changes."
+exec skl use @backend notes/todo
+exec skl save backend --yes
+cmp stderr self.txt
+cmp $HOME/.skl/vault/sets/backend.toml backend-3.toml
+# Saving again keeps the file as it is: the line it took in isn't added twice.
+exec skl save backend
+cmp stderr nothing.txt
+cmp $HOME/.skl/vault/sets/backend.toml backend-3.toml
+# The same in any case: @BACKEND is @backend.
+exec skl use @BACKEND
+exec skl save backend
+cmp stderr nothing.txt
+
+# A set name is found in any case or Unicode form, as @name is: Backend overwrites
+# backend.toml, and makes no second file.
+exec skl use review
+exec skl save Backend --yes
+cmp stderr folded.txt
+cmp $HOME/.skl/vault/sets/backend.toml backend-4.toml
+exec ls $HOME/.skl/vault/sets
+cmp stdout sets-ls.txt
+
+# A removal of the set being saved has no lines to write in its place.
+exec skl use review -@backend
+exitcode 1 skl save backend --yes
+cmp stderr self-removed.txt
+cmp $HOME/.skl/vault/sets/backend.toml backend-4.toml
+# The hint works.
+exec skl drop -@backend
+exec skl save backend --yes
+cmp stderr nothing.txt
+
+# docs/reference/repos.md "Grammar": a set name is a name, and anything else is a
+# usage error. Nothing is written.
+exitcode 2 skl save a.b
+cmp stderr bad-name.txt
+exitcode 2 skl save @backend
+cmp stderr bad-at.txt
+exitcode 2 skl save review/x
+stderr '^✗ review/x is not a valid skill set name'
+exitcode 2 skl save
+cmp stderr no-name.txt
+! exists $HOME/.skl/vault/sets/a.b.toml
+
+# An empty active skill set saves an empty set.
+exec skl drop review
+exec skl save empty
+cmp $HOME/.skl/vault/sets/empty.toml empty.toml
+
+# The command lists itself once built.
+exec skl help save
+stdout 'skl save backend'
+exec skl help
+stdout '^  save '
+
+-- save-new.txt --
+→ save @backend as sets/backend.toml
+! 1 change not pushed · skl sync
+✓ generation 4 · skl rollback to undo
+-- nothing.txt --
+✓ nothing to change
+-- overwrite-plan.txt --
+→ overwrite sets/backend.toml
++ data
+-- overwrite-no-terminal.txt --
+→ overwrite sets/backend.toml
++ data
+✗ Overwrite @backend? needs an answer · skl save backend --yes
+-- overwrite-yes.txt --
+→ overwrite sets/backend.toml
++ data
+! 2 changes not pushed · skl sync
+✓ generation 8 · skl rollback to undo
+-- self.txt --
+→ overwrite sets/backend.toml
++ notes/todo
+! 3 changes not pushed · skl sync
+✓ generation 10 · skl rollback to undo
+-- folded.txt --
+→ overwrite sets/backend.toml
+− @base
+− -review/test-gaps
+− data
+− notes/todo
+! 4 changes not pushed · skl sync
+✓ generation 13 · skl rollback to undo
+-- self-removed.txt --
+✗ the active skill set removes @backend, so it can't be saved as backend
+  · skl drop -@backend
+-- bad-name.txt --
+✗ a.b is not a valid skill set name: a name has letters, digits, - and _, and starts with a letter or a digit
+  · skl help save
+-- bad-at.txt --
+✗ @backend is not a valid skill set name: a name has letters, digits, - and _, and starts with a letter or a digit
+  · skl save backend
+-- no-name.txt --
+✗ skl save needs <name> · skl help save
+-- sets-ls.txt --
+backend.toml
+base.toml
+-- backend-1.toml --
+select = [
+  "@base",
+  "review",
+  "-review/test-gaps",
+]
+-- backend-2.toml --
+select = [
+  "@base",
+  "review",
+  "-review/test-gaps",
+  "data",
+]
+-- backend-3.toml --
+select = [
+  "@base",
+  "review",
+  "-review/test-gaps",
+  "data",
+  "notes/todo",
+]
+-- backend-4.toml --
+select = [
+  "review",
+]
+-- empty.toml --
+select = []
+-- seed/review/pr-review/SKILL.md --
+---
+description: review a PR
+---
+Review.
+-- seed/review/test-gaps/SKILL.md --
+---
+description: find gaps
+---
+Gaps.
+-- seed/data/sql-explain/SKILL.md --
+---
+description: explain SQL
+---
+SQL.
+-- seed/writing/changelog/SKILL.md --
+---
+description: write a changelog
+---
+Log.
+-- seed/notes/todo/SKILL.md --
+---
+description: keep a todo list
+---
+Todo.
+-- seed/sets/base.toml --
+select = [
+  "review/pr-review",
+  "writing/changelog",
+]
