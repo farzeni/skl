@@ -144,6 +144,37 @@ func TestCorruptGeneration(t *testing.T) {
 	}
 }
 
+// A generation the OS won't read, or a generations folder that is a file, is
+// ErrCorrupt too, with the OS's reason, like state.json.
+func TestUnreadableGenerations(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	s, p := testStore(t)
+	ctx := context.Background()
+	if err := os.MkdirAll(p.Generations, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(p.Generations, "1.json")
+	if err := os.WriteFile(file, []byte("{}"), 0); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.Generations(ctx)
+	if !errors.Is(err, ErrCorrupt) || err.Error() != "can't read "+file+": permission denied" {
+		t.Errorf("unreadable file: %v", err)
+	}
+	if err := os.RemoveAll(p.Generations); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.Generations, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Generations(ctx)
+	if !errors.Is(err, ErrCorrupt) || err.Error() != "can't read "+p.Generations+": not a directory" {
+		t.Errorf("folder is a file: %v", err)
+	}
+}
+
 func TestLastGeneration(t *testing.T) {
 	s, _ := testStore(t)
 	ctx := t.Context()

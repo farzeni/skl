@@ -85,6 +85,25 @@ func TestHistoryJSON(t *testing.T) {
 	}
 }
 
+// A generation that can't be read stops with the file, ~ for HOME, and what to do.
+func TestHistoryUnreadable(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	h := newHarness(t)
+	h.vaulted(t)
+	if err := os.Chmod(filepath.Join(h.a.paths.Generations, "1.json"), 0); err != nil {
+		t.Fatal(err)
+	}
+	err := h.a.History(context.Background(), false)
+	if err == nil || err.Error() != "can't read ~/.skl/generations/1.json: permission denied" {
+		t.Errorf("err = %v", err)
+	}
+	if got := hintOf(t, err); got != "move it aside, then run skl history" {
+		t.Errorf("hint = %q", got)
+	}
+}
+
 func TestAge(t *testing.T) {
 	now := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
 	for _, tc := range []struct {

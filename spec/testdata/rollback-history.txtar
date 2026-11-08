@@ -116,6 +116,14 @@ stderr '^✗ can''t read ~/.skl/generations/1.json: .*$'
 stderr '^  · move it aside, then run skl history$'
 ! stdout .
 
+# So does a generations folder that isn't one.
+rm $HOME/.skl/generations
+cp bad.json $HOME/.skl/generations
+exitcode 1 skl history
+stderr '^✗ can''t read ~/.skl/generations: not a directory$'
+stderr '^  · move it aside, then run skl history$'
+! stdout .
+
 -- history.txt --
 6  now      use @backend writing
 5  now      use writing @backend
