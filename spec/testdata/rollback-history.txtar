@@ -1,0 +1,178 @@
+# docs/guide/rollback.md "See what changed", docs/reference/commands.md "JSON",
+# "Where output goes"; docs/design/architecture.md "Safety"
+
+# The relative times below are of a clock that runs: everything made here is
+# "now". The other ages are checked with a fixed clock in internal/app.
+env TZ=UTC
+
+# "Every command except init, help, completion and open with someone else's repo
+# needs your vault."
+exitcode 1 skl history
+stderr '^✗ no vault on this machine · skl init <repo>$'
+! stdout .
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend
+exec skl add writing/changelog
+exec skl drop writing/changelog
+# A generation is made whenever the active skill set changes, even if no skill
+# folder does: the order of the lines changed, and nothing else.
+exec skl use writing @backend
+exec skl use @backend writing
+# A command that changes nothing makes no generation.
+exec skl use @backend writing
+cp $HOME/.skl/state.json state-before.json
+
+# "skl history lists every generation, newest first."
+# "What you asked for goes to standard output: ... the list of skl history"
+exec skl history
+cmp stdout history.txt
+! stderr .
+
+# "skl status --json and skl history --json print one JSON object to standard
+# output, with no marks, no color and no questions."
+exec skl history --json
+stdout -count=1 '^\{$'
+stdout '"generation": 6,\n      "time": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",\n      "command": "use @backend writing",\n      "commit": "[0-9a-f]{40}"'
+stdout '"generation": 1,\n      "time": "[^"]+",\n      "command": "init you/skills",'
+! stdout '\x1b'
+! stderr .
+# commands.md "status, history and help change nothing, so --dry-run makes no
+# difference to them."
+exec skl history --dry-run
+cmp stdout history.txt
+! stderr .
+
+# "Generations are numbered on each machine ... the history is local, and only
+# the vault is synced." history reads ~/.skl, never the network or the vault's
+# remote.
+exec mv $REMOTES/github.com/you/skills.git $WORK/away.git
+exec skl history
+cmp stdout history.txt
+exec mv $WORK/away.git $REMOTES/github.com/you/skills.git
+
+# It changed nothing.
+cmp $HOME/.skl/state.json state-before.json
+! exists $HOME/.skl/generations/7.json
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+
+# The time and the commit in --json are the generation's own: an old generation
+# keeps its time, in UTC, and its age shows in days.
+cp $HOME/.skl/generations/1.json gen1.keep
+cp gen1.json $HOME/.skl/generations/1.json
+exec skl history --json
+stdout '"generation": 1,\n      "time": "2020-06-15T10:00:00Z",\n      "command": "init you/skills",\n      "commit": "9b1d4e0c2f7a8e35d6b1c0f4a9e2d7b3c5f8a1e6"\n    }\n  \]\n\}\n\z'
+exec skl history
+stdout '^1  [0-9]{4}d ago  init you/skills$'
+# The time column fits the longest age.
+stdout '^6  now        use @backend writing$'
+cp gen1.keep $HOME/.skl/generations/1.json
+
+# What a generation says comes from a file anyone can edit: it's shown clean on
+# the terminal, and escaped in --json.
+cp gen6-escape.json $HOME/.skl/generations/6.json
+exec skl history
+stdout '^6  now      use @backend writing$'
+! stdout '\x1b'
+exec skl history --json
+stdout '"command": "use @backend\\u001b\[2J writing\\u202e"'
+! stdout '\x1b'
+
+# architecture.md "status, history, open and help don't take [the lock]." While a
+# use holds it in bin/git, history still runs.
+chmod 755 bin/git
+env PATH=$WORK/bin:$PATH
+mkdir hold
+exec skl use writing/changelog &held&
+waitfile started
+exitcode 1 skl add review/pr-review
+stderr '^✗ another skl is running'
+exec skl history
+stdout '^6  now      use @backend writing$'
+! stderr .
+mkdir go
+wait held
+stderr '^✓ generation 7 · skl rollback to undo$'
+exec skl history
+stdout -count=1 '^7  now      use writing/changelog$'
+
+# Empty history: the generations are gone (files.md: "generations/ and state.json
+# hold your rollback history"). The docs show no line for this; see the card's PR.
+rm $HOME/.skl/generations
+exec skl history
+cmp stdout empty.txt
+! stderr .
+exec skl history --json
+cmp stdout empty.json
+! stderr .
+
+# A generation that can't be read stops, with the file to move aside.
+mkdir $HOME/.skl/generations
+cp bad.json $HOME/.skl/generations/1.json
+exitcode 1 skl history
+stderr '^✗ can''t read ~/.skl/generations/1.json: .*$'
+stderr '^  · move it aside, then run skl history$'
+! stdout .
+
+-- history.txt --
+6  now      use @backend writing
+5  now      use writing @backend
+4  now      drop writing/changelog
+3  now      add writing/changelog
+2  now      use @backend
+1  now      init you/skills
+-- empty.txt --
+no generations yet
+-- empty.json --
+{
+  "generations": []
+}
+-- gen1.json --
+{
+  "n": 1,
+  "time": "2020-06-15T12:00:00+02:00",
+  "command": "init you/skills",
+  "vault_commit": "9b1d4e0c2f7a8e35d6b1c0f4a9e2d7b3c5f8a1e6"
+}
+-- gen6-escape.json --
+{
+  "n": 6,
+  "time": "2099-01-01T00:00:00Z",
+  "command": "use @backend\u001b[2J writing‮",
+  "vault_commit": "9b1d4e0c2f7a8e35d6b1c0f4a9e2d7b3c5f8a1e6"
+}
+-- bad.json --
+{ not json
+-- bin/git --
+#!/bin/sh
+PATH=${PATH#*:}
+# Only the first rev-parse holds: that's the use, which has the lock by then.
+if [ -d "$WORK/hold" ] && [ ! -d "$WORK/started" ]; then
+	for a; do
+		if [ "$a" = rev-parse ]; then
+			mkdir -p "$WORK/started"
+			while [ ! -d "$WORK/go" ]; do sleep 0.02; done
+			break
+		fi
+	done
+fi
+exec git "$@"
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: Review a pull request.
+---
+-- seed/review/test-gaps/SKILL.md --
+---
+name: test-gaps
+description: Find untested code.
+---
+-- seed/writing/changelog/SKILL.md --
+---
+name: changelog
+description: Write a changelog entry.
+---
+-- seed/sets/backend.toml --
+select = ["review/pr-review"]
