@@ -39,7 +39,13 @@ skl still counts and lists any other folder or set file whose name is outside th
 - **A group folder** can't be selected at all, so its skills never load.
 - **A set file** can't be loaded.
 
-A name that isn't valid UTF-8 is skipped with a warning.
+A name that isn't valid UTF-8 is skipped with a warning that says to rename it: `! <path>   skipped: the name isn't valid UTF-8 · rename it in ~/.skl/vault`.
+
+A skill whose `SKILL.md` has no frontmatter, or frontmatter skl can't read, still loads. The command that loads it warns and names the file:
+
+```
+! data/pdf/SKILL.md   no frontmatter · edit data/pdf/SKILL.md
+```
 
 ### `sets/<name>.toml`
 
@@ -52,6 +58,12 @@ select = [
   "-review/test-gaps",
   "someone/pdf",
 ]
+```
+
+A file skl can't use stops the command before it changes anything, and so does a line that names [someone else's skill](../guide/skill-sets#selectors) or more than one skill. The hint names the file:
+
+```
+✗ sets/backend.toml: has no select = [...] · edit sets/backend.toml
 ```
 
 ### `sets/<name>.origin.toml`

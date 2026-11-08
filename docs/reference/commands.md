@@ -149,7 +149,7 @@ Every command uses the same marks:
 
 A command that doesn't fit on the line moves to the next one, after `·`; one that fits stays on the line.
 
-A command that changes nothing makes no generation and ends with `✓ nothing to change`. Running it again is always safe.
+A command that changes nothing makes no generation and ends with `✓ nothing to change`. Running it again is always safe. A changed active skill set counts as a change, even if no skill folder changes: see [Loading pipeline](../design/architecture#loading-pipeline).
 
 **Where output goes.** What you asked for goes to standard output: the report of `skl status`, the list of `skl history`, the URL of `skl open`, a `--dry-run` plan, and `--json`. Everything else, the marks of a running command and its questions, goes to standard error. So `skl open review/pr-review | pbcopy` copies only the URL, and `skl status > status.txt` saves the report.
 

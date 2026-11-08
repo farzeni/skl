@@ -25,6 +25,20 @@ skl use @backend writing/changelog -someone/pdf
 | `skl drop <selectors>` | Remove from it |
 | `skl status` | Show what's loaded, where it came from, your named skill sets, and what needs you |
 
+`use`, `add` and `drop` first say what they're about to do, with `load`, `add` or `drop` and the selectors you typed, then what changed:
+
+```
+→ add review/test-gaps
++ test-gaps
+✓ generation 4 · skl rollback to undo
+```
+
+They also bring your loaded skills in line with your vault. A skill that changed there is copied again, and so is a loaded folder you deleted by hand, so use `skl drop` to unload a skill. Both show the same line:
+
+```
+~ pr-review   updated
+```
+
 Add `--dry-run` to any of them to see the changes without applying them: see [Dry run](../reference/commands#dry-run).
 
 Loaded skills are plain folders. Changes you make to them are saved back to your vault: see [Your skills](./skills).
@@ -92,6 +106,13 @@ Every selector names something in your vault. To use a skill or a skill set from
 ```
 ✗ someone/agent-skills/pdf is someone else's skill
   · skl learn someone/agent-skills/pdf
+```
+
+A line in a named skill set that names someone else's repo stops too, loads nothing and [exits with `1`](../reference/commands#exit-codes). Learning the skill wouldn't change the line, so skl points at the file:
+
+```
+✗ @backend: someone/agent-skills/pdf is someone else's skill
+  · edit sets/backend.toml
 ```
 
 ## For one repo only
@@ -189,6 +210,14 @@ targets = ["claude", "agents"]
 
 Each target then holds its own copy of every loaded skill, and changes to either copy are [saved back](./skills#edit-as-usual) to your vault.
 
+Take a target out of `targets` and the next load unloads its copies, naming the folder:
+
+```
+− pr-review   from ~/.agents/skills
+```
+
+skl never removes a copy with changes that aren't saved back.
+
 | Agent | Reads `claude` | Reads `agents` | After `skl use` |
 |---|---|---|---|
 | Claude Code | yes | not in its docs | sees the change, except a new skills folder, below |
@@ -234,7 +263,7 @@ skl use review someone/pr-review
 ```
 
 ```
-  ~ pr-review   someone/pr-review replaces review/pr-review
+~ pr-review   someone/pr-review replaces review/pr-review
 ```
 
 Removals apply before clashes are settled, so a skill you removed replaces nothing. If `@backend` holds `review` and `someone/pr-review`, this keeps `review/pr-review` loaded, with no `~` line:
@@ -244,6 +273,8 @@ skl use @backend -someone/pr-review
 ```
 
 A skill loses a clash only to a later skill that stays loaded, so every `~` line is a real replacement.
+
+A skill that lost a clash is still selected, so you can drop it. After `skl use review someone/pr-review`, `skl drop review/pr-review` adds the line `-review/pr-review` to your active skill set and changes no folder. Dropping `someone/pr-review` later then unloads `pr-review` instead of bringing `review/pr-review` back.
 
 Claude Code prefers a user skill to a project skill with the same name. When a skill you loaded with `--scope project` is hidden that way, `skl status` warns about it.
 
