@@ -164,10 +164,10 @@ func hashFolder(ctx context.Context, dir, rel string, depth int, skip []string, 
 // snapshot is a folder's git objects, for writing it into the vault. Its methods
 // do nothing on a nil snapshot, so plain hashing collects nothing.
 type snapshot struct {
-	tree    string
-	objects vault.Objects
-	fileSums, linkSums, treeSums []string // the objects' names, in the order of objects
-	files   map[string]vault.File // each file and link, by path inside the folder
+	tree                         string
+	objects                      vault.Objects
+	fileSums, linkSums, treeSums []string              // the objects' names, in the order of objects
+	files                        map[string]vault.File // each file and link, by path inside the folder
 }
 
 func (s *snapshot) file(file, name, mode string, sum []byte) {

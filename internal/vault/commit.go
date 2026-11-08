@@ -3,84 +3,58 @@ package vault
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/farzeni/skl/internal/gitx"
 )
 
-// Commit stages paths (git add -A -- paths) and commits only them, with message.
-// With no paths it stages and commits everything. It reports false, and commits
-// nothing, when the paths hold no change. On any error, Ctrl-C included (commit
-// runs in gitx's terminal mode), it unstages the paths again, so the index is as
-// it was.
-func (v *Vault) Commit(ctx context.Context, message string, paths ...string) (bool, error) {
-	spec := append([]string{"--"}, paths...)
-	if len(paths) == 0 {
-		spec = []string{"--", "."}
-	}
-	if _, err := v.git.Run(ctx, v.dir, append([]string{"add", "-A"}, spec...)...); err != nil {
-		v.unstage(ctx, spec)
+// Commit stages paths (git add -A, so the vault's .gitignore applies) and
+// commits only them, with message. With no paths it stages and commits
+// everything. It reports false, and commits nothing, when the paths hold no
+// change.
+//
+// git commit can be stopped from the terminal even under
+// context.WithoutCancel (gitx's terminal mode). On any error, Ctrl-C included,
+// Commit takes back what it did: a commit that went through is undone with the
+// working tree kept, and the paths are unstaged, so the caller only has to put
+// its files back.
+func (v *Vault) Commit(ctx context.Context, message string, paths ...string) (committed bool, err error) {
+	before, err := v.Head(ctx)
+	if err != nil {
 		return false, err
 	}
-	changed, err := v.staged(ctx, spec)
+	defer func() {
+		if err != nil {
+			v.Uncommit(context.WithoutCancel(ctx), before, paths...)
+		}
+	}()
+	if _, err := v.git.Run(ctx, v.dir, append([]string{"add", "-A", "--"}, paths...)...); err != nil {
+		return false, err
+	}
+	changed, err := v.staged(ctx, paths)
 	if err != nil || !changed {
-		v.unstage(ctx, spec)
 		return false, err
 	}
-	args := []string{"commit", "--quiet", "--message", message}
-	if len(paths) > 0 {
-		args = append(args, spec...)
-	}
-	if _, err := v.git.Run(ctx, v.dir, args...); err != nil {
-		v.unstage(ctx, spec)
+	if _, err := v.git.Run(ctx, v.dir, append([]string{"commit", "--quiet", "--message", message, "--"}, paths...)...); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-// staged reports whether the index differs from HEAD under spec.
-func (v *Vault) staged(ctx context.Context, spec []string) (bool, error) {
-	_, err := v.git.Run(ctx, v.dir, append([]string{"diff-index", "--quiet", "--cached", "HEAD"}, spec...)...)
+// staged reports whether the index differs from HEAD in paths.
+func (v *Vault) staged(ctx context.Context, paths []string) (bool, error) {
+	_, err := v.git.Run(ctx, v.dir, append([]string{"diff-index", "--cached", "--quiet", "HEAD", "--"}, paths...)...)
 	if ge, ok := errors.AsType[*gitx.Error](err); ok && ge.Code == 1 && ctx.Err() == nil {
-		return true, nil
+		return true, nil // --quiet's "there are differences"
 	}
 	return false, err
 }
 
-// unstage puts the index back to HEAD under spec. It does its best: a failure
-// here leaves staged changes, which the next commit takes.
-func (v *Vault) unstage(ctx context.Context, spec []string) {
-	_, _ = v.git.Run(context.WithoutCancel(ctx), v.dir, append([]string{"reset", "--quiet"}, spec...)...)
-}
-
-// HandEdits lists the files changed in the vault's work tree and not committed:
-// edits made in ~/.skl/vault by hand. The vault's .gitignore applies.
-func (v *Vault) HandEdits(ctx context.Context) ([]string, error) {
-	out, err := v.git.Run(ctx, v.dir, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
-	if err != nil {
-		return nil, err
+// Uncommit puts HEAD back on before, if a commit got through since, and unstages
+// paths (everything, with none), leaving the working tree as it is. It does its
+// best: the error that brought the caller here is the one to report.
+func (v *Vault) Uncommit(ctx context.Context, before string, paths ...string) {
+	if head, err := v.Head(ctx); err == nil && head != before {
+		_, _ = v.git.Run(ctx, v.dir, "update-ref", "HEAD", before, head)
 	}
-	var files []string
-	for entry := range strings.SplitSeq(out, "\x00") {
-		if len(entry) > 3 {
-			files = append(files, entry[3:])
-		}
-	}
-	return files, nil
-}
-
-// ErrMerging is a vault with an unfinished git merge: a sync or a save-back
-// conflict that waits for skl sync --continue or --abort.
-var ErrMerging = errors.New("a sync is in progress")
-
-// Merging reports whether a git merge is in progress in the vault.
-func (v *Vault) Merging(ctx context.Context) (bool, error) {
-	_, err := v.git.Run(ctx, v.dir, "rev-parse", "--quiet", "--verify", "MERGE_HEAD")
-	if err == nil {
-		return true, nil
-	}
-	if ge, ok := errors.AsType[*gitx.Error](err); ok && ge.Code == 1 && ctx.Err() == nil {
-		return false, nil
-	}
-	return false, err
+	_, _ = v.git.Run(ctx, v.dir, append([]string{"reset", "--quiet", "--"}, paths...)...)
 }

@@ -10,6 +10,38 @@ import (
 	"github.com/farzeni/skl/internal/gitx"
 )
 
+// HandEdits lists the files changed in the vault's work tree and not committed:
+// edits made in ~/.skl/vault by hand. The vault's .gitignore applies.
+func (v *Vault) HandEdits(ctx context.Context) ([]string, error) {
+	out, err := v.git.Run(ctx, v.dir, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for entry := range strings.SplitSeq(out, "\x00") {
+		if len(entry) > 3 {
+			files = append(files, entry[3:]) // "XY <path>"
+		}
+	}
+	return files, nil
+}
+
+// ErrMerging is a vault with an unfinished git merge: a sync or a save-back
+// conflict that waits for skl sync --continue or --abort.
+var ErrMerging = errors.New("a sync is in progress")
+
+// Merging reports whether a git merge is in progress in the vault.
+func (v *Vault) Merging(ctx context.Context) (bool, error) {
+	_, err := v.git.Run(ctx, v.dir, "rev-parse", "--quiet", "--verify", "MERGE_HEAD")
+	if err == nil {
+		return true, nil
+	}
+	if ge, ok := errors.AsType[*gitx.Error](err); ok && ge.Code == 1 && ctx.Err() == nil {
+		return false, nil
+	}
+	return false, err
+}
+
 // Objects are a folder's git objects, which WriteObjects puts in the vault's store.
 type Objects struct {
 	Files []string // paths of files on disk, written as blobs as they are

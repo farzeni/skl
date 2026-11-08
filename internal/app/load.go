@@ -169,7 +169,7 @@ func (a *App) prepare(ctx context.Context, v *vault.Vault, st *state.State, s se
 		Vault: v.Dir(), Commit: head, Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root,
 	})
 	if err != nil {
-		return nil, a.planError(err, s)
+		return nil, a.planError(err)
 	}
 	notes = slices.Concat(s.selectorNotes(res, idx), notes, a.indexNotes(idx, plan), a.skipNotes(plan))
 	return &loadNext{
@@ -273,7 +273,7 @@ func (a *App) apply(ctx context.Context, c *Change, next *loadNext) error {
 }
 
 // planError gives an error from reading the folders its ✗ line.
-func (a *App) planError(err error, s selection) error {
+func (a *App) planError(err error) error {
 	if errors.Is(err, context.Canceled) {
 		return err
 	}

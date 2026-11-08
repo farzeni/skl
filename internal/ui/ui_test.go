@@ -52,6 +52,7 @@ func testUI(profile colorprofile.Profile, width int, o Options) (*UI, *streams) 
 func every(u *UI) {
 	u.Plan("copy into %s", "someone/pdf")
 	u.Step("saved", "pr-review → review/pr-review")
+	u.StepMore("SKILL.md, evals/evals.json")
 	u.Step("committed", "sets/backend.toml")
 	u.Step("pushed", "")
 	u.Change(Loaded, "pdf", "")
