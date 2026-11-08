@@ -76,12 +76,13 @@ Usage
   skl <command> [arguments] [flags]
 
 Commands
-  init    Clone your vault, or set up a new one
-  use     Replace the active skill set
-  add     Add to the active skill set
-  drop    Remove from the active skill set
-  status  Show what's loaded and what needs you
-  help    List the commands, or show one command's help
+  init     Clone your vault, or set up a new one
+  use      Replace the active skill set
+  add      Add to the active skill set
+  drop     Remove from the active skill set
+  status   Show what's loaded and what needs you
+  history  List generations, newest first
+  help     List the commands, or show one command's help
 
 Flags
   --help, -h  Show this help, and change nothing
