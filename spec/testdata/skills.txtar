@@ -134,7 +134,6 @@ cmp stdout two-commits.txt
 ! 1 change not pushed · skl sync
 ✓ generation 4 · skl rollback to undo
 -- nothing.txt --
-! 1 change not pushed · skl sync
 ✓ nothing to change
 -- deleted.txt --
 ◇ saved      pr-review → review/pr-review
@@ -186,12 +185,12 @@ cmp stdout two-commits.txt
 -- two-targets.txt --
 ◇ saved      pr-review → review/pr-review
              SKILL.md
-◇ generation 20
+◇ generation 19
 → add data
 ~ pr-review   updated
 + sql-explain
 ! 9 changes not pushed · skl sync
-✓ generation 21 · skl rollback to undo
+✓ generation 20 · skl rollback to undo
 -- two-commits.txt --
 skl: save pr-review → review/pr-review
 skl: save pr-review → review/pr-review

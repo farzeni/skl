@@ -36,7 +36,7 @@ type Body func(ctx context.Context, c *Change) (bool, error)
 
 // Changing runs a command that changes something and needs the vault:
 //
-//	vault check → lock → (merge guard, save-back: later cards) → body →
+//	vault check → lock → merge guard → save first (its own generation) → body →
 //	generation → "! N changes not pushed" → "✓ generation N"
 //
 // command is what skl history shows, such as "use @backend".
@@ -47,9 +47,28 @@ func (a *App) Changing(ctx context.Context, command string, body Body) error {
 	}
 	err = a.locked(ctx, command, func(ctx context.Context, c *Change) (bool, error) {
 		c.Vault = v
+		if err := a.notMerging(ctx, v); err != nil {
+			return false, err
+		}
+		if err := a.saveFirst(ctx, c); err != nil {
+			return false, err
+		}
 		return body(ctx, c)
 	})
 	return hinted(err, "skl "+command)
+}
+
+// notMerging is the ✗ line for a vault with a merge in progress: until skl sync
+// --continue or --abort, nothing changes it (docs/reference/commands.md "Errors").
+func (a *App) notMerging(ctx context.Context, v *vault.Vault) error {
+	merging, err := v.Merging(ctx)
+	if err != nil {
+		return err
+	}
+	if merging {
+		return errs.Hint(vault.ErrMerging, "skl sync --continue")
+	}
+	return nil
 }
 
 // hinted gives an error with no command of its own the one that tries again.
@@ -114,18 +133,7 @@ func (a *App) locked(ctx context.Context, command string, body Body) error {
 // record ends a change: the body has done it, so from here on Ctrl-C waits.
 func (a *App) record(ctx context.Context, command string, c *Change) error {
 	ctx = context.WithoutCancel(ctx)
-	head, err := c.Vault.Head(ctx)
-	if err != nil {
-		c.undo()
-		return err
-	}
-	g, err := c.Lock.AddGeneration(ctx, state.Generation{
-		Time:        a.now(),
-		Command:     command,
-		VaultCommit: head,
-		Scopes:      snapshot(c.State, c.Scopes),
-		Changed:     c.Scopes,
-	})
+	g, err := a.addGeneration(ctx, command, c)
 	if err != nil {
 		c.undo()
 		return err
@@ -139,6 +147,21 @@ func (a *App) record(ctx context.Context, command string, c *Change) error {
 	}
 	a.ui.Done(fmt.Sprintf("generation %d · skl rollback to undo", g.N))
 	return nil
+}
+
+// addGeneration records the vault's HEAD and the scopes as they are now.
+func (a *App) addGeneration(ctx context.Context, command string, c *Change) (state.Generation, error) {
+	head, err := c.Vault.Head(ctx)
+	if err != nil {
+		return state.Generation{}, err
+	}
+	return c.Lock.AddGeneration(ctx, state.Generation{
+		Time:        a.now(),
+		Command:     command,
+		VaultCommit: head,
+		Scopes:      snapshot(c.State, c.Scopes),
+		Changed:     c.Scopes,
+	})
 }
 
 func (c *Change) undo() {

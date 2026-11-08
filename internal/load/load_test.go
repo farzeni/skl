@@ -437,26 +437,6 @@ func TestTargetOnAnotherDisk(t *testing.T) {
 	}
 }
 
-// Architecture "Guarantees": "A change made to a loaded copy is never discarded
-// without asking."
-func TestEditedCopyStops(t *testing.T) {
-	f := newFixture(t)
-	copies := f.load(t, f.a)
-	write(t, filepath.Join(f.skills(), "a", "SKILL.md"), "edited", 0o644)
-	_, err := Compute(context.Background(), Input{
-		Vault: f.vault, Commit: "c1", Result: result(t, f.b),
-		Current: copies, Targets: f.targets, HomeRoot: f.home,
-	})
-	var ee *EditedError
-	if !errors.As(err, &ee) || ee.Path != filepath.Join(f.skills(), "a") {
-		t.Fatalf("Compute = %v", err)
-	}
-	// A copy that stays is left alone, edits and all.
-	if p := f.plan(t, copies, f.a); !p.Empty() {
-		t.Errorf("plan = %+v", p)
-	}
-}
-
 // files.md "Loaded skills": "A folder without it ... is a skill skl didn't create."
 func TestWhatIsSomeoneElses(t *testing.T) {
 	f := newFixture(t)
@@ -496,20 +476,6 @@ func TestLoserLoadsWhereTheWinnerIsSkipped(t *testing.T) {
 	}
 	if len(p.Skipped) != 1 || p.Skipped[0].Skill != f.b || p.Skipped[0].Foreign != "b" {
 		t.Errorf("skipped = %+v", p.Skipped)
-	}
-}
-
-// A copy whose manifest skl can't read isn't thrown away either.
-func TestUnreadableManifestCountsAsEdited(t *testing.T) {
-	f := newFixture(t)
-	copies := f.load(t, f.a)
-	write(t, filepath.Join(f.skills(), "a", manifestFile), "not = [toml", 0o644)
-	_, err := Compute(context.Background(), Input{
-		Vault: f.vault, Commit: "c1", Result: result(t, f.b),
-		Current: copies, Targets: f.targets, HomeRoot: f.home,
-	})
-	if _, ok := errors.AsType[*EditedError](err); !ok {
-		t.Fatalf("Compute = %v", err)
 	}
 }
 

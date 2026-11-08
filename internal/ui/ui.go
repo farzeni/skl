@@ -246,6 +246,12 @@ func (u *UI) StepHint(label, detail, hint string) {
 	u.line(u.hinted(mark, text, hint))
 }
 
+// StepMore continues the step above on a line of its own, lined up with its
+// detail: the files a save took.
+func (u *UI) StepMore(detail string) {
+	u.line(strings.Repeat(" ", Width(stepLine("", ""))) + Clean(detail))
+}
+
 func stepLine(label, detail string) string {
 	return fmt.Sprintf("%s %-10s %s", markStep, Clean(label), Clean(detail))
 }

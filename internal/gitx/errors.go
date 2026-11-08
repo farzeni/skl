@@ -28,6 +28,7 @@ var (
 // call was canceled.
 type Error struct {
 	Args   []string // the arguments after "git"
+	Stdout string   // all of git's standard output: merge-tree reports a conflict there
 	Stderr string   // all of git's standard error
 	Code   int      // git's exit code; -1 if git didn't exit on its own
 

@@ -6,6 +6,9 @@ exec skl init you/skills
 stderr '^◇ cloned'
 symlink $HOME/.skl/vault/sets/dangling.toml -> $WORK/nowhere
 exec sh -c 'mkdir "$HOME/.skl/vault/evil"; d="$HOME/.skl/vault/evil/$(printf "a\033[31mred\nnext")"; mkdir "$d"; printf "description: x\n" > "$d/SKILL.md"'
+# Committed, so the first command below doesn't save them as hand edits.
+exec git -C $HOME/.skl/vault add -A
+exec git -C $HOME/.skl/vault commit -qm 'odd names'
 
 # "Loading a whole group stops if two skills in it clash ... skl lists both, loads
 # nothing and exits with 1"
@@ -209,18 +212,20 @@ stderr '^✗ can''t read '
 → add badfm
 + nofront
 ! badfm/nofront/SKILL.md   no frontmatter · edit badfm/nofront/SKILL.md
+! 1 change not pushed · skl sync
 ✓ generation 8 · skl rollback to undo
 -- ahead.txt --
 → add review/c
 + c
 ! b   skipped: ~/.claude/skills/b is not in your vault · skl import b
-! 1 change not pushed · skl sync
+! 2 changes not pushed · skl sync
 ✓ generation 14 · skl rollback to undo
 -- evil.txt --
 → add evil
 + ared next
 ! badfm/nofront/SKILL.md   no frontmatter · edit badfm/nofront/SKILL.md
 ! evil/ared next/SKILL.md   no frontmatter · edit evil/ared next/SKILL.md
+! 1 change not pushed · skl sync
 ✓ generation 9 · skl rollback to undo
 -- badstate.json --
 {not json

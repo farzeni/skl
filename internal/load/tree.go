@@ -10,10 +10,13 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/farzeni/skl/internal/vault"
 )
 
 const (
@@ -71,7 +74,7 @@ func Tree(ctx context.Context, dir string) (string, error) {
 
 // treeOf hashes dir without the named entries at its top.
 func treeOf(ctx context.Context, dir string, skip ...string) (string, error) {
-	sum, err := hashFolder(ctx, dir, 0, skip)
+	sum, err := hashFolder(ctx, dir, "", 0, skip, nil)
 	if err != nil {
 		return "", err
 	}
@@ -82,7 +85,9 @@ func treeOf(ctx context.Context, dir string, skip ...string) (string, error) {
 }
 
 // hashFolder returns the tree object's name, or nil for a folder git wouldn't keep.
-func hashFolder(ctx context.Context, dir string, depth int, skip []string) ([]byte, error) {
+// rel is dir's path inside the folder being hashed. If snap isn't nil, every object
+// is added to it.
+func hashFolder(ctx context.Context, dir, rel string, depth int, skip []string, snap *snapshot) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -103,19 +108,21 @@ func hashFolder(ctx context.Context, dir string, depth int, skip []string) ([]by
 		if err != nil {
 			return nil, err
 		}
-		path := filepath.Join(dir, e.Name())
+		file, name := filepath.Join(dir, e.Name()), path.Join(rel, e.Name())
 		var sum []byte
 		switch mode {
 		case "":
 			continue
 		case modeFolder:
-			if sum, err = hashFolder(ctx, path, depth+1, skip); err == nil && sum == nil {
+			if sum, err = hashFolder(ctx, file, name, depth+1, skip, snap); err == nil && sum == nil {
 				continue
 			}
 		case modeSymlink:
-			sum, err = hashLink(path)
+			sum, err = hashLink(file)
+			snap.link(file, name, sum)
 		default:
-			sum, err = hashFile(path)
+			sum, err = hashFile(file)
+			snap.file(file, name, mode, sum)
 		}
 		if err != nil {
 			return nil, err
@@ -138,7 +145,65 @@ func hashFolder(ctx context.Context, dir string, depth int, skip []string) ([]by
 		fmt.Fprintf(&body, "%s %s\x00", e.mode, e.name)
 		body.Write(e.sum)
 	}
-	return gitObject("tree", body.Bytes()), nil
+	sum := gitObject("tree", body.Bytes())
+	if snap != nil {
+		var text strings.Builder // the same tree, as mktree -z reads it
+		for _, e := range kept {
+			kind := "blob"
+			if e.mode == modeFolder {
+				kind = "tree"
+			}
+			fmt.Fprintf(&text, "%s %s %s\t%s\x00", e.mode, kind, hex.EncodeToString(e.sum), e.name)
+		}
+		snap.objects.Trees = append(snap.objects.Trees, text.String())
+		snap.treeSums = append(snap.treeSums, hex.EncodeToString(sum))
+	}
+	return sum, nil
+}
+
+// snapshot is a folder's git objects, for writing it into the vault. Its methods
+// do nothing on a nil snapshot, so plain hashing collects nothing.
+type snapshot struct {
+	tree    string
+	objects vault.Objects
+	fileSums, linkSums, treeSums []string // the objects' names, in the order of objects
+	files   map[string]vault.File // each file and link, by path inside the folder
+}
+
+func (s *snapshot) file(file, name, mode string, sum []byte) {
+	if s == nil || sum == nil {
+		return
+	}
+	s.objects.Files = append(s.objects.Files, file)
+	s.fileSums = append(s.fileSums, hex.EncodeToString(sum))
+	s.files[name] = vault.File{Mode: mode, Object: hex.EncodeToString(sum)}
+}
+
+func (s *snapshot) link(file, name string, sum []byte) {
+	if s == nil || sum == nil {
+		return
+	}
+	target, err := os.Readlink(file)
+	if err != nil {
+		return // hashLink read it a moment ago; the next step reports it if it's gone
+	}
+	s.objects.Links = append(s.objects.Links, target)
+	s.linkSums = append(s.linkSums, hex.EncodeToString(sum))
+	s.files[name] = vault.File{Mode: modeSymlink, Object: hex.EncodeToString(sum)}
+}
+
+// snapshotOf hashes a copy's folder, without its .skl-copy.toml, and collects its
+// objects.
+func snapshotOf(ctx context.Context, dir string) (*snapshot, error) {
+	s := &snapshot{files: map[string]vault.File{}}
+	sum, err := hashFolder(ctx, dir, "", 0, []string{manifestFile}, s)
+	if err != nil {
+		return nil, err
+	}
+	if sum != nil {
+		s.tree = hex.EncodeToString(sum)
+	}
+	return s, nil
 }
 
 func gitObject(kind string, body []byte) []byte {
