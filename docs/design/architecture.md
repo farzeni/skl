@@ -23,7 +23,7 @@ If a step fails, the previous set stays in place. A skill whose name is taken by
 
 ## Saving back
 
-Each copy holds `.skl-copy.toml`: its source, the commit it was copied from, and the git tree hash of the folder as copied, the same kind of hash `.skl-origin.toml` uses. At the start of every command that changes something, skl hashes each copy recorded in `state.json`, in every repo, and merges each folder that changed into the vault with `git merge-tree`, using the recorded commit as the base. `git merge-tree` sees added, deleted and renamed files, which a file-by-file merge misses. skl commits the result as a generation of its own. If both sides changed the same lines, or one side deleted a file the other changed, it uses the sync conflict flow. Every loaded skill comes from the vault, so there is nowhere else to save to. With two targets, each copy is saved back on its own, like copies on two machines: the second one merges into the vault the first one already changed.
+Each copy holds `.skl-copy.toml`: its source, the commit it was copied from, and the git tree hash of the folder as copied, the same kind of hash `.skl-origin.toml` uses. At the start of every command that changes something, skl hashes each copy recorded in `state.json`, in every repo, and merges each folder that changed into the vault with `git merge-tree`, using the recorded commit as the base. The merge needs a clean vault, so skl commits hand edits in the vault first; a hand edit and a change to a copy of the same skill then merge like any two sides. `git merge-tree` sees added, deleted and renamed files, which a file-by-file merge misses. skl commits the result as a generation of its own. If both sides changed the same lines, or one side deleted a file the other changed, it uses the sync conflict flow. Every loaded skill comes from the vault, so there is nowhere else to save to. With two targets, each copy is saved back on its own, like copies on two machines: the second one merges into the vault the first one already changed.
 
 `.skl-copy.toml` never enters the vault, and `.skl-origin.toml` stays in the vault: it isn't copied into the loaded folder.
 
@@ -51,7 +51,7 @@ What the user sees is in [Errors](../reference/commands#errors) and [Exit codes]
 
 ## Sync
 
-1. **Save back** changed copies, then **commit** hand edits in `~/.skl/vault`.
+1. **Commit** hand edits in `~/.skl/vault`, then **save back** changed copies.
 2. **Merge** the remote with `git fetch` and `git merge`. Never rebase.
 3. **Push.**
 4. **Reload** by running the loading pipeline on the selectors already loaded.
