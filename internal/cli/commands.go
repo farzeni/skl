@@ -11,6 +11,12 @@ import (
 // something.
 var dryRun = Flag{Name: "dry-run", Usage: "Print what would change, and change nothing"}
 
+// asJSON is the --json flag of the commands that print a report.
+var asJSON = Flag{Name: "json", Usage: "Print JSON instead of text"}
+
+// yes is the --yes flag, the same for every command that asks.
+var yes = Flag{Name: "yes", Usage: "Take the first answer to every question"}
+
 // app builds the commands' dependencies. Only commands that use them read the
 // config, so a bad config file doesn't get in the way of help.
 func (c *cli) app(ctx context.Context) (*app.App, error) {
@@ -50,18 +56,51 @@ func (c *cli) commands() []*Command {
 			"Unload what these selectors name.", "skl drop review/test-gaps",
 			(*app.App).Drop),
 		{
+			Name:    "save",
+			Args:    "<name>",
+			Summary: "Save the active skill set as a named skill set",
+			Help: "Save the selectors of the active skill set as sets/<name>.toml in your vault,\n" +
+				"to load anywhere with @<name>. Asks before overwriting one.",
+			Example: "skl save backend",
+			Flags:   []Flag{dryRun, yes},
+			MinArgs: 1,
+			MaxArgs: 1,
+			Run: func(ctx context.Context, in Input) error {
+				a, err := c.app(ctx)
+				if err != nil {
+					return err
+				}
+				return a.Save(ctx, in.Args[0], in.Has("dry-run"))
+			},
+		},
+		{
 			Name:    "status",
 			Summary: "Show what's loaded and what needs you",
 			Help: "Show what's loaded and from which vault skill, your named skill sets, and\n" +
 				"everything that needs you, each with the command to run. Works offline.",
 			Example: "skl status --json",
-			Flags:   []Flag{{Name: "json", Usage: "Print JSON instead of text"}, dryRun},
+			Flags:   []Flag{asJSON, dryRun},
 			Run: func(ctx context.Context, in Input) error {
 				a, err := c.app(ctx)
 				if err != nil {
 					return err
 				}
 				return a.Status(ctx, in.Has("json"))
+			},
+		},
+		{
+			Name:    "history",
+			Summary: "List generations, newest first",
+			Help: "List every generation on this machine, newest first: its number, how long\n" +
+				"ago it was made, and the command that made it. Works offline.",
+			Example: "skl history --json",
+			Flags:   []Flag{asJSON, dryRun},
+			Run: func(ctx context.Context, in Input) error {
+				a, err := c.app(ctx)
+				if err != nil {
+					return err
+				}
+				return a.History(ctx, in.Has("json"))
 			},
 		},
 		{

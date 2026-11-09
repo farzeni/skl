@@ -1,0 +1,6 @@
+# docs/guide/rollback.md "Go back"
+skip 'pending: docs/guide/rollback.md (project scope, v0.4)'
+
+# "skl history shows that repo after the command, as in use @frontend · ~/code/prj1."
+# docs/reference/commands.md: "List generations, newest first, with the repo each
+# one ran in if it changed a project scope."

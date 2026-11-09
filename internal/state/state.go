@@ -25,9 +25,9 @@ import (
 const schemaVersion = 1
 
 var (
-	// ErrCorrupt is a state.json or generation file that can't be read or isn't
-	// valid JSON. skl writes them atomically, so this comes from a hand edit,
-	// permissions or a bad disk.
+	// ErrCorrupt is a state.json, a generation file or the generations folder that
+	// can't be read, or a file that isn't valid JSON. skl writes them atomically, so
+	// this comes from a hand edit, permissions or a bad disk.
 	ErrCorrupt = errors.New("can't read")
 	// ErrNewerState is a state.json from a newer skl. Rewriting it could lose
 	// what this skl doesn't know about, so it stops.

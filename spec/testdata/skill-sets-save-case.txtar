@@ -1,0 +1,44 @@
+# docs/guide/skill-sets.md "Named skill sets", with set names that differ only by
+# case. A disk like the macOS default can't hold them side by side, so they are
+# made here, after the check.
+[!casesensitive] skip 'needs a case-sensitive disk'
+mkdir seed/sets
+mv src/upper.toml seed/sets/Twin.toml
+mv src/lower.toml seed/sets/twin.toml
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use review
+
+# A name that matches two sets in other cases, and neither exactly, stops: skl
+# can't tell which file to overwrite.
+exitcode 1 skl save TWIN --yes
+cmp stderr twins.txt
+cmp $HOME/.skl/vault/sets/Twin.toml src2/upper.toml
+cmp $HOME/.skl/vault/sets/twin.toml src2/lower.toml
+! exists $HOME/.skl/vault/sets/TWIN.toml
+
+# An exact name wins: twin is twin.toml.
+exec skl save twin --yes
+cmp $HOME/.skl/vault/sets/twin.toml review.toml
+cmp $HOME/.skl/vault/sets/Twin.toml src2/upper.toml
+
+-- twins.txt --
+✗ @TWIN matches 2 skill sets: @Twin, @twin · skl save Twin
+-- review.toml --
+select = [
+  "review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+description: review a PR
+---
+Review.
+-- src/upper.toml --
+select = ["data"]
+-- src/lower.toml --
+select = ["review/pr-review"]
+-- src2/upper.toml --
+select = ["data"]
+-- src2/lower.toml --
+select = ["review/pr-review"]
