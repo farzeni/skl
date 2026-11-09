@@ -87,6 +87,7 @@ rm $HOME/.claude/skills/my-new-skill-2 $HOME/.claude/skills/pr-review
 # A loaded skill is already in the vault.
 exitcode 1 skl import changelog
 stderr '^✗ changelog is already in your vault: writing/changelog$'
+stderr '^  · rename it in ~/.claude/skills, then skl import it$'
 
 # Nothing changed when one name stops the import.
 mkdir $HOME/.claude/skills/fresh

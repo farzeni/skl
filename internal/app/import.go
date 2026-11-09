@@ -135,7 +135,7 @@ func (a *App) findImports(idx *vault.Index, root string, names []string) ([]load
 		i := slices.IndexFunc(all, func(f load.Foreign) bool { return selector.Fold(f.Folder) == selector.Fold(name) })
 		if i < 0 {
 			if s, ok := vaultSkillNamed(idx, name, ""); ok {
-				return nil, a.alreadyInVault(name, s, root)
+				return nil, a.alreadyInVault(name, s, load.SkillsDir(root, a.cfg.Targets[0]))
 			}
 			return nil, errs.Hint(fmt.Errorf("%s isn't in %s", ui.Clean(name), a.targetDirs(root)), "skl status")
 		}
