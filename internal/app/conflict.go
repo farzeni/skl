@@ -50,7 +50,7 @@ func (a *App) resolve(ctx context.Context, v *vault.Vault, ce *vault.ConflictErr
 	if err != nil {
 		return err // the merge stays in progress, for skl sync --abort
 	}
-	undo :=func() { v.Unmerge(context.WithoutCancel(ctx), head) }
+	undo := func() { v.Unmerge(context.WithoutCancel(ctx), head) }
 	a.showConflict(ctx, v, ce.Paths, s)
 	answer, err := a.ui.Ask(ctx, ui.Question{Prompt: "Resolve", Answers: []string{"by hand", "abort"}, Terminal: true})
 	switch {

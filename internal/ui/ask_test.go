@@ -151,6 +151,32 @@ func TestAskDumbEOF(t *testing.T) {
 	golden(t, "question-dumb", stderr.String())
 }
 
+// A question only a terminal answers (commands.md "Questions": "--yes doesn't
+// answer them"): without a terminal it's ErrNoTerminal, --yes or not, and
+// nothing is printed.
+func TestAskTerminalOnly(t *testing.T) {
+	resolve := Question{Prompt: "Resolve", Answers: []string{"by hand", "abort"}, Terminal: true}
+	for _, yes := range []bool{false, true} {
+		var stderr strings.Builder
+		u := newUI(Options{Stdin: strings.NewReader(""), Stdout: io.Discard, Stderr: &stderr, Yes: yes},
+			colorprofile.NoTTY, 80, false)
+		if _, err := u.Ask(context.Background(), resolve); !errors.Is(err, ErrNoTerminal) {
+			t.Errorf("yes=%v: err %v, want ErrNoTerminal", yes, err)
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("yes=%v: printed %q", yes, stderr.String())
+		}
+	}
+	// On a terminal, --yes still asks: the typed answer counts.
+	var stderr strings.Builder
+	u := newUI(Options{Stdin: strings.NewReader("abort\n"), Stdout: io.Discard, Stderr: &stderr, Yes: true},
+		colorprofile.NoTTY, 80, true)
+	u.dumb = true
+	if i, err := u.Ask(context.Background(), resolve); i != 1 || err != nil {
+		t.Errorf("Ask = %d, %v; want 1 (abort)", i, err)
+	}
+}
+
 // "Ctrl-C at a question takes its last answer": in cooked mode Ctrl-C is
 // SIGINT, which cancels ctx.
 func TestAskDumbCanceled(t *testing.T) {

@@ -130,9 +130,11 @@ func (c *cli) commands() []*Command {
 				"On a conflict, resolve it by hand in the vault, then skl sync --continue,\n" +
 				"or undo the merge with skl sync --abort.",
 			Example: "skl sync",
-			Flags: []Flag{dryRun,
+			Flags: []Flag{
+				dryRun,
 				{Name: "continue", Usage: "Finish a merge you resolved by hand"},
-				{Name: "abort", Usage: "Undo a merge that stopped at a conflict"}},
+				{Name: "abort", Usage: "Undo a merge that stopped at a conflict"},
+			},
 			Run: func(ctx context.Context, in Input) error {
 				mode, flag := app.SyncRun, ""
 				switch {

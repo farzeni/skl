@@ -32,6 +32,10 @@ func run(t *testing.T, args ...string) (code int, stdout, stderr string) {
 				return errs.Usagef("skl learn x", "x is someone else's skill")
 			case "canceled":
 				return fmt.Errorf("swap: %w", context.Canceled)
+			case "held":
+				// A save made its generation; Ctrl-C came before the next line.
+				c.ui.StepHeld("generation", "13")
+				return context.Canceled
 			default:
 				return errors.New("plain")
 			}
@@ -53,6 +57,8 @@ func TestExitCodes(t *testing.T) {
 		{[]string{"fail", "plain"}, 1, "✗ plain\n"},
 		{[]string{"fail", "usage"}, 2, "✗ x is someone else's skill · skl learn x\n"},
 		{[]string{"fail", "canceled"}, 130, ""},
+		// The generation a command made before Ctrl-C still shows.
+		{[]string{"fail", "held"}, 130, "◇ generation 13\n"},
 		// "2: A usage error: an unknown command or flag, a missing argument"
 		{[]string{"stauts"}, 2, "✗ unknown command stauts · skl status\n"},
 		{[]string{"imprt"}, 2, "✗ unknown command imprt · skl import\n"},
