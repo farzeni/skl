@@ -83,6 +83,12 @@ cmp $HOME/.claude/skills/pr-review/SKILL.md edited.md
 exec skl sync
 cmp stderr nothing.txt
 
+# "Saving your changes first is a generation of its own … and the sync is the next
+# one": with nothing else to change, the save is the sync's only generation.
+cp backend-here.toml $HOME/.skl/vault/sets/frontend.toml
+exec skl sync
+cmp stderr save-push.txt
+
 # "If the network fails, sync stops after step 1: your changes are saved and
 # committed, and skl status lists them as not pushed." commands.md: "✗ can't reach
 # github.com (Could not resolve host) · skl sync"
@@ -186,6 +192,10 @@ Review, carefully.
 ✓ generation 5 · skl rollback to undo
 -- nothing.txt --
 ✓ nothing to change
+-- save-push.txt --
+◇ committed  sets/frontend.toml
+◇ pushed
+✓ generation 6 · skl rollback to undo
 -- offline.txt --
 ◇ committed  sets/backend.toml
 ◇ generation 5

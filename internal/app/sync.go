@@ -43,11 +43,27 @@ func (a *App) Sync(ctx context.Context, dryRun bool) error {
 		if err != nil {
 			return false, err
 		}
+		// Step 4 is planned before the push, so a problem in what was pulled, such
+		// as a broken skill set, stops before it goes anywhere.
+		next, err := a.prepare(ctx, c.Vault, c.State, reloading(), nil, root)
+		if err != nil {
+			return false, hinted(err, "skl sync")
+		}
+		changed := pulled > 0 || next.changed
+		if !changed {
+			// Only the save, if anything, makes a generation: its line is the last.
+			a.ui.DropHeld()
+		}
 		if err := a.push(ctx, c.Vault, branch, pulled, before); err != nil {
 			return false, err
 		}
-		reloaded, err := a.reload(ctx, c, root)
-		return pulled > 0 || reloaded, err
+		a.reportReload(c.State, next)
+		if next.changed {
+			if err := a.apply(ctx, c, next); err != nil {
+				return false, err
+			}
+		}
+		return changed, nil
 	})
 }
 
@@ -114,23 +130,9 @@ func (a *App) push(ctx context.Context, v *vault.Vault, branch string, pulled in
 	return nil
 }
 
-// reload is step 4: the selectors loaded in the user scope, resolved again against
-// the vault as it is now, and the difference applied. It reports whether anything
-// changed. The project scope reloads with --scope project's card.
-func (a *App) reload(ctx context.Context, c *Change, root string) (bool, error) {
-	s := reloading()
-	next, err := a.prepare(ctx, c.Vault, c.State, s, nil, root)
-	if err != nil {
-		return false, hinted(err, "skl sync")
-	}
-	a.reportReload(c.State, next)
-	if !next.changed {
-		return false, nil
-	}
-	return true, a.apply(ctx, c, next)
-}
-
-// reloading is the selection sync loads: the one already active.
+// reloading is step 4's selection: the selectors loaded in the user scope, resolved
+// again against the vault as it is now. The project scope reloads with --scope
+// project's card.
 func reloading() selection {
 	return selection{
 		verb: "sync",
