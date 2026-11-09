@@ -56,6 +56,7 @@ const (
 type Change struct {
 	Kind   Kind
 	Name   string
+	Skill  string // the vault skill, group/folder: the one loaded, or the one unloaded
 	Detail string // "someone/pr-review replaces review/pr-review", or "updated"
 	From   string // for Unload: the one skills folder it leaves, if others keep it
 }
@@ -290,11 +291,11 @@ func (c *changes) list() []Change {
 			}
 		}
 		if len(details) == 0 {
-			out = append(out, Change{Kind: Load, Name: s.Folder})
+			out = append(out, Change{Kind: Load, Name: s.Folder, Skill: s.String()})
 			continue
 		}
 		for _, d := range details {
-			out = append(out, Change{Kind: Replace, Name: s.Folder, Detail: d})
+			out = append(out, Change{Kind: Replace, Name: s.Folder, Skill: s.String(), Detail: d})
 		}
 	}
 	var gone []Change
@@ -308,7 +309,7 @@ func (c *changes) list() []Change {
 				from = c.dirs[string(cp.Target)+"/"+cp.Name]
 			}
 		}
-		gone = append(gone, Change{Kind: Unload, Name: cp.Name, From: from})
+		gone = append(gone, Change{Kind: Unload, Name: cp.Name, Skill: cp.Skill, From: from})
 	}
 	slices.SortFunc(gone, func(a, b Change) int { return strings.Compare(a.Name, b.Name) })
 	return append(out, gone...)

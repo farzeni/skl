@@ -148,6 +148,23 @@ func (a *App) prepare(ctx context.Context, v *vault.Vault, st *state.State, s se
 	if err != nil {
 		return nil, err
 	}
+	head, err := v.Head(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return a.prepareAt(ctx, vaultView{dir: v.Dir(), head: head, idx: idx}, st, s, sels, root)
+}
+
+// vaultView is a version of the vault to load from: the vault itself, or a preview
+// of it written elsewhere, for a --dry-run that has to see changes it won't make.
+type vaultView struct {
+	dir, head string
+	idx       *vault.Index
+}
+
+// prepareAt is prepare against a view of the vault.
+func (a *App) prepareAt(ctx context.Context, view vaultView, st *state.State, s selection, sels []selector.Selector, root string) (*loadNext, error) {
+	idx := view.idx
 	current := st.Scopes[state.User]
 	selectors, notes, err := s.next(current.Selectors, sels, idx)
 	if err != nil {
@@ -161,12 +178,8 @@ func (a *App) prepare(ctx context.Context, v *vault.Vault, st *state.State, s se
 	if err != nil {
 		return nil, s.resolveError(err, idx)
 	}
-	head, err := v.Head(ctx)
-	if err != nil {
-		return nil, err
-	}
 	plan, err := load.Compute(ctx, load.Input{
-		Vault: v.Dir(), Commit: head, Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root,
+		Vault: view.dir, Commit: view.head, Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root,
 	})
 	if err != nil {
 		return nil, a.planError(err)
