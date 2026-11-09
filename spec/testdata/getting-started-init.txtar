@@ -348,6 +348,19 @@ cmp stderr again-selectors.txt
 exec skl status
 stdout '^loaded \(user\)  data$'
 
+# Two skills with the same name would clash in the group: the second isn't
+# offered, and the warning says how to get it in.
+env HOME=$WORK/home4
+mkdir $HOME/.claude/skills/dup-a $HOME/.claude/skills/dup-b
+cp mine/dup.md $HOME/.claude/skills/dup-a/SKILL.md
+cp mine/dup.md $HOME/.claude/skills/dup-b/SKILL.md
+remote you/dups
+exec skl init you/dups --yes
+cmp stderr dup-init.txt
+exists $HOME/.skl/vault/you/dup-a/SKILL.md
+! exists $HOME/.skl/vault/you/dup-b
+! exists $HOME/.claude/skills/dup-b/.skl-copy.toml
+
 -- new-vault.txt --
 → new vault you/skills
 ◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
@@ -426,6 +439,20 @@ name: my-notes
 ---
 name: sql-explain
 ---
+-- mine/dup.md --
+---
+name: dup
+---
+-- dup-init.txt --
+→ new vault you/dups
+! dup-b   not offered: same name as dup-a
+  · rename it in ~/.claude/skills, then skl import it
+◇ imported   dup-a → you/
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
+! dup-a   skipped: ~/.claude/skills/dup-b is not in your vault
+  · skl import dup-b
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo
 -- mine/draft.md --
 ---
 name: draft

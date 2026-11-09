@@ -101,6 +101,19 @@ cmp stdout before.txt
 ! exists $HOME/.skl/vault/you/fresh
 ! exists $HOME/.claude/skills/fresh/.skl-copy.toml
 
+# Two of them with the same name would clash in the group: the import stops before
+# anything is copied, and renaming one is the way out.
+mkdir $HOME/.claude/skills/dup-a $HOME/.claude/skills/dup-b
+cp dup.md $HOME/.claude/skills/dup-a/SKILL.md
+cp dup.md $HOME/.claude/skills/dup-b/SKILL.md
+exitcode 1 skl import dup-a dup-b
+cmp stderr dup.txt
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cmp stdout before.txt
+! exists $HOME/.skl/vault/you/dup-a
+! exists $HOME/.claude/skills/dup-a/.skl-copy.toml
+rm $HOME/.claude/skills/dup-a $HOME/.claude/skills/dup-b
+
 # A name that can't be a vault skill is a usage error.
 exitcode 2 skl import my.skill
 stderr '^✗ my.skill isn''t a valid skill name'
@@ -187,6 +200,13 @@ description: Someone's own.
 ---
 name: fresh
 ---
+-- dup.md --
+---
+name: dup
+---
+-- dup.txt --
+✗ dup-a and dup-b have the same name
+  · rename one in ~/.claude/skills, then skl import it
 -- pdf.md --
 ---
 name: pdf

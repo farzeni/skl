@@ -332,6 +332,13 @@ func (a *App) importable(root string, idx *vault.Index) ([]load.Foreign, error) 
 				continue
 			}
 		}
+		// One that shares a name with a skill already offered would clash with it
+		// in the group: it isn't offered, and the warning says how to get it in.
+		if j := slices.IndexFunc(out, f.Clashes); j >= 0 {
+			a.ui.Warn(fmt.Sprintf("%s   not offered: same name as %s", ui.Clean(f.Folder), ui.Clean(out[j].Folder)),
+				"rename it in "+a.shown(f.Dir)+", then skl import it")
+			continue
+		}
 		out = append(out, f)
 	}
 	return out, nil

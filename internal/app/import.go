@@ -143,6 +143,12 @@ func (a *App) findImports(idx *vault.Index, root string, names []string) ([]load
 		if s, ok := vaultSkillNamed(idx, f.Folder, f.Name); ok {
 			return nil, a.alreadyInVault(name, s, f.Dir)
 		}
+		// Two of them sharing a name would clash in the group: stop before
+		// anything is copied, while renaming one is still the way out.
+		if j := slices.IndexFunc(found, f.Clashes); j >= 0 {
+			return nil, errs.Hint(fmt.Errorf("%s and %s have the same name", ui.Clean(found[j].Folder), ui.Clean(f.Folder)),
+				"rename one in "+a.shown(f.Dir)+", then skl import it")
+		}
 		found = append(found, f)
 	}
 	return found, nil

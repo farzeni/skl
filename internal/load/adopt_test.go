@@ -54,8 +54,25 @@ func TestForeigners(t *testing.T) {
 			t.Fatalf("got %q, want %q", names, want)
 		}
 	}
-	if !got[1].Same("B-NAMED") || !got[1].Same("b-skill") || got[1].Same("a-skill") {
-		t.Error("Same doesn't match a folder or frontmatter name in any case")
+}
+
+// Two skills share a name when a folder or frontmatter name of one is a folder or
+// frontmatter name of the other, in any case.
+func TestForeignClashes(t *testing.T) {
+	for _, tt := range []struct {
+		a, b Foreign
+		want bool
+	}{
+		{Foreign{Folder: "x", Name: "dup"}, Foreign{Folder: "y", Name: "DUP"}, true},
+		{Foreign{Folder: "x", Name: "y"}, Foreign{Folder: "Y"}, true},
+		{Foreign{Folder: "x"}, Foreign{Folder: "y", Name: "x"}, true},
+		{Foreign{Folder: "pdf"}, Foreign{Folder: "PDF"}, true},
+		{Foreign{Folder: "x"}, Foreign{Folder: "y"}, false},
+		{Foreign{Folder: "x", Name: "a"}, Foreign{Folder: "y", Name: "b"}, false},
+	} {
+		if got := tt.a.Clashes(tt.b); got != tt.want || tt.b.Clashes(tt.a) != tt.want {
+			t.Errorf("%+v and %+v: clashes %v, want %v", tt.a, tt.b, got, tt.want)
+		}
 	}
 }
 

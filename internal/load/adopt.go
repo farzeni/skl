@@ -53,10 +53,13 @@ func Foreigners(homeRoot string, targets []config.Target) ([]Foreign, error) {
 	return out, nil
 }
 
-// Same reports whether f is called name, by its folder or its frontmatter name.
-func (f Foreign) Same(name string) bool {
-	want := selector.Fold(name)
-	return selector.Fold(f.Folder) == want || f.Name != "" && selector.Fold(f.Name) == want
+// Clashes reports whether f and o share a name, in any case or form: a skill's
+// names are its folder and its frontmatter name, as in the vault, where two such
+// skills in one group can't be loaded together.
+func (f Foreign) Clashes(o Foreign) bool {
+	ff, fn := selector.Fold(f.Folder), selector.Fold(f.Name)
+	of, on := selector.Fold(o.Folder), selector.Fold(o.Name)
+	return ff == of || ff == on || fn == of || fn != "" && fn == on
 }
 
 // CopyIn copies a skill someone else made into dst, which must not exist: the
