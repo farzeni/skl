@@ -70,7 +70,7 @@ func (h *harness) vaulted(t *testing.T) {
 	t.Helper()
 	bare := filepath.Join(h.home, "you", "skills.git")
 	git(t, h.home, "init", "--quiet", "--bare", bare)
-	if err := h.a.Init(context.Background(), bare, false); err != nil {
+	if err := h.a.Init(context.Background(), bare, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	h.stderr.Reset()
@@ -322,7 +322,7 @@ func TestSecondSetup(t *testing.T) {
 func TestInitVaultWithoutOrigin(t *testing.T) {
 	h := newHarness(t)
 	git(t, h.home, "init", "--quiet", h.a.paths.Vault)
-	err := h.a.Init(context.Background(), "you/skills", false)
+	err := h.a.Init(context.Background(), "you/skills", nil, false)
 	if err == nil || err.Error() != "~/.skl/vault has no origin" {
 		t.Fatalf("err = %v", err)
 	}

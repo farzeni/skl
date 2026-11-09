@@ -21,8 +21,9 @@ import (
 // selection is one run of use, add or drop: they differ only in how the words
 // change the active skill set.
 type selection struct {
-	verb  string // the command
-	label string // what the → line calls it
+	verb  string   // the command
+	fixed []string // words between the command and the selectors, such as init's repo
+	label string   // what the → line calls it
 	words []string
 	// next returns the selectors that become active, and any warnings of its own.
 	next func(active []string, sels []selector.Selector, idx *vault.Index) ([]string, []note, error)
@@ -33,7 +34,7 @@ type note struct{ msg, hint string }
 
 // command is the line as typed, without flags and without "skl".
 func (s selection) command() string {
-	return strings.TrimPrefix(ui.CommandLine(append([]string{s.verb}, s.words...)), "skl ")
+	return strings.TrimPrefix(ui.CommandLine(slices.Concat([]string{s.verb}, s.fixed, s.words)), "skl ")
 }
 
 // loading is what the three commands share: docs/design/architecture.md "Loading
@@ -325,7 +326,7 @@ func (s selection) replaced(word, replacement string) string {
 			words[i] = replacement
 		}
 	}
-	return ui.CommandLine(append([]string{s.verb}, words...))
+	return ui.CommandLine(slices.Concat([]string{s.verb}, s.fixed, words))
 }
 
 // ambiguousGroup reports whether a suggested skill's group would stop the command.

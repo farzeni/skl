@@ -69,13 +69,13 @@ exec skl status
 stdout '^loaded \(user\)  review you$'
 stdout '^  my-notes +you/my-notes$'
 
+exec skl drop review
 # "A name your vault already has, as a folder or a frontmatter name, stops the import"
 mkdir $HOME/.claude/skills/my-new-skill-2
 cp new.md $HOME/.claude/skills/my-new-skill-2/SKILL.md
 exitcode 1 skl import my-new-skill-2
 cmp stderr taken-name.txt
 ! exists $HOME/.skl/vault/you/my-new-skill-2
-exec skl drop review
 mkdir $HOME/.claude/skills/pr-review
 cp other.md $HOME/.claude/skills/pr-review/SKILL.md
 exitcode 1 skl import pr-review
@@ -106,7 +106,7 @@ stderr '^✗ my.skill isn''t a valid skill name'
 exitcode 2 skl import fresh --group sets
 stderr '^✗ sets can''t be a group'
 exitcode 2 skl import
-stderr '^✗ skl import needs <name> · skl help import$'
+stderr '^✗ skl import needs <name>… · skl help import$'
 
 # docs/design/architecture.md "Import": "If the folder is a link, as npx skills may
 # leave it, skl replaces the link with a real copy and says so"
@@ -122,7 +122,9 @@ exists $HOME/.claude/skills/pdf/.skl-copy.toml
 cmp $HOME/.skl/vault/you/pdf/SKILL.md pdf.md
 
 # "skl looks for the folder in every target's folder, and with two targets it also
-# loads the skill into the other one."
+# loads the skill into the other one." (The folder the link pointed at goes first:
+# another tool's copy of pdf would be skipped there.)
+rm $HOME/.agents/skills/pdf
 env SKL_TARGETS=claude,agents
 exec skl add you
 mkdir $HOME/.agents/skills/sql-explain
@@ -190,7 +192,7 @@ name: sql-explain
 -- import-two.txt --
 ◇ imported   changelog, release-notes → writing/
 ! 3 changes not pushed · skl sync
-✓ generation 6 · skl rollback to undo
+✓ generation 5 · skl rollback to undo
 -- nothing.txt --
 ✓ nothing to change
 -- taken-name.txt --
@@ -205,9 +207,9 @@ name: sql-explain
 ◇ replaced   link ~/.claude/skills/pdf with a copy
 ◇ imported   pdf → you/
 ! 5 changes not pushed · skl sync
-✓ generation 12 · skl rollback to undo
+✓ generation 9 · skl rollback to undo
 -- import-agents.txt --
 ◇ imported   sql-explain → you/
 + sql-explain
 ! 6 changes not pushed · skl sync
-✓ generation 14 · skl rollback to undo
+✓ generation 11 · skl rollback to undo

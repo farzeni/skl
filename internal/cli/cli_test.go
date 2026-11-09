@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,7 +17,9 @@ func run(t *testing.T, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
 	var out, errOut bytes.Buffer
 	c := &cli{st: Streams{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &errOut}, getenv: func(string) string { return "" }}
-	c.cmds = append(c.commands(),
+	// The fake import stands in for the real one: it reports what it was given.
+	real := slices.DeleteFunc(c.commands(), func(cmd *Command) bool { return cmd.Name == "import" })
+	c.cmds = append(real,
 		&Command{
 			Name: "import", Args: "<name>…", Summary: "Import", Flags: []Flag{{Name: "group", Value: "group"}}, MinArgs: 1, MaxArgs: -1,
 			Run: func(_ context.Context, in Input) error {

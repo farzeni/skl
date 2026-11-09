@@ -461,5 +461,6 @@ you/sql-explain/SKILL.md
 -- again-selectors.txt --
 → load data
 + sql-explain
-− draft, test-gaps
+− draft   − test-gaps
+! 1 change not pushed · skl sync
 ✓ generation 2 · skl rollback to undo

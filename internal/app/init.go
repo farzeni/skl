@@ -6,32 +6,58 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/farzeni/skl/internal/config"
 	"github.com/farzeni/skl/internal/errs"
 	"github.com/farzeni/skl/internal/gitx"
+	"github.com/farzeni/skl/internal/load"
 	"github.com/farzeni/skl/internal/ref"
+	"github.com/farzeni/skl/internal/selector"
 	"github.com/farzeni/skl/internal/ui"
 	"github.com/farzeni/skl/internal/vault"
 )
 
-// Init is skl init <repo>: on a fresh machine it makes ~/.skl/vault from an
-// existing or an empty repo (docs/guide/getting-started.md "Make your vault").
+// Init is skl init <repo> [selectors]: on a fresh machine it makes ~/.skl/vault
+// from an existing or an empty repo, offers to import the skills in the targets'
+// folders that aren't in a vault, and loads the selectors and what it imported
+// (docs/guide/getting-started.md "Make your vault"). With the vault already
+// there, it only loads the selectors, as skl use would.
 //
-// It runs in the frame's lock with no vault check, since making the vault is
-// the point. The clone is built in staging and moved into place in one step,
-// once it's complete, so an error or Ctrl-C leaves no vault at all.
-func (a *App) Init(ctx context.Context, word string, dryRun bool) error {
+// Making the vault runs in the frame's lock with no vault check, since making
+// the vault is the point. The clone is built in staging, asked about and moved
+// into place in one step, once it's complete, so an error, a question that
+// can't be asked or Ctrl-C leaves no vault at all.
+func (a *App) Init(ctx context.Context, word string, words []string, dryRun bool) error {
 	repo, err := a.parseRepo(word)
 	if err != nil {
 		return err
 	}
+	sel := selection{
+		verb: "init", fixed: []string{repo.Input}, label: "load", words: words,
+		next: func([]string, []selector.Selector, *vault.Index) ([]string, []note, error) {
+			return words, nil, nil
+		},
+	}
+	if _, err := sel.parseWords(); err != nil {
+		return err
+	}
+	root, err := a.userRoot()
+	if err != nil {
+		return err
+	}
 	if dryRun {
-		return a.initDryRun(ctx, repo)
+		return a.initDryRun(ctx, repo, sel, root)
 	}
 	retry := initCommand(repo.Input)
-	err = a.locked(ctx, "init "+repo.Input, func(ctx context.Context, c *Change) (bool, error) {
+	if v, err := vault.Open(a.git, a.paths.Vault); err == nil && len(words) > 0 {
+		if err := a.holdsOnly(ctx, v, repo); err != nil {
+			return hinted(err, retry)
+		}
+		return a.loading(ctx, sel, false)
+	}
+	err = a.locked(ctx, sel.command(), func(ctx context.Context, c *Change) (bool, error) {
 		v, err := vault.Open(a.git, a.paths.Vault)
 		switch {
 		case err == nil:
@@ -41,13 +67,24 @@ func (a *App) Init(ctx context.Context, word string, dryRun bool) error {
 		case !errors.Is(err, vault.ErrNoVault):
 			return false, err
 		}
-		v, err = a.makeVault(ctx, repo)
+		m, err := a.makeVault(ctx, repo, root)
 		if err != nil {
 			return false, err
 		}
-		c.Vault = v
-		c.Undo = func() { _ = os.RemoveAll(a.paths.Vault) } // init made all of it just now
-		return true, nil
+		c.Vault = m.vault
+		undoVault := func() { _ = os.RemoveAll(a.paths.Vault) } // init made all of it just now
+		c.Undo = undoVault
+		if len(m.imports.found) == 0 && len(words) == 0 {
+			a.reportVault(m)
+			return true, nil
+		}
+		var between func()
+		if m.cloned {
+			a.reportVault(m)
+		} else {
+			between = func() { a.reportVault(m) }
+		}
+		return true, a.adoptAndLoad(ctx, c, m.imports, &sel, between, undoVault)
 	})
 	return hinted(err, retry)
 }
@@ -73,15 +110,20 @@ func (a *App) refOptions(cwd string) ref.Options {
 	}
 }
 
-// initDryRun prints what init would do. It reads the remote, but it takes no
-// lock and creates nothing, ~/.skl included.
-func (a *App) initDryRun(ctx context.Context, repo ref.Repo) error {
+// initDryRun prints what init would do: make or clone the vault, import the
+// skills it would offer, load the selectors. It reads the remote, but it takes no
+// lock and creates nothing, ~/.skl included. With no clone to look in, it lists
+// every skill it would offer, even one the vault turns out to have.
+func (a *App) initDryRun(ctx context.Context, repo ref.Repo, sel selection, root string) error {
 	retry := initCommand(repo.Input)
 	v, err := vault.Open(a.git, a.paths.Vault)
 	switch {
 	case err == nil:
 		if err := a.holdsOnly(ctx, v, repo); err != nil {
 			return hinted(err, retry)
+		}
+		if len(sel.words) > 0 {
+			return a.loading(ctx, sel, true)
 		}
 		a.ui.Done("nothing to change")
 		return nil
@@ -95,6 +137,16 @@ func (a *App) initDryRun(ctx context.Context, repo ref.Repo) error {
 		return hinted(err, retry)
 	}
 	a.planVault(repo, empty)
+	offer, err := a.importable(root, nil)
+	if err != nil {
+		return hinted(err, retry)
+	}
+	if group, err := selector.OwnerGroup(repo.Owner()); err == nil && len(offer) > 0 {
+		a.ui.Plan("import %s → %s/", folderList(offer), group)
+	}
+	if len(sel.words) > 0 {
+		a.ui.Plan("load %s", strings.Join(sel.words, " "))
+	}
 	return nil
 }
 
@@ -153,10 +205,21 @@ func (a *App) secondSetup(repo ref.Repo) string {
 	return "SKL_HOME=~/" + name + " " + initCommand(repo.Input)
 }
 
-// makeVault clones repo into staging, gives a new vault its first commit, and
-// moves it into place. Until the move, stopping leaves only staging behind, and
-// the deferred removal or the next init clears that.
-func (a *App) makeVault(ctx context.Context, repo ref.Repo) (*vault.Vault, error) {
+// madeVault is what makeVault made: the vault in place, and the skills it
+// imported, committed but not adopted yet.
+type madeVault struct {
+	vault   *vault.Vault
+	cloned  bool
+	counts  *vault.Counts // what the clone held, nil if it couldn't be counted
+	imports imports
+}
+
+// makeVault clones repo into staging, asks which skills to import, copies them
+// in, gives a new vault its first commit (the imported skills with it) or a clone
+// a commit of the imports, and moves it into place. Until the move, stopping
+// leaves only staging behind, and the deferred removal or the next init clears
+// that.
+func (a *App) makeVault(ctx context.Context, repo ref.Repo, root string) (*madeVault, error) {
 	empty, err := a.remoteEmpty(ctx, repo)
 	if err != nil {
 		return nil, err
@@ -187,9 +250,25 @@ func (a *App) makeVault(ctx context.Context, repo ref.Repo) (*vault.Vault, error
 	if err != nil {
 		return nil, branchError(err, repo)
 	}
+	var counts *vault.Counts
+	if c, err := v.Count(ctx); err == nil && born {
+		counts = &c
+	}
+	im, err := a.offerImports(ctx, v, repo, root)
+	if err != nil {
+		return nil, err
+	}
+	folders, err := copyImports(ctx, v, im.group, im.found)
+	if err != nil {
+		return nil, err
+	}
 	if !born {
-		if err := v.Create(ctx, a.cfg.License, a.now()); err != nil {
+		if err := v.Create(ctx, a.cfg.License, a.now(), folders...); err != nil {
 			return nil, identityError(err)
+		}
+	} else if len(folders) > 0 {
+		if _, err := v.Commit(ctx, importMessage(im.group, im.found), folders...); err != nil {
+			return nil, err
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -198,8 +277,102 @@ func (a *App) makeVault(ctx context.Context, repo ref.Repo) (*vault.Vault, error
 	if err := v.Move(a.paths.Vault); err != nil {
 		return nil, err
 	}
-	a.reportVault(ctx, v, born)
-	return v, nil
+	return &madeVault{vault: v, cloned: born, counts: counts, imports: im}, nil
+}
+
+// offerImports asks whether to import the skills in the targets' folders that
+// aren't in a vault, and which, into the group named after the repo's owner
+// (docs/guide/getting-started.md "Make your vault"). A skill the clone already has
+// isn't offered: its name is taken. v is the clone, still in staging.
+func (a *App) offerImports(ctx context.Context, v *vault.Vault, repo ref.Repo, root string) (imports, error) {
+	idx, err := v.Index(ctx)
+	if err != nil {
+		return imports{}, err
+	}
+	offer, err := a.importable(root, idx)
+	if err != nil || len(offer) == 0 {
+		return imports{}, err
+	}
+	group, err := selector.OwnerGroup(repo.Owner())
+	if err != nil {
+		a.ui.Warn(err.Error(), ui.CommandLine([]string{"import", offer[0].Folder, "--group", "<group>"}))
+		return imports{}, nil
+	}
+	var dirs []string
+	for _, f := range offer {
+		if d := a.shown(f.Dir); !slices.Contains(dirs, d) {
+			dirs = append(dirs, d)
+		}
+	}
+	chosen, err := pickImports(ctx, a.ui.Ask, offer, strings.Join(dirs, " and "), group)
+	if err != nil {
+		return imports{}, err
+	}
+	// The group gets the selector when it holds only what's imported now.
+	return imports{group: group, found: chosen, whole: len(idx.Skills(group)) == 0}, nil
+}
+
+// importable is the skills skl could import: someone else's skills in the
+// targets' folders, one per folder name, the first target's first, whose names
+// are valid and, with idx, not taken in the vault.
+func (a *App) importable(root string, idx *vault.Index) ([]load.Foreign, error) {
+	all, err := load.Foreigners(root, a.cfg.Targets)
+	if err != nil {
+		return nil, a.shownPaths(err)
+	}
+	var out []load.Foreign
+	for _, f := range all {
+		if !selector.ValidName(f.Folder) || slices.ContainsFunc(out, func(o load.Foreign) bool {
+			return selector.Fold(o.Folder) == selector.Fold(f.Folder)
+		}) {
+			continue
+		}
+		if idx != nil {
+			if _, taken := vaultSkillNamed(idx, f.Folder, f.Name); taken {
+				continue
+			}
+		}
+		out = append(out, f)
+	}
+	return out, nil
+}
+
+// pickImports asks "Import the 3 skills in ~/.claude/skills into you/?": yes takes
+// them all, choose asks about each, no takes none.
+func pickImports(ctx context.Context, ask func(context.Context, ui.Question) (int, error),
+	offer []load.Foreign, dirs, group string,
+) ([]load.Foreign, error) {
+	q := ui.Question{
+		Prompt:  fmt.Sprintf("Import the %d skills in %s into %s/?", len(offer), dirs, group),
+		Answers: []string{"yes", "choose", "no"},
+	}
+	if len(offer) == 1 {
+		q = ui.Question{
+			Prompt:  fmt.Sprintf("Import %s in %s into %s/?", ui.Clean(offer[0].Folder), dirs, group),
+			Answers: []string{"yes", "no"},
+		}
+	}
+	answer, err := ask(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	switch q.Answers[answer] {
+	case "yes":
+		return offer, nil
+	case "no":
+		return nil, nil
+	}
+	var chosen []load.Foreign
+	for _, f := range offer {
+		answer, err := ask(ctx, ui.Question{Prompt: "Import " + ui.Clean(f.Folder) + "?", Answers: []string{"yes", "no"}})
+		if err != nil {
+			return nil, err
+		}
+		if answer == 0 {
+			chosen = append(chosen, f)
+		}
+	}
+	return chosen, nil
 }
 
 // remoteEmpty reads the remote before anything is made, with the ✗ line for one
@@ -247,19 +420,16 @@ func (a *App) initReachError(err error, repo ref.Repo) error {
 }
 
 // reportVault prints what init made: "◇ LICENSE" for a new vault, what it holds
-// for a clone.
-func (a *App) reportVault(ctx context.Context, v *vault.Vault, cloned bool) {
-	if !cloned {
+// for a clone, as cloned, before anything was imported.
+func (a *App) reportVault(m *madeVault) {
+	switch {
+	case !m.cloned:
 		if a.cfg.License != vault.NoLicense {
 			a.ui.StepHint("LICENSE", a.cfg.License+", for the skills you write", "edit LICENSE to change it")
 		}
-		return
+	case m.counts != nil: // only a report: without it, the clone is in place all the same
+		a.ui.Step("cloned", countsLine(*m.counts))
 	}
-	c, err := v.Count(ctx)
-	if err != nil {
-		return // only a report: the clone is in place
-	}
-	a.ui.Step("cloned", countsLine(c))
 }
 
 // countsLine is "3 groups · 14 skills · 2 skill sets", or "no skills yet".
