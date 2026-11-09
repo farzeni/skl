@@ -84,7 +84,8 @@ func (a *App) recordSave(ctx context.Context, c *Change, saved []load.Saved, com
 	if err != nil {
 		return err
 	}
-	a.ui.Step("generation", strconv.Itoa(g.N))
+	c.saved = g.N
+	a.ui.StepHeld("generation", strconv.Itoa(g.N))
 	return nil
 }
 

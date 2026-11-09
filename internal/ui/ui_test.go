@@ -401,3 +401,25 @@ func TestReportErr(t *testing.T) {
 		t.Errorf("ReportErr = %v", err)
 	}
 }
+
+func TestStepHeld(t *testing.T) {
+	var out bytes.Buffer
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out}, colorprofile.NoTTY, 80, false)
+	u.StepHeld("generation", "3")
+	if out.Len() != 0 {
+		t.Fatalf("held line printed at once: %q", out.String())
+	}
+	u.Plan("add data")
+	u.Done("generation 4")
+	if want := "◇ generation 3\n→ add data\n✓ generation 4\n"; out.String() != want {
+		t.Errorf("before another line:\n%s\nwant\n%s", out.String(), want)
+	}
+
+	out.Reset()
+	u.StepHeld("generation", "3")
+	u.DropHeld()
+	u.Done("generation 3")
+	if want := "✓ generation 3\n"; out.String() != want {
+		t.Errorf("dropped:\n%s\nwant\n%s", out.String(), want)
+	}
+}

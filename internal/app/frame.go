@@ -25,6 +25,8 @@ type Change struct {
 	// Cleanup, if the body sets it, runs once the command is over, however it ended,
 	// while the lock is still held.
 	Cleanup func()
+	// saved is the generation the frame made for edits it saved first, or 0.
+	saved int
 }
 
 // Body is a command's own work. It returns whether it changed anything: if not,
@@ -123,11 +125,18 @@ func (a *App) locked(ctx context.Context, command string, body Body) error {
 	if err != nil {
 		return err
 	}
-	if !changed {
+	switch {
+	case changed:
+		return a.record(ctx, command, c)
+	case c.saved > 0:
+		// The save was the change: it ends like one (docs/guide/skills.md "Edit as
+		// usual").
+		a.ui.DropHeld()
+		return a.ended(context.WithoutCancel(ctx), c, c.saved)
+	default:
 		a.ui.Done("nothing to change")
 		return nil
 	}
-	return a.record(ctx, command, c)
 }
 
 // record ends a change: the body has done it, so from here on Ctrl-C waits.
@@ -138,6 +147,11 @@ func (a *App) record(ctx context.Context, command string, c *Change) error {
 		c.undo()
 		return err
 	}
+	return a.ended(ctx, c, g.N)
+}
+
+// ended is the end of a change that made generation n.
+func (a *App) ended(ctx context.Context, c *Change, n int) error {
 	ahead, err := c.Vault.Ahead(ctx)
 	if err != nil {
 		return err
@@ -145,7 +159,7 @@ func (a *App) record(ctx context.Context, command string, c *Change) error {
 	if ahead > 0 {
 		a.ui.Warn(notPushed(ahead), "skl sync")
 	}
-	a.ui.Done(fmt.Sprintf("generation %d · skl rollback to undo", g.N))
+	a.ui.Done(fmt.Sprintf("generation %d · skl rollback to undo", n))
 	return nil
 }
 

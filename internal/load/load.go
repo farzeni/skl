@@ -159,7 +159,15 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 		name := selector.Fold(s.Folder)
 		kept[name] = true
 		onDisk, there := held.owned[name]
-		if there && onDisk.folder == s.Folder && onDisk.manifest.Source == s.String() && onDisk.manifest.Tree == tree {
+		current := there && onDisk.folder == s.Folder && onDisk.manifest.Source == s.String() && onDisk.manifest.Tree == tree
+		if current {
+			// Save-back leaves a folder emptied by hand alone, so it would stay
+			// empty: it's reloaded (docs/guide/skills.md "Edit as usual").
+			if current, err = hasContent(ctx, filepath.Join(dir, onDisk.folder)); err != nil {
+				return err
+			}
+		}
+		if current {
 			p.Copies = append(p.Copies, state.Copy{
 				Name: s.Folder, Target: t, Skill: s.String(), Commit: onDisk.manifest.Commit, Tree: tree,
 			})

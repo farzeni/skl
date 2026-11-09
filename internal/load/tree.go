@@ -72,6 +72,13 @@ func Tree(ctx context.Context, dir string) (string, error) {
 	return treeOf(ctx, dir, manifestFile)
 }
 
+// hasContent reports whether a copy's folder holds anything git keeps, besides its
+// .skl-copy.toml.
+func hasContent(ctx context.Context, dir string) (bool, error) {
+	sum, err := hashFolder(ctx, dir, "", 0, []string{manifestFile}, nil)
+	return sum != nil, err
+}
+
 // treeOf hashes dir without the named entries at its top.
 func treeOf(ctx context.Context, dir string, skip ...string) (string, error) {
 	sum, err := hashFolder(ctx, dir, "", 0, skip, nil)

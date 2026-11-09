@@ -33,6 +33,17 @@ exec skl add data
 cmp stderr nothing.txt
 ! exists $HOME/.skl/generations/5.json
 
+# A save with nothing else to do ends like any change: "◇ saved … ✓ generation 15 ·
+# skl rollback to undo". "git merge-tree sees added, deleted and renamed files": a
+# renamed file.
+mv $HOME/.claude/skills/pr-review/evals/evals.json $HOME/.claude/skills/pr-review/evals/cases.json
+exec skl add data
+cmp stderr saved-alone.txt
+cmp $HOME/.skl/vault/review/pr-review/evals/cases.json evals.json
+! exists $HOME/.skl/vault/review/pr-review/evals/evals.json
+grep '"command": "saved pr-review → review/pr-review"' $HOME/.skl/generations/5.json
+! exists $HOME/.skl/generations/6.json
+
 # "git merge-tree sees added, deleted and renamed files": a deleted file.
 rm $HOME/.claude/skills/pr-review/evals
 exec skl drop data
@@ -74,6 +85,12 @@ stdout '^skl: commit hand edits$'
 rm $HOME/.claude/skills/pr-review
 exec skl add data
 cmp stderr reloaded.txt
+exists $HOME/.skl/vault/review/pr-review/SKILL.md
+cmp $HOME/.claude/skills/pr-review/SKILL.md hand.md
+# Emptied by hand, with only its .skl-copy.toml left, it reloads too.
+rm $HOME/.claude/skills/pr-review/SKILL.md
+exec skl use review/pr-review data
+cmp stderr emptied.txt
 exists $HOME/.skl/vault/review/pr-review/SKILL.md
 cmp $HOME/.claude/skills/pr-review/SKILL.md hand.md
 
@@ -135,47 +152,57 @@ cmp stdout two-commits.txt
 ✓ generation 4 · skl rollback to undo
 -- nothing.txt --
 ✓ nothing to change
+-- saved-alone.txt --
+◇ saved      pr-review → review/pr-review
+             evals/cases.json, evals/evals.json
+! 2 changes not pushed · skl sync
+✓ generation 5 · skl rollback to undo
+-- emptied.txt --
+→ load review/pr-review data
+~ pr-review   updated
+! 4 changes not pushed · skl sync
+✓ generation 14 · skl rollback to undo
 -- deleted.txt --
 ◇ saved      pr-review → review/pr-review
-             evals/evals.json
-◇ generation 5
+             evals/cases.json
+◇ generation 6
 → drop data
 − sql-explain
-! 2 changes not pushed · skl sync
-✓ generation 6 · skl rollback to undo
+! 3 changes not pushed · skl sync
+✓ generation 7 · skl rollback to undo
 -- workspace-only.txt --
 → add data
 + sql-explain
-! 2 changes not pushed · skl sync
-✓ generation 7 · skl rollback to undo
+! 3 changes not pushed · skl sync
+✓ generation 8 · skl rollback to undo
 -- add-data.txt --
 → add data
 + sql-explain
-! 2 changes not pushed · skl sync
-✓ generation 9 · skl rollback to undo
+! 3 changes not pushed · skl sync
+✓ generation 10 · skl rollback to undo
 -- hand.txt --
 ◇ committed  review/pr-review/SKILL.md
-◇ generation 10
+◇ generation 11
 → drop data
 ~ pr-review   updated
 − sql-explain
-! 3 changes not pushed · skl sync
-✓ generation 11 · skl rollback to undo
+! 4 changes not pushed · skl sync
+✓ generation 12 · skl rollback to undo
 -- reloaded.txt --
 → add data
 ~ pr-review   updated
 + sql-explain
-! 3 changes not pushed · skl sync
-✓ generation 12 · skl rollback to undo
+! 4 changes not pushed · skl sync
+✓ generation 13 · skl rollback to undo
 -- merged.txt --
 ◇ saved      pr-review → review/pr-review
              SKILL.md
-◇ generation 15
+◇ generation 17
 → add data
 ~ pr-review   updated
 + sql-explain
-! 6 changes not pushed · skl sync
-✓ generation 16 · skl rollback to undo
+! 7 changes not pushed · skl sync
+✓ generation 18 · skl rollback to undo
 -- conflict.txt --
 ✗ conflict in review/pr-review/SKILL.md · skl sync --continue
 -- in-progress.txt --
@@ -185,12 +212,12 @@ cmp stdout two-commits.txt
 -- two-targets.txt --
 ◇ saved      pr-review → review/pr-review
              SKILL.md
-◇ generation 19
+◇ generation 21
 → add data
 ~ pr-review   updated
 + sql-explain
-! 9 changes not pushed · skl sync
-✓ generation 20 · skl rollback to undo
+! 10 changes not pushed · skl sync
+✓ generation 22 · skl rollback to undo
 -- two-commits.txt --
 skl: save pr-review → review/pr-review
 skl: save pr-review → review/pr-review

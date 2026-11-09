@@ -42,6 +42,7 @@ func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 	if !u.interactive {
 		return 0, u.needsAnswer(q)
 	}
+	u.flush()
 	if u.dumb {
 		return u.askLine(ctx, q)
 	}
