@@ -290,6 +290,44 @@ func (u *UI) Names(k Kind, names []string) {
 	}
 }
 
+// Item is one change for Nested.
+type Item struct {
+	Kind   Kind
+	Name   string // group/name
+	Detail string
+}
+
+// Nested prints changes that belong to the → or ◇ line above, indented two
+// spaces: "  − writing/changelog". Items with no detail share a line as far as
+// the width allows, whatever their kind: "  + data/sql-explain   − someone/pdf".
+func (u *UI) Nested(items []Item) {
+	u.flush()
+	const indent = "  "
+	row := ""
+	end := func() {
+		if row != "" {
+			fmt.Fprintln(u.plan, indent+row)
+			row = ""
+		}
+	}
+	for _, it := range items {
+		item := changeMarks[it.Kind] + " " + Clean(it.Name)
+		switch {
+		case it.Detail != "":
+			end()
+			fmt.Fprintln(u.plan, indent+item+"   "+Clean(it.Detail))
+		case row == "":
+			row = item
+		case len(indent)+lipgloss.Width(row)+3+lipgloss.Width(item) <= u.width:
+			row += "   " + item
+		default:
+			end()
+			row = item
+		}
+	}
+	end()
+}
+
 // Clean makes text safe to print on one line, wherever it came from: a skill's
 // folder name, a frontmatter field, a message from git. It removes escape sequences
 // and control characters, and puts names that are one name in one form, NFC.

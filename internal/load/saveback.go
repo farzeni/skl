@@ -62,6 +62,54 @@ func SaveBack(ctx context.Context, in SaveInput) ([]Saved, error) {
 	return saved, nil
 }
 
+// Preview is what SaveBack would do, made onto the commit onto instead of HEAD: the
+// commit it would leave, and the copies it would save. It writes only git objects,
+// never a ref, the vault's work tree or a copy's .skl-copy.toml: it is how
+// sync --dry-run sees step 1. A conflict is a *vault.ConflictError.
+func Preview(ctx context.Context, in SaveInput, onto string) (string, []Saved, error) {
+	var saved []Saved
+	for _, t := range allTargets(in.Targets, in.Current) {
+		dir := SkillsDir(in.HomeRoot, t)
+		h, err := scan(dir)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, c := range h.copies {
+			m := recordOf(c, t, in.Current)
+			if m.Commit == "" || m.Tree == "" || !vaultSkill(m.Source) {
+				continue
+			}
+			snap, err := snapshotOf(ctx, filepath.Join(dir, c.folder))
+			if err != nil {
+				return "", nil, err
+			}
+			if snap.tree == m.Tree || snap.tree == "" {
+				continue
+			}
+			if err := writeSnapshot(ctx, in.Vault, snap); err != nil {
+				return "", nil, err
+			}
+			before, err := in.Vault.Files(ctx, m.Commit, m.Source)
+			if err != nil {
+				return "", nil, err
+			}
+			next, err := in.Vault.SaveOnto(ctx, onto, vault.Save{
+				Path: m.Source, Base: m.Commit, Tree: snap.tree,
+				Message: "skl: save " + c.folder + " → " + m.Source, Copy: string(t) + " " + c.folder,
+			})
+			if err != nil {
+				return "", nil, err
+			}
+			onto = next
+			saved = append(saved, Saved{
+				Target: t, Name: c.folder, Skill: m.Source,
+				Files: changedFiles(before, snap.files), Commit: next, Tree: snap.tree,
+			})
+		}
+	}
+	return onto, saved, nil
+}
+
 // saveCopy saves one copy if it changed.
 func saveCopy(ctx context.Context, in SaveInput, t config.Target, dir string, c ownedCopy) (Saved, bool, error) {
 	m := recordOf(c, t, in.Current)

@@ -1,0 +1,131 @@
+# docs/guide/sync.md "What sync does"; docs/reference/commands.md "Dry run", "Errors"
+#
+# The dry run plans on what step 1 would commit, not on HEAD; a push that fails
+# keeps the save's generation line. Two machines: this one (HOME=$WORK/home) and
+# the laptop (HOME=$WORK/laptop), against one remote.
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend
+mkdir $WORK/laptop
+env HOME=$WORK/laptop
+exec skl init you/skills
+exec skl use @backend
+
+# The laptop pushes a change to a skill nobody here loads.
+cp style.md $HOME/.skl/vault/writing/style/SKILL.md
+exec skl sync
+cmp stderr laptop-sync.txt
+
+# commands.md "Dry run": "What it would commit, pull, push and reload." A skill
+# set emptied by hand here, with a commit to pull: the plan reloads what the
+# commit and the pull would leave, so review/pr-review goes.
+env HOME=$WORK/home
+cp empty.toml $HOME/.skl/vault/sets/backend.toml
+exec skl sync --dry-run
+cmp stdout emptied-dry.txt
+! stderr .
+exists $HOME/.claude/skills/pr-review
+exec skl sync
+cmp stderr emptied.txt
+! exists $HOME/.claude/skills/pr-review
+
+# Both machines change the same skill set: the dry run sees the conflict the
+# sync would meet, on what step 1 would commit.
+cp mine.toml $HOME/.skl/vault/sets/frontend.toml
+env HOME=$WORK/laptop
+exec skl sync
+cp theirs.toml $HOME/.skl/vault/sets/frontend.toml
+exec skl sync
+env HOME=$WORK/home
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout head-before.txt
+exec skl sync --dry-run
+cmp stdout conflict-dry.txt
+cmp stderr conflict-dry-warn.txt
+exec sh -c 'test "$(git -C $HOME/.skl/vault rev-parse HEAD)" = "$(cat head-before.txt)"'
+exec git -C $HOME/.skl/vault status --porcelain
+stdout 'sets/frontend.toml'
+
+# sync.md: "If the network fails, sync stops after step 1: your changes are saved
+# and committed." A push that fails after the fetch worked still shows the
+# generation the save made.
+env HOME=$WORK/laptop
+cp mine.toml $HOME/.skl/vault/sets/frontend.toml
+chmod 755 bin/git
+env PATH=$WORK/bin:$PATH
+exitcode 1 skl sync
+cmp stderr push-failed.txt
+exec skl status
+stdout '1 change not pushed · skl sync'
+
+-- bin/git --
+#!/bin/sh
+PATH=${PATH#*:}
+case " $* " in
+*" push "*)
+	echo "fatal: unable to access 'https://github.com/you/skills/': Could not resolve host: github.com" >&2
+	exit 128
+esac
+exec git "$@"
+-- seed/LICENSE --
+MIT
+-- seed/sets/backend.toml --
+select = [
+  "review/pr-review",
+]
+-- seed/sets/frontend.toml --
+select = [
+  "review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
+Review.
+-- seed/writing/style/SKILL.md --
+---
+description: house style
+---
+Style.
+-- style.md --
+---
+description: house style
+---
+Style, tighter.
+-- empty.toml --
+select = []
+-- mine.toml --
+select = [
+  "review/pr-review",
+]
+-- theirs.toml --
+select = [
+  "writing/style",
+]
+-- laptop-sync.txt --
+◇ committed  writing/style/SKILL.md
+◇ pushed
+✓ generation 3 · skl rollback to undo
+-- emptied-dry.txt --
+→ commit     sets/backend.toml
+→ pull       1 commit
+→ push
+  − review/pr-review
+-- emptied.txt --
+◇ committed  sets/backend.toml
+◇ generation 3
+◇ pulled     1 commit
+◇ pushed
+  − review/pr-review
+✓ generation 4 · skl rollback to undo
+-- conflict-dry.txt --
+→ commit     sets/frontend.toml
+→ pull       1 commit
+-- conflict-dry-warn.txt --
+! conflict in sets/frontend.toml · skl sync, in a terminal
+-- push-failed.txt --
+◇ committed  sets/frontend.toml
+◇ generation 6
+✗ can't reach github.com (Could not resolve host) · skl sync

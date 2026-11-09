@@ -1,0 +1,7 @@
+# docs/guide/rollback.md "Go back"
+skip 'pending: docs PR #120'
+
+# "If the generations you go back over include changes pulled by skl sync, the
+# revert takes back the other machine's work too, and your next skl sync pushes
+# that. skl warns you when it applies the plan:"
+# ! reverts 3 commits from laptop · skl rollback to undo

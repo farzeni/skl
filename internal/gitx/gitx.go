@@ -78,11 +78,21 @@ func (g *Git) RunInput(ctx context.Context, dir, input string, args ...string) (
 	if err := g.checkVersion(ctx); err != nil {
 		return "", err
 	}
-	return g.run(ctx, dir, input, args)
+	return g.run(ctx, dir, input, args, nil)
 }
 
-func (g *Git) run(ctx context.Context, dir, input string, args []string) (string, error) {
-	env := baseEnv()
+// RunWithIndex is Run with git reading and writing the index file index instead
+// of the repo's own (GIT_INDEX_FILE), so a tree can be built from the work tree
+// without touching what's staged. index must be an absolute path.
+func (g *Git) RunWithIndex(ctx context.Context, dir, index string, args ...string) (string, error) {
+	if err := g.checkVersion(ctx); err != nil {
+		return "", err
+	}
+	return g.run(ctx, dir, "", args, []string{"GIT_INDEX_FILE=" + index})
+}
+
+func (g *Git) run(ctx context.Context, dir, input string, args, extra []string) (string, error) {
+	env := append(baseEnv(), extra...)
 	if ssh := g.sshCommand(ctx, dir); ssh != "" {
 		env = append(env, "GIT_SSH_COMMAND="+ssh)
 	} else {
