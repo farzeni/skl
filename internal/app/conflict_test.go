@@ -18,12 +18,18 @@ func TestSetChanges(t *testing.T) {
 		want  []string
 	}{
 		{"the docs' this machine", []string{"review/pr-review"}, []string{"drop someone/pdf"}},
-		{"the docs' other machine", []string{"review/pr-review", "data/sql-explain", "someone/pdf-tools"},
-			[]string{"add data/sql-explain", "use someone/pdf-tools"}},
+		{
+			"the docs' other machine",
+			[]string{"review/pr-review", "data/sql-explain", "someone/pdf-tools"},
+			[]string{"add data/sql-explain", "use someone/pdf-tools"},
+		},
 		{"added at the top", []string{"writing", "review/pr-review", "someone/pdf"}, []string{"add writing"}},
 		{"two taken out for one", []string{"writing"}, []string{"drop review/pr-review", "use writing"}},
-		{"reordered", []string{"someone/pdf", "review/pr-review"},
-			[]string{"drop review/pr-review", "add review/pr-review"}},
+		{
+			"reordered",
+			[]string{"someone/pdf", "review/pr-review"},
+			[]string{"drop review/pr-review", "add review/pr-review"},
+		},
 		{"unchanged", base, nil},
 	}
 	for _, tt := range tests {
