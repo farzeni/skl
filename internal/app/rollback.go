@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/farzeni/skl/internal/errs"
@@ -152,10 +153,14 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 // unloaded, then a ◇ line for each revert commit, or, for a dry run, a → line for
 // each skill or file it would revert. The warnings come last.
 func (a *App) reportRollback(r *rollback, next *loadNext, done []reverted, wouldRevert []string) {
-	if next.changed || len(done) > 0 || len(wouldRevert) > 0 {
+	revertedUnits := slices.Clone(wouldRevert)
+	for _, d := range done {
+		revertedUnits = append(revertedUnits, d.unit)
+	}
+	if next.changed || len(revertedUnits) > 0 {
 		a.ui.Plan("back to generation %d", r.to.N)
 		if next.changed {
-			a.ui.Nested(nestedChanges(next.plan.Changes))
+			a.ui.Nested(nestedChanges(next.plan.Changes, revertedUnits))
 		}
 	}
 	for _, d := range done {
@@ -169,11 +174,15 @@ func (a *App) reportRollback(r *rollback, next *loadNext, done []reverted, would
 	}
 }
 
-// nestedChanges are the plan's lines by vault skill, for under a → line. A
-// replacement says what it replaces, so it needs no line for what it replaced.
-func nestedChanges(changes []load.Change) []ui.Item {
+// nestedChanges are the plan's lines by vault skill, for under a → line. A loaded
+// skill that's only updated because it's reverted has no line: its revert line
+// says so (rollback.md "Go back" shows the one, not both).
+func nestedChanges(changes []load.Change, reverted []string) []ui.Item {
 	items := make([]ui.Item, 0, len(changes))
 	for _, c := range changes {
+		if c.Kind == load.Replace && c.Detail == "updated" && slices.Contains(reverted, c.Skill) {
+			continue
+		}
 		items = append(items, ui.Item{Kind: uiKind(c.Kind), Name: c.Skill, Detail: c.Detail})
 	}
 	return items

@@ -73,8 +73,8 @@ func (v *Vault) Revert(ctx context.Context, commit, unit, message string) (strin
 			return "", err
 		}
 	}
-	committed, err := v.Commit(ctx, message, unit)
-	if err != nil || !committed {
+	// The index holds the revert and nothing else, since the work tree was clean.
+	if _, err := v.git.Run(ctx, v.dir, "commit", "--quiet", "--message", message); err != nil {
 		v.ResetTo(context.WithoutCancel(ctx), head)
 		return "", err
 	}
@@ -123,10 +123,9 @@ func (v *Vault) object(ctx context.Context, commit, unit string) (string, error)
 // earlier in this command: HEAD and the work tree. It is for undoing skl's own
 // commits before anything records them, and does its best.
 func (v *Vault) ResetTo(ctx context.Context, before string) {
-	if head, err := v.Head(ctx); err == nil && head != before {
-		_, _ = v.git.Run(ctx, v.dir, "update-ref", "HEAD", before, head)
-	}
-	_, _ = v.git.Run(ctx, v.dir, "read-tree", "--reset", "-u", before)
+	// The work tree was clean when skl started changing it, so --hard loses only
+	// what skl did: files it staged go too, untracked and ignored ones stay.
+	_, _ = v.git.Run(ctx, v.dir, "reset", "--hard", "--quiet", before)
 }
 
 // Preview writes into dir, which must not exist yet, the vault as reverting each
@@ -143,6 +142,10 @@ func (v *Vault) Preview(ctx context.Context, commit string, units []string, dir 
 	for _, u := range units {
 		if err := os.RemoveAll(filepath.Join(dir, filepath.FromSlash(u))); err != nil {
 			return err
+		}
+		// A group left empty is gone, as git leaves no empty folder.
+		if g := path.Dir(u); g != "." {
+			_ = os.Remove(filepath.Join(dir, filepath.FromSlash(g)))
 		}
 		was, err := v.object(ctx, commit, u)
 		if err != nil {

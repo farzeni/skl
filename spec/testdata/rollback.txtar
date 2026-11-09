@@ -95,7 +95,19 @@ stderr '^✗ no generation 0 · skl history$'
 exitcode 2 skl rollback ten
 stderr '^✗ ten isn''t a generation number · skl history$'
 exitcode 2 skl rollback 3 4
-! exists $HOME/.skl/generations/12.json
+! exists $HOME/.skl/generations/11.json
+
+# "Undo any change skl made or saved": a named skill set saved by skl save goes
+# too, in a revert commit of its own.
+exec skl save extra
+exists $HOME/.skl/vault/sets/extra.toml
+exec skl rollback
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout undo-save.txt
+! exists $HOME/.skl/vault/sets/extra.toml
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
 
 # "There's nothing to go back to before generation 1."
 env HOME=$WORK/home2
@@ -123,19 +135,16 @@ git -C "$HOME/.skl/vault" merge-base --is-ancestor "$(cat head-6.txt)" HEAD
 1  now      init you/skills
 -- dry-run.txt --
 → back to generation 3
-  ~ review/pr-review   updated
   − writing/changelog
 → revert review/pr-review
 -- back-to-3.txt --
 → back to generation 3
-  ~ review/pr-review   updated
   − writing/changelog
 ◇ reverted   review/pr-review (revert commit SHA)
 ! 3 changes not pushed · skl sync
 ✓ generation 7 · skl rollback to undo
 -- back-to-6.txt --
 → back to generation 6
-  ~ review/pr-review   updated
   + writing/changelog
 ◇ reverted   review/pr-review (revert commit SHA)
 ! 4 changes not pushed · skl sync
@@ -145,7 +154,6 @@ git -C "$HOME/.skl/vault" merge-base --is-ancestor "$(cat head-6.txt)" HEAD
              SKILL.md
 ◇ generation 9
 → back to generation 7
-  ~ review/pr-review   updated
   − writing/changelog
 ◇ reverted   review/pr-review (revert commit SHA)
 ! 6 changes not pushed · skl sync
@@ -159,6 +167,11 @@ git -C "$HOME/.skl/vault" merge-base --is-ancestor "$(cat head-6.txt)" HEAD
 3  now      saved pr-review → review/pr-review
 2  now      use @backend
 1  now      init you/skills
+-- undo-save.txt --
+→ back to generation 10
+◇ reverted   sets/extra.toml (revert commit SHA)
+! 8 changes not pushed · skl sync
+✓ generation 12 · skl rollback to undo
 -- nothing.txt --
 ✓ nothing to change
 -- no-40.txt --
