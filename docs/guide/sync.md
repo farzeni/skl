@@ -22,7 +22,7 @@ skl sync
 ◇ saved      pr-review → review/pr-review
 ◇ committed  sets/backend.toml
 ◇ generation 13
-◇ pulled     3 commits from laptop
+◇ pulled     3 commits
 ◇ pushed
   + data/sql-explain   − someone/pdf
 ◇ checked    2 sources
@@ -48,7 +48,7 @@ If the merge in step 2 conflicts, skl shows which files clash and what each side
 ```
 ! conflict   sets/backend.toml
   this machine   drop someone/pdf
-  laptop         add data/sql-explain
+  other machine  add data/sql-explain
                  use someone/pdf-tools
 ? Resolve   › with Claude   by hand   abort
 ```
@@ -63,9 +63,9 @@ skl runs the [engine](./learn#who-does-the-thinking), the `claude` CLI by defaul
 4. **Land.** skl checks the result (skill sets must hold valid selectors, `SKILL.md` frontmatter must parse), commits the merge with your answers in its message, and carries on with the push.
 
 ```
-◇ merged     data/sql-explain added (laptop only)
+◇ merged     data/sql-explain added (other machine only)
 ? pdf: drop it (this machine)
-  or use someone/pdf-tools (laptop)?
+  or use someone/pdf-tools (other machine)?
   › use someone/pdf-tools
 ◇ sets/backend.toml
     + data/sql-explain   + someone/pdf-tools
