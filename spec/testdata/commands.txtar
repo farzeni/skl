@@ -84,6 +84,7 @@ Commands
   status    Show what's loaded and what needs you
   history   List generations, newest first
   rollback  Go back one generation, or to generation N
+  sync      Commit, pull, push and reload what's loaded
   help      List the commands, or show one command's help
 
 Flags

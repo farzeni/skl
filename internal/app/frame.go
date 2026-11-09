@@ -25,6 +25,9 @@ type Change struct {
 	// Cleanup, if the body sets it, runs once the command is over, however it ended,
 	// while the lock is still held.
 	Cleanup func()
+	// Unchanged, if the body sets it, replaces "nothing to change" as the last line
+	// of a run that made no generation: sync's "up to date" after a push.
+	Unchanged string
 	// saved is the generation the frame made for edits it saved first, or 0.
 	saved int
 }
@@ -133,10 +136,12 @@ func (a *App) locked(ctx context.Context, command string, body Body) error {
 		// usual").
 		a.ui.DropHeld()
 		return a.ended(context.WithoutCancel(ctx), c, c.saved)
+	case c.Unchanged != "":
+		a.ui.Done(c.Unchanged)
 	default:
 		a.ui.Done("nothing to change")
-		return nil
 	}
+	return nil
 }
 
 // record ends a change: the body has done it, so from here on Ctrl-C waits.

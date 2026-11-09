@@ -1,5 +1,5 @@
 # docs/guide/rollback.md "Go back"
-skip 'pending: docs/guide/rollback.md needs skl sync (card #71)'
+skip 'pending: docs PR #120'
 
 # "If the generations you go back over include changes pulled by skl sync, the
 # revert takes back the other machine's work too, and your next skl sync pushes

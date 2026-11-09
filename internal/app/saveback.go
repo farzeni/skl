@@ -66,16 +66,8 @@ func (a *App) saveFirst(ctx context.Context, c *Change) error {
 // recordSave writes the saved copies' records into state.json and makes the save's
 // generation.
 func (a *App) recordSave(ctx context.Context, c *Change, saved []load.Saved, command string) error {
-	if sc, ok := c.State.Scopes[state.User]; ok && len(saved) > 0 {
-		sc.Copies = slices.Clone(sc.Copies)
-		for i, cp := range sc.Copies {
-			for _, s := range saved {
-				if cp.Target == s.Target && cp.Name == s.Name && cp.Skill == s.Skill {
-					sc.Copies[i].Commit, sc.Copies[i].Tree = s.Commit, s.Tree
-				}
-			}
-		}
-		c.State.Scopes[state.User] = sc
+	if _, ok := c.State.Scopes[state.User]; ok && len(saved) > 0 {
+		recordSaved(c.State, saved)
 		if err := c.Lock.Save(ctx, c.State); err != nil {
 			return err
 		}
@@ -87,6 +79,24 @@ func (a *App) recordSave(ctx context.Context, c *Change, saved []load.Saved, com
 	c.saved = g.N
 	a.ui.StepHeld("generation", strconv.Itoa(g.N))
 	return nil
+}
+
+// recordSaved points the user scope's copy records at the commits and trees they
+// were saved as, in st only.
+func recordSaved(st *state.State, saved []load.Saved) {
+	sc, ok := st.Scopes[state.User]
+	if !ok {
+		return
+	}
+	sc.Copies = slices.Clone(sc.Copies)
+	for i, cp := range sc.Copies {
+		for _, s := range saved {
+			if cp.Target == s.Target && cp.Name == s.Name && cp.Skill == s.Skill {
+				sc.Copies[i].Commit, sc.Copies[i].Tree = s.Commit, s.Tree
+			}
+		}
+	}
+	st.Scopes[state.User] = sc
 }
 
 // savedLines is one line per skill: with two targets, a skill saved from both has

@@ -100,6 +100,9 @@ type Input struct {
 	Current  []state.Copy
 	Targets  []config.Target
 	HomeRoot string // what a target's skills folder is under
+	// Saved are copies a save not yet made would record, for a plan that's only
+	// printed (sync --dry-run): their .skl-copy.toml is read as if it held these.
+	Saved []state.Copy
 }
 
 // Compute diffs the selected skills against what's loaded. It only reads.
@@ -135,6 +138,7 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 	if err != nil {
 		return err
 	}
+	held.recorded(t, in.Saved)
 	var wanted []resolve.Skill
 	if slices.Contains(in.Targets, t) {
 		res, skipped := in.Result.Skipping(func(s resolve.Skill) bool {
@@ -339,6 +343,17 @@ func (h held) foreignFor(s resolve.Skill) (string, bool) {
 	}
 	f, ok := h.foreign[selector.Fold(s.Name)]
 	return f, ok
+}
+
+// recorded reads the copies in t's folder as if their .skl-copy.toml held saved.
+func (h held) recorded(t config.Target, saved []state.Copy) {
+	for _, s := range saved {
+		name := selector.Fold(s.Name)
+		if o, ok := h.owned[name]; ok && s.Target == t && o.folder == s.Name && o.manifest.Source == s.Skill {
+			o.manifest.Commit, o.manifest.Tree = s.Commit, s.Tree
+			h.owned[name] = o
+		}
+	}
 }
 
 // scan reads a skills folder. A folder that doesn't exist yet holds nothing. Hidden

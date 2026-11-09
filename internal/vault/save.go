@@ -127,34 +127,13 @@ func (v *Vault) SaveSkill(ctx context.Context, s Save) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	baseTree, err := v.rev(ctx, s.Base+"^{tree}")
-	if err != nil {
-		return "", fmt.Errorf("vault: the commit %s was copied from: %w", short(s.Base), err)
-	}
-	tree, err := v.replaceAt(ctx, baseTree, strings.Split(s.Path, "/"), s.Tree)
+	merged, synthetic, report, err := v.mergeCopy(ctx, head, s)
 	if err != nil {
 		return "", err
 	}
-	if tree == "" { // the vault held nothing else
-		if tree, err = v.git.Run(ctx, v.dir, "mktree", "-z"); err != nil {
-			return "", err
-		}
-		tree = strings.TrimSpace(tree)
+	if merged == "" {
+		return "", v.leaveConflict(ctx, synthetic, s.Message, report)
 	}
-	msg := "skl: " + s.Path + " as loaded\n\nSkl-Copy: " + s.Copy + "\n"
-	synthetic, err := v.git.Run(ctx, v.dir, "commit-tree", tree, "-p", s.Base, "-m", msg)
-	if err != nil {
-		return "", err
-	}
-	synthetic = strings.TrimSpace(synthetic)
-	out, err := v.git.Run(ctx, v.dir, "merge-tree", "--write-tree", "-z", "--name-only", "--no-messages", head, synthetic)
-	if ge, ok := errors.AsType[*gitx.Error](err); ok && ge.Code == 1 && ctx.Err() == nil {
-		return "", v.leaveConflict(ctx, synthetic, s.Message, ge.Stdout)
-	}
-	if err != nil {
-		return "", err
-	}
-	merged, _, _ := strings.Cut(out, "\x00")
 	headTree, err := v.rev(ctx, head+"^{tree}")
 	if err != nil {
 		return "", err
@@ -173,9 +152,86 @@ func (v *Vault) SaveSkill(ctx context.Context, s Save) (string, error) {
 	return v.Head(ctx)
 }
 
+// SaveOnto is what SaveSkill would commit if onto were HEAD: a commit whose parent
+// is onto, or onto itself if the copy changes nothing there. It writes only git
+// objects, never a ref, the index or the work tree: it is how sync --dry-run sees
+// what step 1 would save. A conflict is a *ConflictError.
+func (v *Vault) SaveOnto(ctx context.Context, onto string, s Save) (string, error) {
+	merged, _, report, err := v.mergeCopy(ctx, onto, s)
+	if err != nil {
+		return "", err
+	}
+	if merged == "" {
+		return "", &ConflictError{Paths: conflictPaths(report)}
+	}
+	return v.commitOnto(ctx, onto, merged, s.Message)
+}
+
+// mergeCopy merges a copy into the commit onto with git merge-tree, and returns the
+// merged tree. The merge needs no --merge-base, which only git 2.40 has: a
+// synthetic commit whose parent is the copy's commit, with the skill's folder
+// replaced by the copy, makes that commit the natural merge base of onto and the
+// copy. On a conflict merged is "" and report is merge-tree's output, which names
+// the files that clash.
+func (v *Vault) mergeCopy(ctx context.Context, onto string, s Save) (merged, synthetic, report string, err error) {
+	baseTree, err := v.rev(ctx, s.Base+"^{tree}")
+	if err != nil {
+		return "", "", "", fmt.Errorf("vault: the commit %s was copied from: %w", short(s.Base), err)
+	}
+	tree, err := v.replaceAt(ctx, baseTree, strings.Split(s.Path, "/"), s.Tree)
+	if err != nil {
+		return "", "", "", err
+	}
+	if tree == "" { // the vault held nothing else
+		if tree, err = v.git.Run(ctx, v.dir, "mktree", "-z"); err != nil {
+			return "", "", "", err
+		}
+		tree = strings.TrimSpace(tree)
+	}
+	msg := "skl: " + s.Path + " as loaded\n\nSkl-Copy: " + s.Copy + "\n"
+	synthetic, err = v.git.Run(ctx, v.dir, "commit-tree", tree, "-p", s.Base, "-m", msg)
+	if err != nil {
+		return "", "", "", err
+	}
+	synthetic = strings.TrimSpace(synthetic)
+	out, err := v.git.Run(ctx, v.dir, "merge-tree", "--write-tree", "-z", "--name-only", "--no-messages", onto, synthetic)
+	if ge, ok := errors.AsType[*gitx.Error](err); ok && ge.Code == 1 && ctx.Err() == nil {
+		return "", synthetic, ge.Stdout, nil // 1 is merge-tree's "conflicts"
+	}
+	if err != nil {
+		return "", "", "", err
+	}
+	merged, _, _ = strings.Cut(out, "\x00")
+	return merged, synthetic, out, nil
+}
+
+// commitOnto is a commit of tree whose parent is onto, or onto itself when tree is
+// onto's tree. It changes no ref.
+func (v *Vault) commitOnto(ctx context.Context, onto, tree, message string) (string, error) {
+	ontoTree, err := v.rev(ctx, onto+"^{tree}")
+	if err != nil {
+		return "", err
+	}
+	if tree == ontoTree {
+		return onto, nil
+	}
+	out, err := v.git.Run(ctx, v.dir, "commit-tree", tree, "-p", onto, "-m", message)
+	return strings.TrimSpace(out), err
+}
+
 // leaveConflict runs the merge that merge-tree found conflicts in, so it stays in
 // progress for skl sync --continue or --abort.
 func (v *Vault) leaveConflict(ctx context.Context, synthetic, message, report string) error {
+	paths := conflictPaths(report)
+	_, err := v.git.Run(ctx, v.dir, "merge", "--no-ff", "--no-commit", "--quiet", "-m", message, synthetic)
+	if ge, ok := errors.AsType[*gitx.Error](err); err != nil && (!ok || ge.Code != 1 || ctx.Err() != nil) {
+		return err
+	}
+	return &ConflictError{Paths: paths}
+}
+
+// conflictPaths reads the files that clash from merge-tree -z --name-only output.
+func conflictPaths(report string) []string {
 	_, tail, _ := strings.Cut(report, "\x00") // the merged tree comes first
 	var paths []string
 	for p := range strings.SplitSeq(tail, "\x00") {
@@ -184,11 +240,7 @@ func (v *Vault) leaveConflict(ctx context.Context, synthetic, message, report st
 		}
 		paths = append(paths, p)
 	}
-	_, err := v.git.Run(ctx, v.dir, "merge", "--no-ff", "--no-commit", "--quiet", "-m", message, synthetic)
-	if ge, ok := errors.AsType[*gitx.Error](err); err != nil && (!ok || ge.Code != 1 || ctx.Err() != nil) {
-		return err
-	}
-	return &ConflictError{Paths: paths}
+	return paths
 }
 
 // replaceAt is tree with the entry at parts set to leaf, a tree's name, or removed
