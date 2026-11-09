@@ -1,0 +1,40 @@
+# ptyrun runs a program on a pseudo-terminal and types keys once a question
+# shows; skl save's overwrite question stands in for any question.
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use review
+exec skl save backend
+exec skl add data
+
+# No keys: the program sees a terminal, but nothing answers, so stop with Ctrl-C.
+exitcode 130 ptyrun ctrl-c skl save backend
+stderr '\? Overwrite @backend\?   › no'
+cmp $HOME/.skl/vault/sets/backend.toml before.toml
+
+# Right, then Enter: the second answer.
+exitcode 0 ptyrun right,enter skl save backend
+stderr '\? Overwrite @backend\?   › no'
+cmp $HOME/.skl/vault/sets/backend.toml before.toml
+
+# Enter: the first answer.
+exitcode 0 ptyrun enter skl save backend
+stderr '\? Overwrite @backend\?   › yes'
+grep data $HOME/.skl/vault/sets/backend.toml
+
+# A program that asks nothing just runs; standard output stays its own.
+exec ptyrun - skl status
+stdout 'review/pr-review'
+
+-- before.toml --
+select = [
+  "review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+description: review
+---
+-- seed/data/sql/SKILL.md --
+---
+description: sql
+---
