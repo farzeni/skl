@@ -26,6 +26,9 @@ type selection struct {
 	words []string
 	// next returns the selectors that become active, and any warnings of its own.
 	next func(active []string, sels []selector.Selector, idx *vault.Index) ([]string, []note, error)
+	// saved are copies a save not yet made would record: a dry run plans as if it
+	// had (load.Input.Saved).
+	saved []state.Copy
 }
 
 // note is a warning, built for the command being run.
@@ -167,6 +170,7 @@ func (a *App) prepare(ctx context.Context, v *vault.Vault, st *state.State, s se
 	}
 	plan, err := load.Compute(ctx, load.Input{
 		Vault: v.Dir(), Commit: head, Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root,
+		Saved: s.saved,
 	})
 	if err != nil {
 		return nil, a.planError(err)

@@ -50,13 +50,15 @@ func (a *App) Sync(ctx context.Context, dryRun bool) error {
 			return false, hinted(err, "skl sync")
 		}
 		changed := pulled > 0 || next.changed
-		if !changed {
-			// Only the save, if anything, makes a generation: its line is the last.
-			a.ui.DropHeld()
-		}
-		pushed, err := a.push(ctx, c.Vault, branch, pulled, before)
+		// Unless sync makes a generation of its own, the save's ✓ line is the last
+		// and its ◇ line goes, but only once nothing can fail: a failed push still
+		// shows the generation the save made.
+		pushed, err := a.push(ctx, c.Vault, branch, pulled, before, !changed)
 		if err != nil {
 			return false, err
+		}
+		if !changed {
+			a.ui.DropHeld()
 		}
 		if pushed {
 			c.Unchanged = "up to date" // sync.md: a push-only sync makes no generation
@@ -115,8 +117,8 @@ func (a *App) pull(ctx context.Context, v *vault.Vault, branch string) (int, err
 
 // push is step 3, when the vault has commits origin doesn't. If it fails, a merge
 // step 2 made is taken back, so the vault is as step 1 left it. It reports
-// whether it pushed.
-func (a *App) push(ctx context.Context, v *vault.Vault, branch string, pulled int, before string) (bool, error) {
+// whether it pushed. dropHeld drops the held ◇ line once the push has worked.
+func (a *App) push(ctx context.Context, v *vault.Vault, branch string, pulled int, before string, dropHeld bool) (bool, error) {
 	ahead, err := v.Ahead(ctx)
 	if err != nil || ahead == 0 {
 		return false, err
@@ -130,6 +132,9 @@ func (a *App) push(ctx context.Context, v *vault.Vault, branch string, pulled in
 		}
 		origin, _ := v.Origin(context.WithoutCancel(ctx))
 		return false, a.reachError(err, origin)
+	}
+	if dropHeld {
+		a.ui.DropHeld()
 	}
 	a.ui.Step("pushed", "")
 	return true, nil
@@ -220,14 +225,33 @@ func (a *App) syncDryRun(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	head, err := v.Head(ctx)
+	if err != nil {
+		return err
+	}
+	// Step 1 as it would go: the hand edits on HEAD, then the copies saved onto
+	// that, as git objects only.
 	edits, err := v.HandEdits(ctx)
 	if err != nil {
 		return err
 	}
-	saves, err := a.unsaved(ctx, st, root)
+	pending, err := v.Pending(ctx)
 	if err != nil {
 		return err
 	}
+	pending, saves, err := load.Preview(ctx, load.SaveInput{
+		Vault: v, HomeRoot: root, Targets: a.cfg.Targets, Current: st.Scopes[state.User].Copies,
+	}, pending)
+	if ce, ok := errors.AsType[*vault.ConflictError](err); ok {
+		a.planCommit(edits, nil)
+		a.ui.Warn(ce.Error(), "skl sync")
+		return nil
+	}
+	if err != nil {
+		return a.planError(err)
+	}
+	// Fetching changes only origin's branches in the vault, which every git fetch
+	// may do, so the dry run takes no lock.
 	branch, err := a.fetch(ctx, v)
 	if err != nil {
 		return err
@@ -241,17 +265,19 @@ func (a *App) syncDryRun(ctx context.Context) error {
 		return err
 	}
 
-	if len(edits) > 0 {
-		a.ui.Plan("%s", planLine("commit", strings.Join(edits, ", ")))
-	}
+	a.planCommit(edits, saves)
+	// The plan reloads against the copies as step 1 would record them.
+	recordSaved(st, saves)
+	reload := reloading()
 	for _, s := range saves {
-		a.ui.Plan("%s", planLine("save", s.Name+" → "+s.Skill))
+		reload.saved = append(reload.saved, state.Copy{
+			Name: s.Name, Target: s.Target, Skill: s.Skill, Commit: s.Commit, Tree: s.Tree,
+		})
 	}
-	merged := v
+	after := pending
 	if len(incoming) > 0 {
 		a.ui.Plan("%s", planLine("pull", commits(len(incoming))))
-		snap, conflicts, cleanup, err := a.mergedSnapshot(ctx, v, theirs)
-		defer cleanup()
+		tree, conflicts, err := v.MergedTree(ctx, pending, theirs)
 		if err != nil {
 			return err
 		}
@@ -259,20 +285,40 @@ func (a *App) syncDryRun(ctx context.Context) error {
 			a.ui.Warn("conflict in "+strings.Join(conflicts, ", "), "skl sync, in a terminal")
 			return nil
 		}
-		merged = snap
+		after = tree
 	}
-	if ahead > 0 || len(edits) > 0 || len(saves) > 0 {
+	if ahead > 0 || pending != head {
 		a.ui.Plan("push")
 	}
-	next, err := a.prepare(ctx, merged, st, reloading(), nil, root)
+	merged := v
+	if after != head {
+		snap, cleanup, err := a.snapshot(ctx, v, after)
+		defer cleanup()
+		if err != nil {
+			return err
+		}
+		merged = snap
+	}
+	next, err := a.prepare(ctx, merged, st, reload, nil, root)
 	if err != nil {
 		return hinted(err, "skl sync")
 	}
 	a.reportReload(st, next)
-	if len(edits) == 0 && len(saves) == 0 && len(incoming) == 0 && ahead == 0 && !next.changed {
+	if pending == head && len(incoming) == 0 && ahead == 0 && !next.changed {
 		a.ui.Done("nothing to change")
 	}
 	return nil
+}
+
+// planCommit is the plan's step 1: the hand edits it would commit, then the copies
+// it would save.
+func (a *App) planCommit(edits []string, saves []load.Saved) {
+	if len(edits) > 0 {
+		a.ui.Plan("%s", planLine("commit", strings.Join(edits, ", ")))
+	}
+	for _, s := range savedLines(saves) {
+		a.ui.Plan("%s", planLine("save", s.Name+" → "+s.Skill))
+	}
 }
 
 // planLine is a → line laid out like a ◇ step: the label padded so details line up.
@@ -280,43 +326,19 @@ func planLine(label, detail string) string {
 	return fmt.Sprintf("%-10s %s", label, detail)
 }
 
-// unsaved is the loaded skills whose copies changed: what step 1 would save back.
-func (a *App) unsaved(ctx context.Context, st *state.State, root string) ([]load.Loaded, error) {
-	current := st.Scopes[state.User]
-	found, err := load.Inspect(ctx, load.Input{Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root})
-	if err != nil {
-		return nil, a.planError(err)
-	}
-	var changed []load.Loaded
-	for _, l := range found.Loaded {
-		if l.Changed && l.Skill != "" {
-			changed = append(changed, l)
-		}
-	}
-	return changed, nil
-}
-
-// mergedSnapshot is the vault as a merge of theirs would leave it, written to a
-// temporary folder that cleanup removes. Its Head is theirs: the plan is only
-// printed, never applied. Nothing in the vault changes.
-func (a *App) mergedSnapshot(ctx context.Context, v *vault.Vault, theirs string) (*vault.Vault, []string, func(), error) {
+// snapshot is the vault as the tree or commit at would leave it, written to a
+// temporary folder that cleanup removes. Its Head is at: the plan is only printed,
+// never applied. Nothing in the vault changes.
+func (a *App) snapshot(ctx context.Context, v *vault.Vault, at string) (*vault.Vault, func(), error) {
 	none := func() {}
-	tree, conflicts, err := v.MergedTree(ctx, theirs)
-	if err != nil || len(conflicts) > 0 {
-		return nil, conflicts, none, err
-	}
-	theirsCommit, err := v.Resolve(ctx, theirs)
-	if err != nil {
-		return nil, nil, none, err
-	}
 	dir, err := os.MkdirTemp("", "skl-sync-")
 	if err != nil {
-		return nil, nil, none, fmt.Errorf("sync: %w", err)
+		return nil, none, fmt.Errorf("sync: %w", err)
 	}
 	cleanup := func() { _ = os.RemoveAll(dir) }
-	snap, err := v.Snapshot(ctx, tree, theirsCommit, filepath.Join(dir, "vault"))
+	snap, err := v.Snapshot(ctx, at, at, filepath.Join(dir, "vault"))
 	if err != nil {
-		return nil, nil, cleanup, err
+		return nil, cleanup, err
 	}
-	return snap, nil, cleanup, nil
+	return snap, cleanup, nil
 }

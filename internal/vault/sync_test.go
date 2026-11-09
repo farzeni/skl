@@ -92,7 +92,7 @@ func TestMergeConflictUndone(t *testing.T) {
 	if err := v.Fetch(ctx); err != nil {
 		t.Fatal(err)
 	}
-	tree, conflicts, err := v.MergedTree(ctx, "refs/remotes/origin/main")
+	tree, conflicts, err := v.MergedTree(ctx, "HEAD", "refs/remotes/origin/main")
 	if err != nil || tree == "" || !slices.Equal(conflicts, []string{"a.txt"}) {
 		t.Errorf("MergedTree = %q, %v, %v", tree, conflicts, err)
 	}
@@ -175,7 +175,7 @@ func TestSnapshot(t *testing.T) {
 	if err := v.Fetch(ctx); err != nil {
 		t.Fatal(err)
 	}
-	tree, conflicts, err := v.MergedTree(ctx, "refs/remotes/origin/main")
+	tree, conflicts, err := v.MergedTree(ctx, "HEAD", "refs/remotes/origin/main")
 	if err != nil || len(conflicts) > 0 {
 		t.Fatalf("MergedTree = %v, %v", conflicts, err)
 	}
@@ -207,5 +207,36 @@ func TestSnapshot(t *testing.T) {
 	// The vault itself didn't change.
 	if _, err := os.Stat(filepath.Join(v.dir, "g")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("vault has g: %v", err)
+	}
+}
+
+// Pending is what step 1 would commit, made without touching what's staged, the
+// work tree or any ref: the dry run plans on it.
+func TestPending(t *testing.T) {
+	ctx := context.Background()
+	v, _ := twoClones(t)
+	head := run(t, v.dir, "rev-parse", "HEAD")
+	if got, err := v.Pending(ctx); err != nil || got != head {
+		t.Fatalf("Pending with no edits = %q, %v; want HEAD", got, err)
+	}
+	write(t, filepath.Join(v.dir, "a.txt"), "one\n")
+	write(t, filepath.Join(v.dir, "new.txt"), "new\n")
+	run(t, v.dir, "add", "new.txt")
+	status := run(t, v.dir, "status", "--porcelain")
+	got, err := v.Pending(ctx)
+	if err != nil || got == head {
+		t.Fatalf("Pending = %q, %v", got, err)
+	}
+	if parent := run(t, v.dir, "rev-parse", got+"^"); parent != head {
+		t.Errorf("Pending's parent = %s, want HEAD", parent)
+	}
+	if a := run(t, v.dir, "show", got+":a.txt"); a != "one" {
+		t.Errorf("a.txt in Pending = %q", a)
+	}
+	if after := run(t, v.dir, "status", "--porcelain"); after != status {
+		t.Errorf("status changed:\n%s\nwas\n%s", after, status)
+	}
+	if now := run(t, v.dir, "rev-parse", "HEAD"); now != head {
+		t.Errorf("HEAD moved to %s", now)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/farzeni/skl/internal/gitx"
@@ -113,11 +114,11 @@ func (v *Vault) Push(ctx context.Context, branch string) error {
 	return err
 }
 
-// MergedTree is the tree a merge of ref into HEAD would check out, and the files
-// that would clash. It writes git objects but changes no ref, the index or the
+// MergedTree is the tree a merge of ref into the commit from would check out, and
+// the files that would clash. It writes git objects but changes no ref, the index or the
 // work tree: it is how sync --dry-run sees what it would reload.
-func (v *Vault) MergedTree(ctx context.Context, ref string) (tree string, conflicts []string, err error) {
-	out, err := v.git.Run(ctx, v.dir, "merge-tree", "--write-tree", "--name-only", "-z", "--no-messages", "HEAD", ref)
+func (v *Vault) MergedTree(ctx context.Context, from, ref string) (tree string, conflicts []string, err error) {
+	out, err := v.git.Run(ctx, v.dir, "merge-tree", "--write-tree", "--name-only", "-z", "--no-messages", from, ref)
 	if ge, ok := errors.AsType[*gitx.Error](err); ok && ge.Code == 1 && ctx.Err() == nil {
 		// 1 is merge-tree's "conflicts": the tree, then the files that clash.
 		fields := strings.Split(strings.TrimSuffix(ge.Stdout, "\x00"), "\x00")
@@ -198,4 +199,32 @@ func writeRootFile(root *os.Root, name string, r io.Reader, mode os.FileMode) er
 func (v *Vault) Resolve(ctx context.Context, ref string) (string, error) {
 	out, err := v.git.Run(ctx, v.dir, "rev-parse", "--verify", ref+"^{commit}")
 	return strings.TrimSpace(out), err
+}
+
+// Pending is the commit the hand edits in the work tree would make on HEAD, as
+// skl commits them (git add -A, so the vault's .gitignore applies), or HEAD if
+// there are none. It builds the tree in an index of its own and writes only git
+// objects: what's staged, the work tree and every ref stay as they are. It is how
+// sync --dry-run sees what step 1 would commit.
+func (v *Vault) Pending(ctx context.Context) (string, error) {
+	head, err := v.Head(ctx)
+	if err != nil {
+		return "", err
+	}
+	tmp, err := os.MkdirTemp("", "skl-index-")
+	if err != nil {
+		return "", fmt.Errorf("vault: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	index := filepath.Join(tmp, "index")
+	for _, args := range [][]string{{"read-tree", head}, {"add", "-A"}} {
+		if _, err := v.git.RunWithIndex(ctx, v.dir, index, args...); err != nil {
+			return "", err
+		}
+	}
+	tree, err := v.git.RunWithIndex(ctx, v.dir, index, "write-tree")
+	if err != nil {
+		return "", err
+	}
+	return v.commitOnto(ctx, head, strings.TrimSpace(tree), "skl: commit hand edits")
 }
