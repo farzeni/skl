@@ -26,7 +26,8 @@ cp stdout seed-head.txt
 exec git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main
 exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(cat seed-head.txt)"'
 
-# "3. Push."
+# "3. Push." A sync with nothing else to do ends "◇ pushed", "✓ up to date"
+# (SKL, 2026-11-09, with the docs PR skl/docs/no-machine-name).
 exec skl sync
 cmp stderr laptop-sync.txt
 exec git -C $HOME/.skl/vault rev-parse HEAD
@@ -58,7 +59,8 @@ exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/
 # "1. Commit. Changes to your loaded skills … are saved back, your hand edits
 # become one commit, and skl lists the files. 2. Pull. skl fetches the vault and
 # merges. 3. Push. 4. Reload. … A skill set changed on another machine, or a skill
-# deleted there, takes effect here."
+# deleted there, takes effect here." The output: "◇ pulled     3 commits", with no
+# machine name (the user, 2026-11-09; docs PR skl/docs/no-machine-name).
 exec skl sync
 cmp stderr sync.txt
 exists $HOME/.claude/skills/sql-explain
@@ -170,7 +172,7 @@ description: review a PR
 Review, carefully.
 -- laptop-sync.txt --
 ◇ pushed
-✓ nothing to change
+✓ up to date
 -- dry-run.txt --
 → commit     sets/frontend.toml
 → save       pr-review → review/pr-review

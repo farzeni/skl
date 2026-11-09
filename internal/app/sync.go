@@ -54,8 +54,12 @@ func (a *App) Sync(ctx context.Context, dryRun bool) error {
 			// Only the save, if anything, makes a generation: its line is the last.
 			a.ui.DropHeld()
 		}
-		if err := a.push(ctx, c.Vault, branch, pulled, before); err != nil {
+		pushed, err := a.push(ctx, c.Vault, branch, pulled, before)
+		if err != nil {
 			return false, err
+		}
+		if pushed {
+			c.Unchanged = "up to date" // sync.md: a push-only sync makes no generation
 		}
 		a.reportReload(c.State, next)
 		if next.changed {
@@ -110,24 +114,25 @@ func (a *App) pull(ctx context.Context, v *vault.Vault, branch string) (int, err
 }
 
 // push is step 3, when the vault has commits origin doesn't. If it fails, a merge
-// step 2 made is taken back, so the vault is as step 1 left it.
-func (a *App) push(ctx context.Context, v *vault.Vault, branch string, pulled int, before string) error {
+// step 2 made is taken back, so the vault is as step 1 left it. It reports
+// whether it pushed.
+func (a *App) push(ctx context.Context, v *vault.Vault, branch string, pulled int, before string) (bool, error) {
 	ahead, err := v.Ahead(ctx)
 	if err != nil || ahead == 0 {
-		return err
+		return false, err
 	}
 	if err := v.Push(ctx, branch); err != nil {
 		if pulled > 0 {
 			v.Unmerge(context.WithoutCancel(ctx), before)
 		}
 		if errors.Is(err, context.Canceled) {
-			return err
+			return false, err
 		}
 		origin, _ := v.Origin(context.WithoutCancel(ctx))
-		return a.reachError(err, origin)
+		return false, a.reachError(err, origin)
 	}
 	a.ui.Step("pushed", "")
-	return nil
+	return true, nil
 }
 
 // reloading is step 4's selection: the selectors loaded in the user scope, resolved
