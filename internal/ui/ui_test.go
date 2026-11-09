@@ -297,6 +297,24 @@ func TestNamesShareALineUpToTheWidth(t *testing.T) {
 	}
 }
 
+// sync.md: "  + data/sql-explain   − someone/pdf", nested under the step above.
+func TestNestedMixesKindsAndKeepsDetailsApart(t *testing.T) {
+	var out strings.Builder
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out}, colorprofile.NoTTY, 24, false)
+	u.Nested([]Item{
+		{Kind: Loaded, Name: "a/bbbbb"},
+		{Kind: Unloaded, Name: "c/ddddd"},
+		{Kind: Loaded, Name: "e/fffff"},
+		{Kind: Replaced, Name: "g/hhhhh", Detail: "updated"},
+		{Kind: Unloaded, Name: "x\x1b[2Jy"},
+	})
+	u.Nested(nil)
+	want := "  + a/bbbbb   − c/ddddd\n  + e/fffff\n  ~ g/hhhhh   updated\n  − xy\n"
+	if out.String() != want {
+		t.Errorf("got %q, want %q", out.String(), want)
+	}
+}
+
 func TestEveryLineIsCleaned(t *testing.T) {
 	var out strings.Builder
 	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out}, colorprofile.NoTTY, 200, false)

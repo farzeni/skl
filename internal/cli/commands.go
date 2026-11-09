@@ -104,6 +104,21 @@ func (c *cli) commands() []*Command {
 			},
 		},
 		{
+			Name:    "sync",
+			Summary: "Commit, pull, push and reload what's loaded",
+			Help: "Save your changes and commit hand edits in the vault, merge what your other\n" +
+				"machines pushed (never a rebase), push, then reload what's loaded.",
+			Example: "skl sync",
+			Flags:   []Flag{dryRun},
+			Run: func(ctx context.Context, in Input) error {
+				a, err := c.app(ctx)
+				if err != nil {
+					return err
+				}
+				return a.Sync(ctx, in.Has("dry-run"))
+			},
+		},
+		{
 			Name:    "help",
 			Args:    "[command]",
 			Summary: "List the commands, or show one command's help",

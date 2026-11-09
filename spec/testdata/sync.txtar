@@ -1,0 +1,194 @@
+# docs/guide/sync.md "What sync does", "What gets committed";
+# docs/reference/commands.md "Dry run", "Errors"
+#
+# Two machines in one script: this one (HOME=$WORK/home) and the laptop
+# (HOME=$WORK/laptop), against one remote.
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend writing
+mkdir $WORK/laptop
+env HOME=$WORK/laptop
+exec skl init you/skills
+exec skl use @backend writing
+
+# "Commands that change the vault … commit right away on this machine and never
+# push." The laptop changes a skill set and deletes a skill; skl commits both and
+# pushes nothing.
+cp backend-laptop.toml $HOME/.skl/vault/sets/backend.toml
+rm $HOME/.skl/vault/writing/changelog
+exec skl add data
+# "skl never pushes on its own, so it reminds you instead: … the last line of
+# each command that changes something says what isn't pushed yet."
+stderr '! 1 change not pushed · skl sync\n✓ generation 4 · skl rollback to undo\n\z'
+exec git -C $HOME/.skl/vault rev-parse origin/main
+cp stdout seed-head.txt
+exec git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main
+exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(cat seed-head.txt)"'
+
+# "3. Push."
+exec skl sync
+cmp stderr laptop-sync.txt
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout laptop-head.txt
+exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(cat laptop-head.txt)"'
+exec skl status
+! stdout 'not pushed'
+
+# Back on this machine, which changed things of its own meanwhile.
+env HOME=$WORK/home
+cp edited.md $HOME/.claude/skills/pr-review/SKILL.md
+cp frontend.toml $HOME/.skl/vault/sets/frontend.toml
+
+# --dry-run: "What it would commit, pull, push and reload. It fetches the remote
+# but doesn't merge or push."
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout head-before.txt
+exec skl sync --dry-run
+cmp stdout dry-run.txt
+! stderr .
+exec sh -c 'test "$(git -C $HOME/.skl/vault rev-parse HEAD)" = "$(cat head-before.txt)"'
+exec sh -c 'test "$(git -C $HOME/.skl/vault rev-parse refs/remotes/origin/main)" = "$(cat laptop-head.txt)"'
+exec git -C $HOME/.skl/vault status --porcelain
+stdout 'sets/frontend.toml'
+exists $HOME/.claude/skills/changelog
+! exists $HOME/.claude/skills/sql-explain
+exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(cat laptop-head.txt)"'
+
+# "1. Commit. Changes to your loaded skills … are saved back, your hand edits
+# become one commit, and skl lists the files. 2. Pull. skl fetches the vault and
+# merges. 3. Push. 4. Reload. … A skill set changed on another machine, or a skill
+# deleted there, takes effect here."
+exec skl sync
+cmp stderr sync.txt
+exists $HOME/.claude/skills/sql-explain
+! exists $HOME/.claude/skills/changelog
+exists $HOME/.claude/skills/style
+# "It never rebases, so no commit is rewritten."
+exec git -C $HOME/.skl/vault log --merges --format=%s
+stdout .
+exec sh -c 'git -C $HOME/.skl/vault merge-base --is-ancestor "$(cat laptop-head.txt)" HEAD'
+exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(git -C $HOME/.skl/vault rev-parse HEAD)"'
+# "Saving your changes first is a generation of its own, … and the sync is the
+# next one."
+exec skl history
+stdout '^ *\d+ .*sync$'
+stdout 'saved pr-review → review/pr-review'
+
+# The laptop takes this machine's changes: a fast-forward, nothing to push.
+env HOME=$WORK/laptop
+exec skl sync
+cmp stderr laptop-pull.txt
+cmp $HOME/.claude/skills/pr-review/SKILL.md edited.md
+exec skl sync
+cmp stderr nothing.txt
+
+# "If the network fails, sync stops after step 1: your changes are saved and
+# committed, and skl status lists them as not pushed." commands.md: "✗ can't reach
+# github.com (Could not resolve host) · skl sync"
+env HOME=$WORK/home
+chmod 755 bin/git
+env PATH=$WORK/bin:$PATH
+cp backend-here.toml $HOME/.skl/vault/sets/backend.toml
+exitcode 1 skl sync
+cmp stderr offline.txt
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+exec git -C $HOME/.skl/vault log -1 --format=%s
+stdout 'hand edits'
+exec skl status
+stdout '1 change not pushed · skl sync'
+exitcode 1 skl sync --dry-run
+cmp stderr offline-dry.txt
+
+-- bin/git --
+#!/bin/sh
+PATH=${PATH#*:}
+case " $* " in
+*" fetch "*|*" push "*)
+	echo "fatal: unable to access 'https://github.com/you/skills/': Could not resolve host: github.com" >&2
+	exit 128
+esac
+exec git "$@"
+-- seed/LICENSE --
+MIT
+-- seed/sets/backend.toml --
+select = [
+  "review/pr-review",
+]
+-- seed/sets/frontend.toml --
+select = [
+  "review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
+Review.
+-- seed/data/sql-explain/SKILL.md --
+---
+description: explain SQL
+---
+SQL.
+-- seed/writing/changelog/SKILL.md --
+---
+description: write a changelog
+---
+Log.
+-- seed/writing/style/SKILL.md --
+---
+description: house style
+---
+Style.
+-- backend-laptop.toml --
+select = [
+  "review/pr-review",
+  "data/sql-explain",
+]
+-- backend-here.toml --
+select = [
+  "review/pr-review",
+  "data/sql-explain",
+  "writing/style",
+]
+-- frontend.toml --
+select = [
+  "review/pr-review",
+]
+-- edited.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, carefully.
+-- laptop-sync.txt --
+◇ pushed
+✓ nothing to change
+-- dry-run.txt --
+→ commit     sets/frontend.toml
+→ save       pr-review → review/pr-review
+→ pull       1 commit
+→ push
+  + data/sql-explain   − writing/changelog
+-- sync.txt --
+◇ committed  sets/frontend.toml
+◇ saved      pr-review → review/pr-review
+             SKILL.md
+◇ generation 3
+◇ pulled     1 commit
+◇ pushed
+  + data/sql-explain   − writing/changelog
+✓ generation 4 · skl rollback to undo
+-- laptop-pull.txt --
+◇ pulled     3 commits
+  ~ review/pr-review   updated
+✓ generation 5 · skl rollback to undo
+-- nothing.txt --
+✓ nothing to change
+-- offline.txt --
+◇ committed  sets/backend.toml
+◇ generation 5
+✗ can't reach github.com (Could not resolve host) · skl sync
+-- offline-dry.txt --
+✗ can't reach github.com (Could not resolve host) · skl sync
