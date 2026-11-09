@@ -154,7 +154,7 @@ func TestBranchDetached(t *testing.T) {
 }
 
 // sync --dry-run reads the vault a merge would leave from a Snapshot: files,
-// modes and links, and the Head it was given.
+// modes and links.
 func TestSnapshot(t *testing.T) {
 	ctx := context.Background()
 	v, other := twoClones(t)
@@ -179,17 +179,9 @@ func TestSnapshot(t *testing.T) {
 	if err != nil || len(conflicts) > 0 {
 		t.Fatalf("MergedTree = %v, %v", conflicts, err)
 	}
-	head, err := v.Resolve(ctx, "refs/remotes/origin/main")
-	if err != nil {
-		t.Fatal(err)
-	}
 	dir := filepath.Join(t.TempDir(), "snap")
-	snap, err := v.Snapshot(ctx, tree, head, dir)
-	if err != nil {
+	if err := v.Snapshot(ctx, tree, dir); err != nil {
 		t.Fatal(err)
-	}
-	if got, err := snap.Head(ctx); err != nil || got != head {
-		t.Errorf("Head = %q, %v", got, err)
 	}
 	if got, err := os.ReadFile(filepath.Join(dir, "g", "s", "SKILL.md")); err != nil || string(got) != "skill\n" {
 		t.Errorf("SKILL.md = %q, %v", got, err)
@@ -200,7 +192,7 @@ func TestSnapshot(t *testing.T) {
 	if target, err := os.Readlink(filepath.Join(dir, "g", "s", "link")); err != nil || target != "SKILL.md" {
 		t.Errorf("link = %q, %v", target, err)
 	}
-	idx, err := snap.Index(ctx)
+	idx, err := IndexAt(ctx, dir)
 	if err != nil || len(idx.Skills("g")) != 1 {
 		t.Errorf("Index: %v", err)
 	}

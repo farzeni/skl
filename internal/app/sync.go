@@ -290,16 +290,7 @@ func (a *App) syncDryRun(ctx context.Context) error {
 	if ahead > 0 || pending != head {
 		a.ui.Plan("push")
 	}
-	merged := v
-	if after != head {
-		snap, cleanup, err := a.snapshot(ctx, v, after)
-		defer cleanup()
-		if err != nil {
-			return err
-		}
-		merged = snap
-	}
-	next, err := a.prepare(ctx, merged, st, reload, nil, root)
+	next, err := a.planReload(ctx, v, st, reload, root, head, after)
 	if err != nil {
 		return hinted(err, "skl sync")
 	}
@@ -326,19 +317,25 @@ func planLine(label, detail string) string {
 	return fmt.Sprintf("%-10s %s", label, detail)
 }
 
-// snapshot is the vault as the tree or commit at would leave it, written to a
-// temporary folder that cleanup removes. Its Head is at: the plan is only printed,
-// never applied. Nothing in the vault changes.
-func (a *App) snapshot(ctx context.Context, v *vault.Vault, at string) (*vault.Vault, func(), error) {
-	none := func() {}
-	dir, err := os.MkdirTemp("", "skl-sync-")
-	if err != nil {
-		return nil, none, fmt.Errorf("sync: %w", err)
+// planReload plans step 4 against the vault as at, a commit or a tree, would leave
+// it: the vault itself if that's HEAD, else its files written to a temporary
+// folder, as rollback --dry-run does. Nothing in the vault changes.
+func (a *App) planReload(ctx context.Context, v *vault.Vault, st *state.State, s selection, root, head, at string) (*loadNext, error) {
+	if at == head {
+		return a.prepare(ctx, v, st, s, nil, root)
 	}
-	cleanup := func() { _ = os.RemoveAll(dir) }
-	snap, err := v.Snapshot(ctx, at, at, filepath.Join(dir, "vault"))
+	tmp, err := os.MkdirTemp("", "skl-sync-")
 	if err != nil {
-		return nil, cleanup, err
+		return nil, fmt.Errorf("sync: %w", err)
 	}
-	return snap, cleanup, nil
+	defer func() { _ = os.RemoveAll(tmp) }()
+	dir := filepath.Join(tmp, "vault")
+	if err := v.Snapshot(ctx, at, dir); err != nil {
+		return nil, err
+	}
+	idx, err := vault.IndexAt(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	return a.prepareAt(ctx, vaultView{dir: dir, head: at, idx: idx}, st, s, nil, root)
 }

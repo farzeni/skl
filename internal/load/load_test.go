@@ -488,8 +488,8 @@ func TestChangeLines(t *testing.T) {
 	// A skill from somewhere else takes the name.
 	p := f.plan(t, copies, other)
 	want := []Change{
-		{Kind: Replace, Name: "a", Detail: "o/a replaces g/a"},
-		{Kind: Unload, Name: "b"},
+		{Kind: Replace, Name: "a", Skill: "o/a", Detail: "o/a replaces g/a"},
+		{Kind: Unload, Name: "b", Skill: "g/b"},
 	}
 	if !slices.Equal(p.Changes, want) {
 		t.Errorf("changes = %+v, want %+v", p.Changes, want)
@@ -498,7 +498,7 @@ func TestChangeLines(t *testing.T) {
 	// The same skill, changed in the vault.
 	write(t, filepath.Join(f.vault, "g/a/SKILL.md"), "A2\n", 0o644)
 	p = f.plan(t, copies, f.a, f.b)
-	if want := []Change{{Kind: Replace, Name: "a", Detail: "updated"}}; !slices.Equal(p.Changes, want) {
+	if want := []Change{{Kind: Replace, Name: "a", Skill: "g/a", Detail: "updated"}}; !slices.Equal(p.Changes, want) {
 		t.Errorf("changes = %+v, want %+v", p.Changes, want)
 	}
 }
@@ -517,11 +517,11 @@ func TestTwoTargets(t *testing.T) {
 		}
 	}
 	p := f.plan(t, nil, f.b)
-	if want := []Change{{Kind: Load, Name: "b"}}; !slices.Equal(p.Changes, want) {
+	if want := []Change{{Kind: Load, Name: "b", Skill: "g/b"}}; !slices.Equal(p.Changes, want) {
 		t.Errorf("changes = %+v", p.Changes)
 	}
 	p = f.plan(t, copies, f.b)
-	want := []Change{{Kind: Load, Name: "b"}, {Kind: Unload, Name: "a"}}
+	want := []Change{{Kind: Load, Name: "b", Skill: "g/b"}, {Kind: Unload, Name: "a", Skill: "g/a"}}
 	if !slices.Equal(p.Changes, want) {
 		t.Errorf("changes = %+v, want %+v", p.Changes, want)
 	}

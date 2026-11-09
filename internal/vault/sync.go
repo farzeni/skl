@@ -1,11 +1,9 @@
 package vault
 
 import (
-	"archive/tar"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -136,63 +134,11 @@ func (v *Vault) MergedTree(ctx context.Context, from, ref string) (tree string, 
 	return strings.TrimSpace(tree), nil, nil
 }
 
-// Snapshot writes tree's files into dir, which must not exist, and returns a
-// Vault that reads them: an Index of what a merge would leave, for
-// sync --dry-run. It has no git of its own: only its files, its Dir and its Head,
-// which is head, can be read.
-func (v *Vault) Snapshot(ctx context.Context, tree, head, dir string) (*Vault, error) {
-	out, err := v.git.Run(ctx, v.dir, "archive", "--format=tar", tree)
-	if err != nil {
-		return nil, err
-	}
-	if err := untar(strings.NewReader(out), dir); err != nil {
-		return nil, fmt.Errorf("vault: %w", err)
-	}
-	return &Vault{git: v.git, dir: dir, head: head}, nil
-}
-
-// untar writes a tar from git archive into dir: folders, files with their
-// executable bit, and links, each kept inside dir.
-func untar(r io.Reader, dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = root.Close() }() // read-only use of the folder handle
-	tr := tar.NewReader(r)
-	for {
-		h, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		name := strings.TrimSuffix(h.Name, "/")
-		switch h.Typeflag {
-		case tar.TypeDir:
-			err = root.MkdirAll(name, 0o755)
-		case tar.TypeSymlink:
-			err = root.Symlink(h.Linkname, name)
-		case tar.TypeReg:
-			err = writeRootFile(root, name, tr, os.FileMode(h.Mode)&0o755|0o644)
-		}
-		if err != nil {
-			return err
-		}
-	}
-}
-
-func writeRootFile(root *os.Root, name string, r io.Reader, mode os.FileMode) error {
-	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(f, r)
-	return errors.Join(err, f.Close())
+// Snapshot writes tree's files into dir, which must not exist yet: the vault a
+// merge would leave, for sync --dry-run to read with IndexAt. It changes nothing in
+// the vault.
+func (v *Vault) Snapshot(ctx context.Context, tree, dir string) error {
+	return v.extract(ctx, tree, dir)
 }
 
 // Resolve is the commit ref names.

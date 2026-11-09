@@ -290,20 +290,20 @@ func (u *UI) Names(k Kind, names []string) {
 	}
 }
 
-// Item is one line of Nested: a skill's change, with its detail if any.
+// Item is one change for Nested.
 type Item struct {
-	Kind         Kind
-	Name, Detail string
+	Kind   Kind
+	Name   string // group/name
+	Detail string
 }
 
-// Nested prints changes under the step above, indented two spaces, as sync's
-// reload does: "  + data/sql-explain   − someone/pdf". Changes with no detail
-// share a line as far as the width allows, whatever their kind; one with a detail
-// has its own.
+// Nested prints changes that belong to the → or ◇ line above, indented two
+// spaces: "  − writing/changelog". Items with no detail share a line as far as
+// the width allows, whatever their kind: "  + data/sql-explain   − someone/pdf".
 func (u *UI) Nested(items []Item) {
 	u.flush()
 	const indent = "  "
-	var row string
+	row := ""
 	end := func() {
 		if row != "" {
 			fmt.Fprintln(u.plan, indent+row)
@@ -312,15 +312,13 @@ func (u *UI) Nested(items []Item) {
 	}
 	for _, it := range items {
 		item := changeMarks[it.Kind] + " " + Clean(it.Name)
-		if it.Detail != "" {
+		switch {
+		case it.Detail != "":
 			end()
 			fmt.Fprintln(u.plan, indent+item+"   "+Clean(it.Detail))
-			continue
-		}
-		switch {
 		case row == "":
 			row = item
-		case lipgloss.Width(indent+row)+3+lipgloss.Width(item) <= u.width:
+		case len(indent)+lipgloss.Width(row)+3+lipgloss.Width(item) <= u.width:
 			row += "   " + item
 		default:
 			end()

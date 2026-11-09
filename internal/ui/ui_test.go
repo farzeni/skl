@@ -297,19 +297,23 @@ func TestNamesShareALineUpToTheWidth(t *testing.T) {
 	}
 }
 
-// sync.md: "  + data/sql-explain   − someone/pdf", nested under the step above.
-func TestNestedMixesKindsAndKeepsDetailsApart(t *testing.T) {
+// rollback.md "Go back": "  − writing/changelog"; sync.md: "  + data/sql-explain
+// − someone/pdf". Nested lines are indented and mix kinds up to the width.
+func TestNestedChanges(t *testing.T) {
 	var out strings.Builder
-	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out}, colorprofile.NoTTY, 24, false)
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &out}, colorprofile.NoTTY, 40, false)
 	u.Nested([]Item{
-		{Kind: Loaded, Name: "a/bbbbb"},
-		{Kind: Unloaded, Name: "c/ddddd"},
-		{Kind: Loaded, Name: "e/fffff"},
-		{Kind: Replaced, Name: "g/hhhhh", Detail: "updated"},
-		{Kind: Unloaded, Name: "x\x1b[2Jy"},
+		{Kind: Loaded, Name: "data/sql-explain"},
+		{Kind: Unloaded, Name: "someone/pdf"},
+		{Kind: Unloaded, Name: "writing/changelog"},
+		{Kind: Replaced, Name: "review/pr-review", Detail: "updated"},
+		{Kind: Loaded, Name: "x/y\x1b[2J"},
 	})
 	u.Nested(nil)
-	want := "  + a/bbbbb   − c/ddddd\n  + e/fffff\n  ~ g/hhhhh   updated\n  − xy\n"
+	want := "  + data/sql-explain   − someone/pdf\n" +
+		"  − writing/changelog\n" +
+		"  ~ review/pr-review   updated\n" +
+		"  + x/y\n"
 	if out.String() != want {
 		t.Errorf("got %q, want %q", out.String(), want)
 	}

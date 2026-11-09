@@ -32,9 +32,8 @@ var (
 
 // Vault is a git clone of a vault.
 type Vault struct {
-	git  *gitx.Git
-	dir  string
-	head string // a Snapshot's commit: it has no git of its own
+	git *gitx.Git
+	dir string
 }
 
 // Open finds the vault at dir. It looks for dir/.git itself rather than asking
@@ -121,9 +120,6 @@ func (v *Vault) Born(ctx context.Context) (bool, error) {
 
 // Head is the commit checked out.
 func (v *Vault) Head(ctx context.Context) (string, error) {
-	if v.head != "" {
-		return v.head, nil
-	}
 	out, err := v.git.Run(ctx, v.dir, "rev-parse", "--verify", "HEAD")
 	return strings.TrimSpace(out), err
 }
