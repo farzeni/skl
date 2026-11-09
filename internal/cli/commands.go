@@ -104,6 +104,24 @@ func (c *cli) commands() []*Command {
 			},
 		},
 		{
+			Name:    "rollback",
+			Args:    "[N]",
+			Summary: "Go back one generation, or to generation N",
+			Help: "Load again what was loaded at generation N, one before the newest if left\n" +
+				"out, and put back the skills that changed since in revert commits. It never\n" +
+				"rewrites history, and is a generation itself: skl rollback undoes it.",
+			Example: "skl rollback 10",
+			Flags:   []Flag{dryRun},
+			MaxArgs: 1,
+			Run: func(ctx context.Context, in Input) error {
+				a, err := c.app(ctx)
+				if err != nil {
+					return err
+				}
+				return a.Rollback(ctx, in.Args, in.Has("dry-run"))
+			},
+		},
+		{
 			Name:    "help",
 			Args:    "[command]",
 			Summary: "List the commands, or show one command's help",

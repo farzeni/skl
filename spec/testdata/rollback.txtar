@@ -1,0 +1,197 @@
+# docs/guide/rollback.md "Go back", "See what changed", "Undo a rollback"
+
+# "Every command except init, help, completion and open with someone else's repo
+# needs your vault."
+exitcode 1 skl rollback
+stderr '^✗ no vault on this machine · skl init <repo>$'
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend
+# An edit to a loaded skill, saved first as a generation of its own (3), then
+# the command's own (4).
+cp edited.md $HOME/.claude/skills/pr-review/SKILL.md
+exec skl add writing/changelog
+# Skill content changes after that, as a lesson would change it: a hand edit in
+# the vault, committed as generation 5 before the command reloads it (6).
+cp hand.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl add writing/changelog
+stderr '^✓ generation 6 · skl rollback to undo$'
+exec skl history
+cmp stdout history-6.txt
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout head-6.txt
+
+# "Add --dry-run to see the plan without applying it."
+exec skl rollback 3 --dry-run
+cmp stdout dry-run.txt
+! stderr .
+! exists $HOME/.skl/generations/7.json
+exists $HOME/.claude/skills/changelog/SKILL.md
+cmp $HOME/.claude/skills/pr-review/SKILL.md hand.md
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cmp stdout head-6.txt
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+
+# "skl rollback 10    # to generation 10"
+# "A rollback restores what was loaded. If skill content changed in the meantime,
+# for example a lesson replaced your skill, skl also adds a revert commit to your
+# vault."
+exec skl rollback 3
+! stdout .
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-to-3.txt
+! exists $HOME/.claude/skills/changelog
+# "Generation 10 above is such a save, so skl rollback 10 undoes generations 11
+# and 12 and keeps the edits saved in 10."
+cmp $HOME/.claude/skills/pr-review/SKILL.md edited.md
+cmp $HOME/.skl/vault/review/pr-review/SKILL.md edited.md
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+# "It never rewrites git history": every commit is still there, plus the revert.
+exec sh ancestor.sh
+exec git -C $HOME/.skl/vault log -1 --format=%s
+stdout '^skl: revert review/pr-review to generation 3$'
+grep '"command": "rollback 3"' $HOME/.skl/generations/7.json
+
+# "A rollback is itself a new generation, so you can undo it with another skl
+# rollback." "skl rollback       # one generation back"
+exec skl rollback
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-to-6.txt
+cmp $HOME/.claude/skills/pr-review/SKILL.md hand.md
+cmp $HOME/.skl/vault/review/pr-review/SKILL.md hand.md
+exists $HOME/.claude/skills/changelog/SKILL.md
+exec git -C $HOME/.skl/vault log -1 --format=%s
+stdout '^skl: revert review/pr-review to generation 6$'
+exec skl history
+cmp stdout history-8.txt
+
+# Back to the newest generation: nothing to change, and no generation.
+exec skl rollback 8
+cmp stderr nothing.txt
+! exists $HOME/.skl/generations/10.json
+
+# Edits not saved yet are saved first, as their own generation, and the rollback
+# keeps them: it picks its target before the save.
+cp changelog.md $HOME/.claude/skills/changelog/SKILL.md
+exec skl rollback
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-to-7.txt
+cmp $HOME/.skl/vault/writing/changelog/SKILL.md changelog.md
+! exists $HOME/.claude/skills/changelog
+grep '"command": "rollback 7"' $HOME/.skl/generations/10.json
+
+# "N must be a generation in skl history"
+exitcode 1 skl rollback 40
+cmp stderr no-40.txt
+! stdout .
+exitcode 1 skl rollback 0
+stderr '^✗ no generation 0 · skl history$'
+exitcode 2 skl rollback ten
+stderr '^✗ ten isn''t a generation number · skl history$'
+exitcode 2 skl rollback 3 4
+! exists $HOME/.skl/generations/12.json
+
+# "There's nothing to go back to before generation 1."
+env HOME=$WORK/home2
+mkdir $HOME
+cp $WORK/home/.gitconfig $HOME/.gitconfig
+exec skl init you/skills
+exitcode 1 skl rollback
+cmp stderr before-1.txt
+exitcode 1 skl rollback --dry-run
+cmp stderr before-1.txt
+! exists $HOME/.skl/generations/2.json
+
+-- shown.sh --
+# out.txt with the newest vault commit's short sha as SHA: the ◇ line names it.
+sha=$(git -C "$HOME/.skl/vault" rev-parse HEAD | cut -c1-7)
+sed "s/(revert commit $sha)/(revert commit SHA)/" out.txt
+-- ancestor.sh --
+git -C "$HOME/.skl/vault" merge-base --is-ancestor "$(cat head-6.txt)" HEAD
+-- history-6.txt --
+6  now      add writing/changelog
+5  now      committed review/pr-review/SKILL.md
+4  now      add writing/changelog
+3  now      saved pr-review → review/pr-review
+2  now      use @backend
+1  now      init you/skills
+-- dry-run.txt --
+→ back to generation 3
+  ~ review/pr-review   updated
+  − writing/changelog
+→ revert review/pr-review
+-- back-to-3.txt --
+→ back to generation 3
+  ~ review/pr-review   updated
+  − writing/changelog
+◇ reverted   review/pr-review (revert commit SHA)
+! 3 changes not pushed · skl sync
+✓ generation 7 · skl rollback to undo
+-- back-to-6.txt --
+→ back to generation 6
+  ~ review/pr-review   updated
+  + writing/changelog
+◇ reverted   review/pr-review (revert commit SHA)
+! 4 changes not pushed · skl sync
+✓ generation 8 · skl rollback to undo
+-- back-to-7.txt --
+◇ saved      changelog → writing/changelog
+             SKILL.md
+◇ generation 9
+→ back to generation 7
+  ~ review/pr-review   updated
+  − writing/changelog
+◇ reverted   review/pr-review (revert commit SHA)
+! 6 changes not pushed · skl sync
+✓ generation 10 · skl rollback to undo
+-- history-8.txt --
+8  now      rollback 6
+7  now      rollback 3
+6  now      add writing/changelog
+5  now      committed review/pr-review/SKILL.md
+4  now      add writing/changelog
+3  now      saved pr-review → review/pr-review
+2  now      use @backend
+1  now      init you/skills
+-- nothing.txt --
+✓ nothing to change
+-- no-40.txt --
+✗ no generation 40 · skl history
+-- before-1.txt --
+✗ nothing to go back to before generation 1 · skl history
+-- edited.md --
+---
+name: pr-review
+description: Review a pull request.
+---
+Check the tests first.
+-- hand.md --
+---
+name: pr-review
+description: Review a pull request, with a security pass.
+---
+Check the tests first. Then look for secrets.
+-- changelog.md --
+---
+name: changelog
+description: Write a changelog entry.
+---
+Keep a Changelog format.
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: Review a pull request.
+---
+-- seed/writing/changelog/SKILL.md --
+---
+name: changelog
+description: Write a changelog entry.
+---
+-- seed/sets/backend.toml --
+select = ["review/pr-review"]
