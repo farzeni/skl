@@ -1,0 +1,213 @@
+# docs/guide/skills.md "Add a skill you made"; docs/design/architecture.md "Import";
+# docs/guide/getting-started.md "Work as usual"
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use review
+
+# "A skill you make in Claude Code … lands in ~/.claude/skills/<name> … and isn't in
+# your vault yet. skl status lists it"
+mkdir $HOME/.claude/skills/my-new-skill
+cp new.md $HOME/.claude/skills/my-new-skill/SKILL.md
+mkdir $HOME/.claude/skills/my-new-skill/scripts
+cp run.sh $HOME/.claude/skills/my-new-skill/scripts/run.sh
+exec skl status
+stdout '^  my-new-skill +· skl import my-new-skill$'
+
+# "skl import my-new-skill copies it into your vault and commits it, in the group
+# named after your vault's owner: you/my-new-skill for you/skills."
+exec skl import my-new-skill --dry-run
+cmp stdout dry-import.txt
+! stderr .
+! exists $HOME/.skl/vault/you
+! exists $HOME/.claude/skills/my-new-skill/.skl-copy.toml
+exec skl import my-new-skill
+cmp stderr import-one.txt
+cmp $HOME/.skl/vault/you/my-new-skill/SKILL.md new.md
+cmp $HOME/.skl/vault/you/my-new-skill/scripts/run.sh run.sh
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+exec git -C $HOME/.skl/vault log -1 --format=%s
+stdout '^skl: import my-new-skill → you/$'
+grep '"command": "import my-new-skill"' $HOME/.skl/generations/3.json
+# "The folder in ~/.claude/skills stays where it is and becomes the loaded skill, so
+# Claude Code sees no change."
+cmp $HOME/.claude/skills/my-new-skill/SKILL.md new.md
+grep '^source = "you/my-new-skill"$' $HOME/.claude/skills/my-new-skill/.skl-copy.toml
+! exists $HOME/.skl/vault/you/my-new-skill/.skl-copy.toml
+# "The skill joins your active skill set as skl add you/my-new-skill would"
+exec skl status
+stdout '^loaded \(user\)  review you/my-new-skill$'
+stdout '^  my-new-skill +you/my-new-skill$'
+! stdout 'not in your vault'
+# Loaded and unchanged: the next command changes nothing.
+exec skl add review
+cmp stderr nothing.txt
+# It's a loaded skill like any other: edits are saved back.
+cp edited.md $HOME/.claude/skills/my-new-skill/SKILL.md
+exec skl add review
+stderr '^◇ saved      my-new-skill → you/my-new-skill$'
+cmp $HOME/.skl/vault/you/my-new-skill/SKILL.md edited.md
+
+# "Name several skills at once, or pick the group"
+mkdir $HOME/.claude/skills/changelog $HOME/.claude/skills/release-notes
+cp changelog.md $HOME/.claude/skills/changelog/SKILL.md
+cp notes.md $HOME/.claude/skills/release-notes/SKILL.md
+exec skl import changelog release-notes --group writing
+cmp stderr import-two.txt
+exists $HOME/.skl/vault/writing/changelog/SKILL.md
+exists $HOME/.skl/vault/writing/release-notes/SKILL.md
+exec skl status
+stdout '^loaded \(user\)  review you/my-new-skill writing/changelog writing/release-notes$'
+
+# "unless a selector there already covers it, such as you"
+exec skl use review you
+mkdir $HOME/.claude/skills/my-notes
+cp notes2.md $HOME/.claude/skills/my-notes/SKILL.md
+exec skl import my-notes
+exec skl status
+stdout '^loaded \(user\)  review you$'
+stdout '^  my-notes +you/my-notes$'
+
+# "A name your vault already has, as a folder or a frontmatter name, stops the import"
+mkdir $HOME/.claude/skills/my-new-skill-2
+cp new.md $HOME/.claude/skills/my-new-skill-2/SKILL.md
+exitcode 1 skl import my-new-skill-2
+cmp stderr taken-name.txt
+! exists $HOME/.skl/vault/you/my-new-skill-2
+exec skl drop review
+mkdir $HOME/.claude/skills/pr-review
+cp other.md $HOME/.claude/skills/pr-review/SKILL.md
+exitcode 1 skl import pr-review
+cmp stderr taken-folder.txt
+exitcode 1 skl import PR-Review
+stderr '^✗ PR-Review is already in your vault: review/pr-review$'
+rm $HOME/.claude/skills/my-new-skill-2 $HOME/.claude/skills/pr-review
+
+# A loaded skill is already in the vault.
+exitcode 1 skl import changelog
+stderr '^✗ changelog is already in your vault: writing/changelog$'
+
+# Nothing changed when one name stops the import.
+mkdir $HOME/.claude/skills/fresh
+cp fresh.md $HOME/.claude/skills/fresh/SKILL.md
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout before.txt
+exitcode 1 skl import fresh nope
+cmp stderr missing.txt
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cmp stdout before.txt
+! exists $HOME/.skl/vault/you/fresh
+! exists $HOME/.claude/skills/fresh/.skl-copy.toml
+
+# A name that can't be a vault skill is a usage error.
+exitcode 2 skl import my.skill
+stderr '^✗ my.skill isn''t a valid skill name'
+exitcode 2 skl import fresh --group sets
+stderr '^✗ sets can''t be a group'
+exitcode 2 skl import
+stderr '^✗ skl import needs <name> · skl help import$'
+
+# docs/design/architecture.md "Import": "If the folder is a link, as npx skills may
+# leave it, skl replaces the link with a real copy and says so"
+mkdir $HOME/.agents/skills/pdf
+cp pdf.md $HOME/.agents/skills/pdf/SKILL.md
+symlink $HOME/.claude/skills/pdf -> $HOME/.agents/skills/pdf
+exec skl import pdf
+cmp stderr import-link.txt
+exec test ! -L $HOME/.claude/skills/pdf
+exists $HOME/.claude/skills/pdf/.skl-copy.toml
+# "so .skl-copy.toml is never written into another tool's folder"
+! exists $HOME/.agents/skills/pdf/.skl-copy.toml
+cmp $HOME/.skl/vault/you/pdf/SKILL.md pdf.md
+
+# "skl looks for the folder in every target's folder, and with two targets it also
+# loads the skill into the other one."
+env SKL_TARGETS=claude,agents
+exec skl add you
+mkdir $HOME/.agents/skills/sql-explain
+cp sql.md $HOME/.agents/skills/sql-explain/SKILL.md
+exec skl import sql-explain
+cmp stderr import-agents.txt
+exists $HOME/.agents/skills/sql-explain/.skl-copy.toml
+cmp $HOME/.claude/skills/sql-explain/SKILL.md sql.md
+exists $HOME/.claude/skills/sql-explain/.skl-copy.toml
+env SKL_TARGETS=
+
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: Review a pull request.
+---
+-- new.md --
+---
+name: my-new-skill
+description: Something new.
+---
+-- edited.md --
+---
+name: my-new-skill
+description: Something new, sharper.
+---
+-- run.sh --
+#!/bin/sh
+echo run
+-- changelog.md --
+---
+name: changelog
+---
+-- notes.md --
+---
+name: release-notes
+---
+-- notes2.md --
+---
+name: my-notes
+---
+-- other.md --
+---
+name: pr-review
+description: Someone's own.
+---
+-- fresh.md --
+---
+name: fresh
+---
+-- pdf.md --
+---
+name: pdf
+---
+-- sql.md --
+---
+name: sql-explain
+---
+-- dry-import.txt --
+→ import my-new-skill → you/
+-- import-one.txt --
+◇ imported   my-new-skill → you/
+! 1 change not pushed · skl sync
+✓ generation 3 · skl rollback to undo
+-- import-two.txt --
+◇ imported   changelog, release-notes → writing/
+! 3 changes not pushed · skl sync
+✓ generation 6 · skl rollback to undo
+-- nothing.txt --
+✓ nothing to change
+-- taken-name.txt --
+✗ my-new-skill-2 is already in your vault: you/my-new-skill
+  · rename it in ~/.claude/skills, then skl import it
+-- taken-folder.txt --
+✗ pr-review is already in your vault: review/pr-review
+  · rename it in ~/.claude/skills, then skl import it
+-- missing.txt --
+✗ nope isn't in ~/.claude/skills · skl status
+-- import-link.txt --
+◇ replaced   link ~/.claude/skills/pdf with a copy
+◇ imported   pdf → you/
+! 5 changes not pushed · skl sync
+✓ generation 12 · skl rollback to undo
+-- import-agents.txt --
+◇ imported   sql-explain → you/
++ sql-explain
+! 6 changes not pushed · skl sync
+✓ generation 14 · skl rollback to undo
