@@ -40,8 +40,8 @@ func CheckIdentity(ctx context.Context, git *gitx.Git, dir string) error {
 // Create makes the clone of an empty repo a new vault: its LICENSE and first
 // commit, on this machine only. license is an SPDX id or NoLicense, in which
 // case the first commit is empty: a vault always has a HEAD for generations and
-// merges to start from.
-func (v *Vault) Create(ctx context.Context, license string, now time.Time) error {
+// merges to start from. paths, such as skills init imports, join the commit.
+func (v *Vault) Create(ctx context.Context, license string, now time.Time, paths ...string) error {
 	if err := CheckIdentity(ctx, v.git, v.dir); err != nil {
 		return err
 	}
@@ -57,6 +57,11 @@ func (v *Vault) Create(ctx context.Context, license string, now time.Time) error
 		}
 		// -f: a global gitignore may name it.
 		if _, err := v.git.Run(ctx, v.dir, "add", "--force", "--", "LICENSE"); err != nil {
+			return err
+		}
+	}
+	if len(paths) > 0 {
+		if _, err := v.git.Run(ctx, v.dir, append([]string{"add", "-A", "--"}, paths...)...); err != nil {
 			return err
 		}
 	}

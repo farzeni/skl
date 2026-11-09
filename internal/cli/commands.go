@@ -29,21 +29,41 @@ func (c *cli) commands() []*Command {
 	return []*Command{
 		{
 			Name:    "init",
-			Args:    "<repo>",
+			Args:    "<repo> [selectors]",
 			Summary: "Clone your vault, or set up a new one",
-			Help: "Clone your vault from <repo>, or set up a new one if <repo> is empty.\n" +
-				"skl never creates a repo: make an empty one on your git host first.\n" +
-				"<repo> is owner/repo, host/path, a URL or a path.",
-			Example: "skl init you/skills",
-			Flags:   []Flag{dryRun},
+			Help: "Clone your vault from <repo>, or set up a new one if <repo> is empty, and load\n" +
+				"the selectors if given. Offers to import the skills in your skills folders\n" +
+				"that aren't in a vault. skl never creates a repo: make an empty one on your\n" +
+				"git host first. <repo> is owner/repo, host/path, a URL or a path.",
+			Example: "skl init you/skills @backend",
+			Flags:   []Flag{dryRun, yes},
 			MinArgs: 1,
-			MaxArgs: 1,
+			MaxArgs: -1,
 			Run: func(ctx context.Context, in Input) error {
 				a, err := c.app(ctx)
 				if err != nil {
 					return err
 				}
-				return a.Init(ctx, in.Args[0], in.Has("dry-run"))
+				return a.Init(ctx, in.Args[0], in.Args[1:], in.Has("dry-run"))
+			},
+		},
+		{
+			Name:    "import",
+			Args:    "<name>…",
+			Summary: "Copy skills skl didn't create into your vault",
+			Help: "Copy skills you made, in your skills folders, into your vault. Each folder\n" +
+				"stays where it is as the loaded skill and joins the active skill set. The\n" +
+				"group defaults to your vault's owner: you/ for you/skills.",
+			Example: "skl import changelog release-notes --group writing",
+			Flags:   []Flag{{Name: "group", Value: "group", Usage: "The group to import into"}, dryRun},
+			MinArgs: 1,
+			MaxArgs: -1,
+			Run: func(ctx context.Context, in Input) error {
+				a, err := c.app(ctx)
+				if err != nil {
+					return err
+				}
+				return a.Import(ctx, in.Args, in.Flags["group"], in.Has("dry-run"))
 			},
 		},
 		c.loadCommand("use", "Replace the active skill set",

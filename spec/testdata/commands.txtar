@@ -77,6 +77,7 @@ Usage
 
 Commands
   init      Clone your vault, or set up a new one
+  import    Copy skills skl didn't create into your vault
   use       Replace the active skill set
   add       Add to the active skill set
   drop      Remove from the active skill set

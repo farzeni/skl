@@ -147,7 +147,7 @@ func (c *cli) check(cmd *Command, in Input, perr error) error {
 	}
 	switch n := len(in.Args); {
 	case n < cmd.MinArgs:
-		return errs.Usagef(hint, "skl %s needs %s", cmd.Name, cmd.Args)
+		return errs.Usagef(hint, "skl %s needs %s", cmd.Name, required(cmd.Args))
 	case cmd.MaxArgs >= 0 && n > cmd.MaxArgs:
 		return errs.Usagef(hint, "unexpected argument %s", in.Args[cmd.MaxArgs])
 	}
@@ -250,6 +250,18 @@ func editDistance(a, b string) int {
 		}
 	}
 	return d[len(s)][len(t)]
+}
+
+// required is the arguments a command can't do without: "<repo>" of
+// "<repo> [selectors]".
+func required(args string) string {
+	words := strings.Fields(args)
+	for i, w := range words {
+		if strings.HasPrefix(w, "[") {
+			return strings.Join(words[:i], " ")
+		}
+	}
+	return args
 }
 
 // indent prefixes every line of s with two spaces.

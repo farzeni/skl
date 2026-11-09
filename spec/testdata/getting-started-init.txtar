@@ -285,6 +285,82 @@ stderr '^  · check its permissions$'
 ! exists $HOME/.skl-badconfig/vault
 env SKL_HOME=
 
+# docs/guide/getting-started.md "Make your vault": the import offer. A fresh HOME,
+# with skills made in Claude Code before skl.
+env HOME=$WORK/home2
+mkdir $HOME/.claude/skills/pr-review $HOME/.claude/skills/my-notes $HOME/.claude/skills/sql-explain
+cp mine/pr-review.md $HOME/.claude/skills/pr-review/SKILL.md
+cp mine/my-notes.md $HOME/.claude/skills/my-notes/SKILL.md
+cp mine/sql-explain.md $HOME/.claude/skills/sql-explain/SKILL.md
+mkdir $HOME/.claude/skills/pr-review-workspace
+remote you/mine
+
+# commands.md "Questions": "Without a terminal and without --yes, a question stops
+# the command before it changes anything"
+exitcode 1 skl init you/mine
+cmp stderr import-needs.txt
+! exists $HOME/.skl/vault
+! exists $HOME/.skl/generations
+! exists $HOME/.claude/skills/pr-review/.skl-copy.toml
+
+# commands.md "Dry run": init shows "what it would import, and what it would load".
+exec skl init you/mine review --dry-run
+cmp stdout import-dry.txt
+! stderr .
+! exists $HOME/.skl/vault
+
+# "? Import the 3 skills in ~/.claude/skills into you/?  › yes   choose   no";
+# commands.md: "--yes imports all"
+exec skl init you/mine --yes
+cmp stderr import-yes.txt
+exists $HOME/.skl/vault/you/pr-review/SKILL.md
+exists $HOME/.skl/vault/you/my-notes/SKILL.md
+exists $HOME/.skl/vault/you/sql-explain/SKILL.md
+! exists $HOME/.skl/vault/you/pr-review-workspace
+exec git -C $HOME/.skl/vault ls-files
+cmp stdout import-files.txt
+# "Your skills stay where Claude Code reads them."
+grep '^source = "you/pr-review"$' $HOME/.claude/skills/pr-review/.skl-copy.toml
+cmp $HOME/.claude/skills/pr-review/SKILL.md mine/pr-review.md
+# skills.md: "When skl init imports every skill into one group, it adds the group."
+exec skl status
+stdout '^loaded \(user\)  you$'
+! stdout 'not in your vault'
+
+# commands.md "Start": "skl init <repo> [selectors]: … load selectors if given",
+# on a clone, with the offer too. A skill the clone already has isn't offered.
+env HOME=$WORK/home3
+mkdir $HOME/.claude/skills/pr-review $HOME/.claude/skills/draft
+cp mine/pr-review.md $HOME/.claude/skills/pr-review/SKILL.md
+cp mine/draft.md $HOME/.claude/skills/draft/SKILL.md
+exec skl init you/seeded review --yes
+cmp stderr clone-selectors.txt
+exec skl status
+stdout '^loaded \(user\)  review you$'
+stdout '^  test-gaps +review/test-gaps$'
+stdout '^  draft +you/draft$'
+exists $HOME/.skl/vault/you/draft/SKILL.md
+! exists $HOME/.claude/skills/pr-review/.skl-copy.toml
+
+# "Running skl init again with the same repo only loads the selectors you give it."
+exec skl init you/seeded data
+cmp stderr again-selectors.txt
+exec skl status
+stdout '^loaded \(user\)  data$'
+
+# Two skills with the same name would clash in the group: the second isn't
+# offered, and the warning says how to get it in.
+env HOME=$WORK/home4
+mkdir $HOME/.claude/skills/dup-a $HOME/.claude/skills/dup-b
+cp mine/dup.md $HOME/.claude/skills/dup-a/SKILL.md
+cp mine/dup.md $HOME/.claude/skills/dup-b/SKILL.md
+remote you/dups
+exec skl init you/dups --yes
+cmp stderr dup-init.txt
+exists $HOME/.skl/vault/you/dup-a/SKILL.md
+! exists $HOME/.skl/vault/you/dup-b
+! exists $HOME/.claude/skills/dup-b/.skl-copy.toml
+
 -- new-vault.txt --
 → new vault you/skills
 ◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
@@ -350,3 +426,68 @@ select = ["review"]
 Reserved: not a group.
 -- readme/README.md --
 Nothing here yet.
+-- mine/pr-review.md --
+---
+name: pr-review
+description: My own review.
+---
+-- mine/my-notes.md --
+---
+name: my-notes
+---
+-- mine/sql-explain.md --
+---
+name: sql-explain
+---
+-- mine/dup.md --
+---
+name: dup
+---
+-- dup-init.txt --
+→ new vault you/dups
+! dup-b   not offered: same name as dup-a
+  · rename it in ~/.claude/skills, then skl import it
+◇ imported   dup-a → you/
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
+! dup-a   skipped: ~/.claude/skills/dup-b is not in your vault
+  · skl import dup-b
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo
+-- mine/draft.md --
+---
+name: draft
+---
+-- import-needs.txt --
+→ new vault you/mine
+✗ Import the 3 skills in ~/.claude/skills into you/? needs an answer
+  · skl init you/mine --yes
+-- import-dry.txt --
+→ new vault you/mine
+→ import my-notes, pr-review, sql-explain → you/
+→ load review
+-- import-yes.txt --
+→ new vault you/mine
+◇ imported   my-notes, pr-review, sql-explain → you/
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo
+-- import-files.txt --
+LICENSE
+you/my-notes/SKILL.md
+you/pr-review/SKILL.md
+you/sql-explain/SKILL.md
+-- clone-selectors.txt --
+→ clone you/seeded
+◇ cloned     2 groups · 3 skills · 1 skill set
+◇ imported   draft → you/
++ test-gaps
+! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
+  · skl import pr-review
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo
+-- again-selectors.txt --
+→ load data
++ sql-explain
+− draft   − test-gaps
+! 1 change not pushed · skl sync
+✓ generation 2 · skl rollback to undo
