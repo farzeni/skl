@@ -118,7 +118,7 @@ func (a *App) push(ctx context.Context, v *vault.Vault, branch string, pulled in
 // the vault as it is now, and the difference applied. It reports whether anything
 // changed. The project scope reloads with --scope project's card.
 func (a *App) reload(ctx context.Context, c *Change, root string) (bool, error) {
-	s := reloading(c.State)
+	s := reloading()
 	next, err := a.prepare(ctx, c.Vault, c.State, s, nil, root)
 	if err != nil {
 		return false, hinted(err, "skl sync")
@@ -131,7 +131,7 @@ func (a *App) reload(ctx context.Context, c *Change, root string) (bool, error) 
 }
 
 // reloading is the selection sync loads: the one already active.
-func reloading(st *state.State) selection {
+func reloading() selection {
 	return selection{
 		verb: "sync",
 		next: func(active []string, _ []selector.Selector, _ *vault.Index) ([]string, []note, error) {
@@ -217,7 +217,7 @@ func (a *App) syncDryRun(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	saves, err := a.unsaved(ctx, v, st, root)
+	saves, err := a.unsaved(ctx, st, root)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (a *App) syncDryRun(ctx context.Context) error {
 	if ahead > 0 || len(edits) > 0 || len(saves) > 0 {
 		a.ui.Plan("push")
 	}
-	next, err := a.prepare(ctx, merged, st, reloading(st), nil, root)
+	next, err := a.prepare(ctx, merged, st, reloading(), nil, root)
 	if err != nil {
 		return hinted(err, "skl sync")
 	}
@@ -274,7 +274,7 @@ func planLine(label, detail string) string {
 }
 
 // unsaved is the loaded skills whose copies changed: what step 1 would save back.
-func (a *App) unsaved(ctx context.Context, v *vault.Vault, st *state.State, root string) ([]load.Loaded, error) {
+func (a *App) unsaved(ctx context.Context, st *state.State, root string) ([]load.Loaded, error) {
 	current := st.Scopes[state.User]
 	found, err := load.Inspect(ctx, load.Input{Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root})
 	if err != nil {

@@ -119,8 +119,8 @@ func (v *Vault) Push(ctx context.Context, branch string) error {
 func (v *Vault) MergedTree(ctx context.Context, ref string) (tree string, conflicts []string, err error) {
 	out, err := v.git.Run(ctx, v.dir, "merge-tree", "--write-tree", "--name-only", "-z", "--no-messages", "HEAD", ref)
 	if ge, ok := errors.AsType[*gitx.Error](err); ok && ge.Code == 1 && ctx.Err() == nil {
-		out, err = ge.Stdout, nil // 1 is merge-tree's "conflicts"
-		fields := strings.Split(strings.TrimSuffix(out, "\x00"), "\x00")
+		// 1 is merge-tree's "conflicts": the tree, then the files that clash.
+		fields := strings.Split(strings.TrimSuffix(ge.Stdout, "\x00"), "\x00")
 		for _, f := range fields[1:] {
 			if f != "" {
 				conflicts = append(conflicts, f)
@@ -160,7 +160,7 @@ func untar(r io.Reader, dir string) error {
 	if err != nil {
 		return err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }() // read-only use of the folder handle
 	tr := tar.NewReader(r)
 	for {
 		h, err := tr.Next()

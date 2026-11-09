@@ -83,6 +83,7 @@ Commands
   save     Save the active skill set as a named skill set
   status   Show what's loaded and what needs you
   history  List generations, newest first
+  sync     Commit, pull, push and reload what's loaded
   help     List the commands, or show one command's help
 
 Flags
