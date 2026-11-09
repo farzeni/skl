@@ -135,6 +135,17 @@ exists $HOME/.agents/skills/sql-explain/.skl-copy.toml
 cmp $HOME/.claude/skills/sql-explain/SKILL.md sql.md
 exists $HOME/.claude/skills/sql-explain/.skl-copy.toml
 env SKL_TARGETS=
+exec skl add you
+
+# docs/guide/getting-started.md "Work as usual": "skl saved your pr-review edits first,
+# as a generation of their own, then imported the new skill."
+cp edited-pdf.md $HOME/.claude/skills/pdf/SKILL.md
+mkdir $HOME/.claude/skills/later
+cp later.md $HOME/.claude/skills/later/SKILL.md
+exec skl import later
+cmp stderr import-saved.txt
+cmp $HOME/.skl/vault/you/pdf/SKILL.md edited-pdf.md
+exists $HOME/.skl/vault/you/later/SKILL.md
 
 -- seed/review/pr-review/SKILL.md --
 ---
@@ -213,3 +224,19 @@ name: sql-explain
 + sql-explain
 ! 6 changes not pushed · skl sync
 ✓ generation 11 · skl rollback to undo
+-- edited-pdf.md --
+---
+name: pdf
+description: Sharper.
+---
+-- later.md --
+---
+name: later
+---
+-- import-saved.txt --
+◇ saved      pdf → you/pdf
+             SKILL.md
+◇ generation 13
+◇ imported   later → you/
+! 8 changes not pushed · skl sync
+✓ generation 14 · skl rollback to undo
