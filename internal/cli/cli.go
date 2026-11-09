@@ -197,6 +197,7 @@ func (c *cli) fail(err error) int {
 		return exitOK
 	}
 	if errors.Is(err, context.Canceled) {
+		c.ui.Flush() // a generation made before Ctrl-C still shows
 		return exitInterrupted
 	}
 	code, hint := exitError, ""

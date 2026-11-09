@@ -216,3 +216,50 @@ func replaceManifest(folder string, m Manifest) error {
 	}
 	return os.Rename(tmp, file)
 }
+
+// Resume finishes a save-back that stopped at a conflict, once skl sync
+// --continue has committed the merge as head: the copy named by copied, "<target>
+// <folder>" as the synthetic commit theirs records it, now holds what the vault got
+// from it, at head. A copy that's gone, or no longer skl's, is left alone and
+// nothing is returned: the next load sorts it out.
+func Resume(ctx context.Context, in SaveInput, copied, head, theirs string) ([]Saved, error) {
+	target, folder, ok := strings.Cut(copied, " ")
+	t := config.Target(target)
+	if !ok || !slices.Contains(allTargets(in.Targets, in.Current), t) || folder == "" ||
+		strings.ContainsAny(folder, "/\\\x00") || strings.HasPrefix(folder, ".") {
+		return nil, nil
+	}
+	dir := SkillsDir(in.HomeRoot, t)
+	h, err := scan(dir)
+	if err != nil {
+		return nil, err
+	}
+	c, ok := h.owned[selector.Fold(folder)]
+	if !ok || c.folder != folder {
+		return nil, nil
+	}
+	m := recordOf(c, t, in.Current)
+	if m.Commit == "" || !vaultSkill(m.Source) {
+		return nil, nil
+	}
+	tree, err := in.Vault.TreeAt(ctx, theirs, m.Source)
+	if err != nil {
+		return nil, err
+	}
+	before, err := in.Vault.Files(ctx, m.Commit, m.Source)
+	if err != nil {
+		return nil, err
+	}
+	after, err := in.Vault.Files(ctx, theirs, m.Source)
+	if err != nil {
+		return nil, err
+	}
+	m = Manifest{Source: m.Source, Commit: head, Tree: tree}
+	if err := replaceManifest(filepath.Join(dir, folder), m); err != nil {
+		return nil, err
+	}
+	return []Saved{{
+		Target: t, Name: folder, Skill: m.Source,
+		Files: changedFiles(before, after), Commit: head, Tree: tree,
+	}}, nil
+}

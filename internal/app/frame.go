@@ -30,6 +30,8 @@ type Change struct {
 	Unchanged string
 	// saved is the generation the frame made for edits it saved first, or 0.
 	saved int
+	// pulled is the commits a merge finished by skl sync --continue brought in.
+	pulled int
 }
 
 // Body is a command's own work. It returns whether it changed anything: if not,
@@ -46,13 +48,21 @@ type Body func(ctx context.Context, c *Change) (bool, error)
 //
 // command is what skl history shows, such as "use @backend".
 func (a *App) Changing(ctx context.Context, command string, body Body) error {
+	return a.changing(ctx, command, func(ctx context.Context, c *Change) error {
+		return a.notMerging(ctx, c.Vault)
+	}, body)
+}
+
+// changing is Changing with first in place of the merge guard: skl sync
+// --continue finishes the merge there instead.
+func (a *App) changing(ctx context.Context, command string, first func(context.Context, *Change) error, body Body) error {
 	v, err := a.openVault()
 	if err != nil {
 		return err
 	}
 	err = a.locked(ctx, command, func(ctx context.Context, c *Change) (bool, error) {
 		c.Vault = v
-		if err := a.notMerging(ctx, v); err != nil {
+		if err := first(ctx, c); err != nil {
 			return false, err
 		}
 		if err := a.saveFirst(ctx, c); err != nil {

@@ -54,8 +54,9 @@ func (v *Vault) Incoming(ctx context.Context, branch string) (ref string, commit
 
 // Merge merges ref into the branch checked out: a fast-forward when HEAD has
 // nothing of its own, else a merge commit. It never rebases. On a conflict it
-// undoes the merge and returns a *ConflictError with the files that clashed. On
-// any other error, Ctrl-C included, it undoes what it did.
+// leaves the merge in progress, with git's markers in the work tree, and returns
+// a *ConflictError with the files that clash: Unmerge takes it back, Continue
+// finishes it. On any other error, Ctrl-C included, it undoes what it did.
 func (v *Vault) Merge(ctx context.Context, ref string) (err error) {
 	before, err := v.Head(ctx)
 	if err != nil {
@@ -66,19 +67,18 @@ func (v *Vault) Merge(ctx context.Context, ref string) (err error) {
 		return nil
 	}
 	undo := context.WithoutCancel(ctx)
-	var paths []string
 	if ctx.Err() == nil && !errors.Is(err, context.Canceled) {
-		paths, _ = v.conflicted(undo)
+		if paths, _ := v.Conflicts(undo); len(paths) > 0 {
+			return &ConflictError{Paths: paths}
+		}
 	}
 	v.Unmerge(undo, before)
-	if len(paths) > 0 {
-		return &ConflictError{Paths: paths}
-	}
 	return err
 }
 
-// conflicted lists the files a merge left with conflicts.
-func (v *Vault) conflicted(ctx context.Context) ([]string, error) {
+// Conflicts lists the files the merge in progress left with conflicts that
+// aren't staged yet.
+func (v *Vault) Conflicts(ctx context.Context) ([]string, error) {
 	out, err := v.git.Run(ctx, v.dir, "diff", "--name-only", "-z", "--diff-filter=U")
 	if err != nil {
 		return nil, err

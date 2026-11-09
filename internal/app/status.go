@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -52,7 +54,7 @@ func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	idx, err := v.Index(ctx)
+	idx, merge, err := a.statusIndex(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +64,9 @@ func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
 	}
 	current := st.Scopes[state.User]
 	res, notes := activeSkills(current.Selectors, idx, "edit "+a.shown(a.paths.State))
+	if merge != nil {
+		notes = append([]note{*merge}, notes...)
+	}
 	found, err := load.Inspect(ctx, load.Input{Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: home})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -85,6 +90,37 @@ func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
 		notes = append(notes, note{msg: w.Message(), hint: hint})
 	}
 	return &statusReport{selectors: current.Selectors, found: found, notes: notes, sets: idx.Sets(), ahead: ahead}, nil
+}
+
+// statusIndex is the vault's index for the report. While a merge is in progress,
+// the work tree holds conflict markers that aren't anyone's mistake, and what's
+// loaded still comes from HEAD: the index is HEAD's, and the merge is a note of
+// its own, "! a sync is in progress: conflict in sets/backend.toml · skl sync
+// --continue".
+func (a *App) statusIndex(ctx context.Context, v *vault.Vault) (*vault.Index, *note, error) {
+	merging, err := v.Merging(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !merging {
+		idx, err := v.Index(ctx)
+		return idx, nil, err
+	}
+	n := note{msg: vault.ErrMerging.Error(), hint: "skl sync --continue"}
+	if paths, err := v.Conflicts(ctx); err == nil && len(paths) > 0 {
+		n.msg += ": conflict in " + strings.Join(paths, ", ")
+	}
+	tmp, err := os.MkdirTemp("", "skl-status-")
+	if err != nil {
+		return nil, nil, fmt.Errorf("status: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	dir := filepath.Join(tmp, "vault")
+	if err := v.Snapshot(ctx, "HEAD", dir); err != nil {
+		return nil, nil, err
+	}
+	idx, err := vault.IndexAt(ctx, dir)
+	return idx, &n, err
 }
 
 // notPushed is the vault's commits origin doesn't have. A vault with no commit yet

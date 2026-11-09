@@ -21,56 +21,69 @@ import (
 
 // Sync is skl sync (docs/guide/sync.md "What sync does"): the frame saves and
 // commits first (step 1), then sync pulls with a merge (2), pushes (3) and reloads
-// what's loaded (4). If the network fails, it stops after step 1.
-func (a *App) Sync(ctx context.Context, dryRun bool) error {
-	if dryRun {
+// what's loaded (4). If the network fails, it stops after step 1. --continue
+// finishes a merge resolved by hand and goes on from there; --abort undoes it.
+func (a *App) Sync(ctx context.Context, mode SyncMode, dryRun bool) error {
+	switch {
+	case dryRun:
 		return a.syncDryRun(ctx)
+	case mode == SyncAbort:
+		return a.syncAbort(ctx)
+	case mode == SyncContinue:
+		return a.changing(ctx, "sync", a.finishMerge, a.syncBody)
 	}
-	return a.Changing(ctx, "sync", func(ctx context.Context, c *Change) (bool, error) {
-		root, err := a.homeRoot()
-		if err != nil {
+	return a.Changing(ctx, "sync", a.syncBody)
+}
+
+// syncBody is sync after the frame's step 1.
+func (a *App) syncBody(ctx context.Context, c *Change) (bool, error) {
+	root, err := a.homeRoot()
+	if err != nil {
+		return false, err
+	}
+	branch, err := a.fetch(ctx, c.Vault)
+	if err != nil {
+		return false, err
+	}
+	before, err := c.Vault.Head(ctx)
+	if err != nil {
+		return false, err
+	}
+	merged, err := a.pull(ctx, c.Vault, branch)
+	if err != nil {
+		return false, err
+	}
+	pulled := c.pulled + merged
+	if pulled > 0 {
+		a.ui.Step("pulled", commits(pulled))
+	}
+	// Step 4 is planned before the push, so a problem in what was pulled, such
+	// as a broken skill set, stops before it goes anywhere.
+	next, err := a.prepare(ctx, c.Vault, c.State, reloading(), nil, root)
+	if err != nil {
+		return false, hinted(err, "skl sync")
+	}
+	changed := pulled > 0 || next.changed
+	// Unless sync makes a generation of its own, the save's ✓ line is the last
+	// and its ◇ line goes, but only once nothing can fail: a failed push still
+	// shows the generation the save made.
+	pushed, err := a.push(ctx, c.Vault, branch, merged, before, !changed)
+	if err != nil {
+		return false, err
+	}
+	if !changed {
+		a.ui.DropHeld()
+	}
+	if pushed {
+		c.Unchanged = "up to date" // sync.md: a push-only sync makes no generation
+	}
+	a.reportReload(c.State, next)
+	if next.changed {
+		if err := a.apply(ctx, c, next); err != nil {
 			return false, err
 		}
-		branch, err := a.fetch(ctx, c.Vault)
-		if err != nil {
-			return false, err
-		}
-		before, err := c.Vault.Head(ctx)
-		if err != nil {
-			return false, err
-		}
-		pulled, err := a.pull(ctx, c.Vault, branch)
-		if err != nil {
-			return false, err
-		}
-		// Step 4 is planned before the push, so a problem in what was pulled, such
-		// as a broken skill set, stops before it goes anywhere.
-		next, err := a.prepare(ctx, c.Vault, c.State, reloading(), nil, root)
-		if err != nil {
-			return false, hinted(err, "skl sync")
-		}
-		changed := pulled > 0 || next.changed
-		// Unless sync makes a generation of its own, the save's ✓ line is the last
-		// and its ◇ line goes, but only once nothing can fail: a failed push still
-		// shows the generation the save made.
-		pushed, err := a.push(ctx, c.Vault, branch, pulled, before, !changed)
-		if err != nil {
-			return false, err
-		}
-		if !changed {
-			a.ui.DropHeld()
-		}
-		if pushed {
-			c.Unchanged = "up to date" // sync.md: a push-only sync makes no generation
-		}
-		a.reportReload(c.State, next)
-		if next.changed {
-			if err := a.apply(ctx, c, next); err != nil {
-				return false, err
-			}
-		}
-		return changed, nil
-	})
+	}
+	return changed, nil
 }
 
 // fetch is the start of step 2: the vault's branch, with origin's fetched.
@@ -97,7 +110,8 @@ func (a *App) fetch(ctx context.Context, v *vault.Vault) (string, error) {
 }
 
 // pull merges what origin has that the vault doesn't, and says how many commits
-// that was. A merge, never a rebase: no commit is rewritten.
+// that was. A merge, never a rebase: no commit is rewritten. A conflict asks how
+// to resolve it (conflict.go).
 func (a *App) pull(ctx context.Context, v *vault.Vault, branch string) (int, error) {
 	theirs, incoming, err := v.Incoming(ctx, branch)
 	if err != nil || len(incoming) == 0 {
@@ -105,13 +119,10 @@ func (a *App) pull(ctx context.Context, v *vault.Vault, branch string) (int, err
 	}
 	if err := v.Merge(ctx, theirs); err != nil {
 		if ce, ok := errors.AsType[*vault.ConflictError](err); ok {
-			// Resolving it comes with its own card: for now the merge is undone,
-			// as it is without a terminal (docs/reference/commands.md "Questions").
-			return 0, errs.Hint(fmt.Errorf("%w needs you", ce), "skl sync, in a terminal")
+			return 0, a.resolve(ctx, v, ce, syncSides)
 		}
 		return 0, err
 	}
-	a.ui.Step("pulled", commits(len(incoming)))
 	return len(incoming), nil
 }
 

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/farzeni/skl/internal/errs"
 	"github.com/farzeni/skl/internal/load"
 	"github.com/farzeni/skl/internal/state"
 	"github.com/farzeni/skl/internal/vault"
@@ -55,7 +54,7 @@ func (a *App) saveFirst(ctx context.Context, c *Change) error {
 		}
 	}
 	if ce, ok := errors.AsType[*vault.ConflictError](saveErr); ok {
-		return errs.Hint(ce, "skl sync --continue")
+		return a.resolve(ctx, c.Vault, ce, saveSides)
 	}
 	if saveErr != nil && !errors.Is(saveErr, context.Canceled) {
 		return a.shownPaths(saveErr)

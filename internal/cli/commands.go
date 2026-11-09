@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/farzeni/skl/internal/app"
+	"github.com/farzeni/skl/internal/errs"
 )
 
 // dryRun is the --dry-run flag, the same for every command that changes
@@ -125,15 +126,30 @@ func (c *cli) commands() []*Command {
 			Name:    "sync",
 			Summary: "Commit, pull, push and reload what's loaded",
 			Help: "Save your changes and commit hand edits in the vault, merge what your other\n" +
-				"machines pushed (never a rebase), push, then reload what's loaded.",
+				"machines pushed (never a rebase), push, then reload what's loaded.\n" +
+				"On a conflict, resolve it by hand in the vault, then skl sync --continue,\n" +
+				"or undo the merge with skl sync --abort.",
 			Example: "skl sync",
-			Flags:   []Flag{dryRun},
+			Flags: []Flag{dryRun,
+				{Name: "continue", Usage: "Finish a merge you resolved by hand"},
+				{Name: "abort", Usage: "Undo a merge that stopped at a conflict"}},
 			Run: func(ctx context.Context, in Input) error {
+				mode := app.SyncRun
+				switch {
+				case in.Has("continue") && in.Has("abort"):
+					return errs.Usagef("skl sync --continue", "--continue and --abort don't go together")
+				case in.Has("dry-run") && (in.Has("continue") || in.Has("abort")):
+					return errs.Usagef("skl sync --dry-run", "--dry-run doesn't go with --continue or --abort")
+				case in.Has("continue"):
+					mode = app.SyncContinue
+				case in.Has("abort"):
+					mode = app.SyncAbort
+				}
 				a, err := c.app(ctx)
 				if err != nil {
 					return err
 				}
-				return a.Sync(ctx, in.Has("dry-run"))
+				return a.Sync(ctx, mode, in.Has("dry-run"))
 			},
 		},
 		{

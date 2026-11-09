@@ -373,6 +373,14 @@ func (u *UI) line(s string) {
 // command that has nothing more to say drops it with DropHeld.
 func (u *UI) StepHeld(label, detail string) { u.held = stepLine(label, detail) }
 
+// Flush prints the line StepHeld holds, if any: for a command stopped by
+// Ctrl-C, whose generation must still show.
+func (u *UI) Flush() { u.flush() }
+
+// Under prints text indented two spaces, as part of the line above: what each
+// side of a conflict did.
+func (u *UI) Under(text string) { u.line("  " + Clean(text)) }
+
 // DropHeld forgets the line StepHeld holds.
 func (u *UI) DropHeld() { u.held = "" }
 

@@ -266,10 +266,19 @@ func readSet(file string) ([]string, error) {
 	if !info.Mode().IsRegular() {
 		return nil, errors.New("isn't a file")
 	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSet(data)
+}
+
+// ParseSet reads a set file's select list from its content.
+func ParseSet(data []byte) ([]string, error) {
 	var set struct {
 		Select []string `toml:"select"`
 	}
-	md, err := toml.DecodeFile(file, &set)
+	md, err := toml.Decode(string(data), &set)
 	if err != nil {
 		return nil, err
 	}
