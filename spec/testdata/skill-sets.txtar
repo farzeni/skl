@@ -165,10 +165,11 @@ exists $HOME/.claude/skills/log
 # Vault changes reach a skill with its next load.
 exec skl use review/pr-review
 cp new-skill.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec git -C $HOME/.skl/vault commit -qam 'from another machine'
 exec skl use review/pr-review
 cmp stderr updated.txt
 cmp $HOME/.claude/skills/pr-review/SKILL.md new-skill.md
-exec git -C $HOME/.skl/vault checkout -q -- review/pr-review
+exec git -C $HOME/.skl/vault reset -q --hard HEAD~1
 exec skl use review/pr-review
 
 # "A selector that matches nothing is a warning." docs/reference/commands.md
@@ -219,16 +220,6 @@ rm $HOME/.claude/skills/pr-review
 exec skl use review
 exists $HOME/.claude/skills/pr-review/.skl-copy.toml
 exists $HOME/.claude/skills/test-gaps/.skl-copy.toml
-
-# An edit to a copy is never thrown away: "A change made to a loaded copy is never
-# discarded without asking" (docs/design/architecture.md "Guarantees").
-exec skl use review/pr-review
-cp own.md $HOME/.claude/skills/pr-review/SKILL.md
-exitcode 1 skl use data
-cmp stderr edited.txt
-cmp $HOME/.claude/skills/pr-review/SKILL.md own.md
-! exists $HOME/.claude/skills/sql-explain
-cp $HOME/.skl/vault/review/pr-review/SKILL.md $HOME/.claude/skills/pr-review/SKILL.md
 
 # "To load into both, set targets in your config"
 # "Each target then holds its own copy of every loaded skill"
@@ -330,6 +321,7 @@ stdout '^  drop '
 -- updated.txt --
 → load review/pr-review
 ~ pr-review   updated
+! 1 change not pushed · skl sync
 ✓ generation 18 · skl rollback to undo
 -- nomatch.txt --
 → load nope
@@ -372,23 +364,21 @@ stdout '^  drop '
 ! test-gaps   skipped: ~/.claude/skills/mine is not in your vault
   · skl import mine
 ✓ generation 29 · skl rollback to undo
--- edited.txt --
-✗ ~/.claude/skills/pr-review has changes not saved back
-  · move it aside, then skl use data
 -- two-targets.txt --
 → load review/pr-review
 + pr-review
-✓ generation 32 · skl rollback to undo
+− test-gaps
+✓ generation 31 · skl rollback to undo
 -- two-targets-foreign.txt --
 → add data
 + sql-explain
 ! sql-explain   skipped: ~/.agents/skills/sql-explain is not in your vault
   · skl import sql-explain
-✓ generation 33 · skl rollback to undo
+✓ generation 32 · skl rollback to undo
 -- target-gone.txt --
 → load review/pr-review
 − pr-review   from ~/.agents/skills
-✓ generation 36 · skl rollback to undo
+✓ generation 35 · skl rollback to undo
 -- new-skill.md --
 ---
 name: pr-review

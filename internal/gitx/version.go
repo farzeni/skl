@@ -72,7 +72,7 @@ func (g *Git) checkVersion(ctx context.Context) error {
 	if g.checked {
 		return g.verErr
 	}
-	out, err := g.exec(ctx, "", []string{"version"}, baseEnv())
+	out, err := g.exec(ctx, "", "", []string{"version"}, baseEnv())
 	if err != nil {
 		if ctx.Err() != nil {
 			return err

@@ -52,6 +52,7 @@ type UI struct {
 	dumb        bool // TERM=dumb: questions are plain lines, no Bubble Tea
 	yes         bool
 	command     string
+	held        string // a step line printed just before the next line, see StepHeld
 }
 
 // New returns the UI for the given streams and environment.
@@ -226,6 +227,7 @@ func Width(s string) int { return lipgloss.Width(Clean(s)) }
 
 // Plan prints "→ <what skl is about to do>".
 func (u *UI) Plan(format string, a ...any) {
+	u.flush()
 	fmt.Fprintln(u.plan, markPlan+" "+Clean(fmt.Sprintf(format, a...)))
 }
 
@@ -246,12 +248,19 @@ func (u *UI) StepHint(label, detail, hint string) {
 	u.line(u.hinted(mark, text, hint))
 }
 
+// StepMore continues the step above on a line of its own, lined up with its
+// detail: the files a save took.
+func (u *UI) StepMore(detail string) {
+	u.line(strings.Repeat(" ", Width(stepLine("", ""))) + Clean(detail))
+}
+
 func stepLine(label, detail string) string {
 	return fmt.Sprintf("%s %-10s %s", markStep, Clean(label), Clean(detail))
 }
 
 // Change prints "+ name", "~ name" or "− name", then the detail if any.
 func (u *UI) Change(k Kind, name, detail string) {
+	u.flush()
 	name = Clean(name)
 	if detail != "" {
 		name += "   " + Clean(detail)
@@ -262,6 +271,7 @@ func (u *UI) Change(k Kind, name, detail string) {
 // Names prints names that have no detail, all of one kind, side by side as far as
 // the width allows: "+ sql-explain   + api-design".
 func (u *UI) Names(k Kind, names []string) {
+	u.flush()
 	var row string
 	for _, n := range names {
 		item := changeMarks[k] + " " + Clean(n)
@@ -316,7 +326,25 @@ func (u *UI) Error(msg, hint string) { u.line(u.hinted(markError, msg, hint)) }
 // Done prints "✓ <msg>", the result, last.
 func (u *UI) Done(msg string) { u.line(markDone + " " + Clean(msg)) }
 
-func (u *UI) line(s string) { fmt.Fprintln(u.stderr, s) }
+func (u *UI) line(s string) {
+	u.flush()
+	fmt.Fprintln(u.stderr, s)
+}
+
+// StepHeld is Step, printed only when another line follows: just before it. A
+// command that has nothing more to say drops it with DropHeld.
+func (u *UI) StepHeld(label, detail string) { u.held = stepLine(label, detail) }
+
+// DropHeld forgets the line StepHeld holds.
+func (u *UI) DropHeld() { u.held = "" }
+
+// flush prints the held step line, if any, before another line.
+func (u *UI) flush() {
+	if u.held != "" {
+		fmt.Fprintln(u.stderr, u.held)
+		u.held = ""
+	}
+}
 
 // hinted is "<mark> <msg> · <hint>", with the hint on its own line after
 // "·" when the whole doesn't fit in the width (commands.md "Output"). A hint

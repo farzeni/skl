@@ -69,13 +69,19 @@ func New(log *slog.Logger) *Git {
 // Ctrl-C can stop it even under context.WithoutCancel: the error then matches
 // context.Canceled while ctx is live, and the caller undoes its step.
 func (g *Git) Run(ctx context.Context, dir string, args ...string) (string, error) {
+	return g.RunInput(ctx, dir, "", args...)
+}
+
+// RunInput is Run with input on git's standard input, for commands such as mktree
+// that read their work from it.
+func (g *Git) RunInput(ctx context.Context, dir, input string, args ...string) (string, error) {
 	if err := g.checkVersion(ctx); err != nil {
 		return "", err
 	}
-	return g.run(ctx, dir, args)
+	return g.run(ctx, dir, input, args)
 }
 
-func (g *Git) run(ctx context.Context, dir string, args []string) (string, error) {
+func (g *Git) run(ctx context.Context, dir, input string, args []string) (string, error) {
 	env := baseEnv()
 	if ssh := g.sshCommand(ctx, dir); ssh != "" {
 		env = append(env, "GIT_SSH_COMMAND="+ssh)
@@ -83,11 +89,11 @@ func (g *Git) run(ctx context.Context, dir string, args []string) (string, error
 		// git would run even an empty GIT_SSH_COMMAND instead of GIT_SSH.
 		env = slices.DeleteFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "GIT_SSH_COMMAND=") })
 	}
-	return g.exec(ctx, dir, args, env)
+	return g.exec(ctx, dir, input, args, env)
 }
 
 // exec runs git with env as its whole environment.
-func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string, error) {
+func (g *Git) exec(ctx context.Context, dir, input string, args, env []string) (string, error) {
 	if dir == "" {
 		g.log.DebugContext(ctx, "git "+strings.Join(args, " "))
 	} else {
@@ -109,6 +115,9 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 	cmd := exec.CommandContext(runCtx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = env
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
 	// Interrupted, git removes its lock files; killed, it would leave index.lock
 	// in the way of the next commit. WaitDelay kills a git that ignores the
 	// interrupt.
@@ -153,7 +162,7 @@ func (g *Git) exec(ctx context.Context, dir string, args, env []string) (string,
 		g.log.DebugContext(ctx, "git "+subcommand(args)+" exited 0, but something it started still holds its output")
 		return stdout.String(), nil
 	}
-	e := &Error{Args: args, Stderr: stderr.String(), Code: -1, err: err}
+	e := &Error{Args: args, Stdout: stdout.String(), Stderr: stderr.String(), Code: -1, err: err}
 	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 		e.Code = exit.ExitCode()
 	}
@@ -293,7 +302,7 @@ func (g *Git) sshCommand(ctx context.Context, dir string) string {
 	if !ok {
 		// Exit 1 means unset. Any other failure, such as a dir that doesn't
 		// exist, is the main call's to report.
-		out, _ := g.exec(ctx, dir, []string{"config", "--get", "core.sshCommand"}, baseEnv())
+		out, _ := g.exec(ctx, dir, "", []string{"config", "--get", "core.sshCommand"}, baseEnv())
 		cfg = strings.TrimSpace(out)
 		if ctx.Err() == nil {
 			if g.sshCfg == nil {

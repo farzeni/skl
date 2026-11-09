@@ -69,6 +69,9 @@ func (a *App) loadDryRun(ctx context.Context, s selection, sels []selector.Selec
 	if err != nil {
 		return err
 	}
+	if err := a.notMerging(ctx, v); err != nil {
+		return err
+	}
 	st, err := a.store.Load(ctx)
 	if err != nil {
 		return a.stateError(err)
@@ -166,7 +169,7 @@ func (a *App) prepare(ctx context.Context, v *vault.Vault, st *state.State, s se
 		Vault: v.Dir(), Commit: head, Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root,
 	})
 	if err != nil {
-		return nil, a.planError(err, s)
+		return nil, a.planError(err)
 	}
 	notes = slices.Concat(s.selectorNotes(res, idx), notes, a.indexNotes(idx, plan), a.skipNotes(plan))
 	return &loadNext{
@@ -270,11 +273,7 @@ func (a *App) apply(ctx context.Context, c *Change, next *loadNext) error {
 }
 
 // planError gives an error from reading the folders its ✗ line.
-func (a *App) planError(err error, s selection) error {
-	if ee, ok := errors.AsType[*load.EditedError](err); ok {
-		return errs.Hint(&shownError{Err: err, Text: a.shown(ee.Path) + " has changes not saved back"},
-			"move it aside, then skl "+s.command())
-	}
+func (a *App) planError(err error) error {
 	if errors.Is(err, context.Canceled) {
 		return err
 	}

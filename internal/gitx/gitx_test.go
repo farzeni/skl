@@ -66,6 +66,23 @@ func TestRunOutput(t *testing.T) {
 	}
 }
 
+// RunInput feeds git's standard input; a failure keeps what git wrote to stdout,
+// as merge-tree reports its conflicts there with exit code 1.
+func TestRunInputAndStdoutOnError(t *testing.T) {
+	isolate(t)
+	g := New(nil)
+	dir := newRepo(t, g)
+	out, err := g.RunInput(t.Context(), dir, "hello\n", "hash-object", "--stdin")
+	if err != nil || out != "ce013625030ba8dba906f756967f9e9ca394464a\n" {
+		t.Fatalf("RunInput(hash-object) = %q, %v", out, err)
+	}
+	_, err = g.Run(t.Context(), dir, "-c", "alias.say=!echo out; exit 1", "say")
+	ge, ok := errors.AsType[*Error](err)
+	if !ok || ge.Code != 1 || ge.Stdout != "out\n" {
+		t.Fatalf("err = %#v", err)
+	}
+}
+
 func TestRunExitCode(t *testing.T) {
 	isolate(t)
 	g := New(nil)

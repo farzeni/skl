@@ -68,12 +68,6 @@ type Skip struct {
 	Foreign string // that folder's name
 }
 
-// EditedError is a copy skl would replace or remove with changes in it that
-// aren't in the vault. A loaded copy's change is never discarded without asking.
-type EditedError struct{ Path string }
-
-func (e *EditedError) Error() string { return e.Path + " has changes not saved back" }
-
 // Plan is what loading a list of skills would do. Compute makes it and changes
 // nothing; Apply carries it out.
 type Plan struct {
@@ -165,7 +159,15 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 		name := selector.Fold(s.Folder)
 		kept[name] = true
 		onDisk, there := held.owned[name]
-		if there && onDisk.folder == s.Folder && onDisk.manifest.Source == s.String() && onDisk.manifest.Tree == tree {
+		current := there && onDisk.folder == s.Folder && onDisk.manifest.Source == s.String() && onDisk.manifest.Tree == tree
+		if current {
+			// Save-back leaves a folder emptied by hand alone, so it would stay
+			// empty: it's reloaded (docs/guide/skills.md "Edit as usual").
+			if current, err = hasContent(ctx, filepath.Join(dir, onDisk.folder)); err != nil {
+				return err
+			}
+		}
+		if current {
 			p.Copies = append(p.Copies, state.Copy{
 				Name: s.Folder, Target: t, Skill: s.String(), Commit: onDisk.manifest.Commit, Tree: tree,
 			})
@@ -173,9 +175,6 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 		}
 		st := step{target: t, dir: dir, skill: &s, tree: tree}
 		if there {
-			if err := checkEdited(ctx, filepath.Join(dir, onDisk.folder), onDisk.manifest); err != nil {
-				return err
-			}
 			st.old = onDisk.folder
 		}
 		p.steps = append(p.steps, st)
@@ -192,9 +191,6 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 		onDisk, there := held.owned[name]
 		if !there {
 			continue // gone, or no longer ours: there is nothing to unload
-		}
-		if err := checkEdited(ctx, filepath.Join(dir, onDisk.folder), onDisk.manifest); err != nil {
-			return err
 		}
 		p.steps = append(p.steps, step{target: t, dir: dir, old: onDisk.folder})
 		c.unloaded(cp, dir)
@@ -222,19 +218,6 @@ func allTargets(targets []config.Target, current []state.Copy) []config.Target {
 		}
 	}
 	return all
-}
-
-// checkEdited stops a change that would lose edits in a copy. A manifest skl can't
-// read says nothing about the folder, so it counts as edited.
-func checkEdited(ctx context.Context, path string, m Manifest) error {
-	tree, err := Tree(ctx, path)
-	if err != nil {
-		return err
-	}
-	if tree != m.Tree {
-		return &EditedError{Path: path}
-	}
-	return nil
 }
 
 // changes builds the lines of a plan, one per name in any number of targets.
