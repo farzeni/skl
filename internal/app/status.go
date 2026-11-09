@@ -54,7 +54,8 @@ func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	idx, merge, err := a.statusIndex(ctx, v)
+	idx, merge, done, err := a.statusIndex(ctx, v)
+	defer done()
 	if err != nil {
 		return nil, err
 	}
@@ -96,15 +97,17 @@ func (a *App) readStatus(ctx context.Context) (*statusReport, error) {
 // the work tree holds conflict markers that aren't anyone's mistake, and what's
 // loaded still comes from HEAD: the index is HEAD's, and the merge is a note of
 // its own, "! a sync is in progress: conflict in sets/backend.toml · skl sync
-// --continue".
-func (a *App) statusIndex(ctx context.Context, v *vault.Vault) (*vault.Index, *note, error) {
+// --continue". The index reads skill sets as it needs them: done removes its
+// files once the report no longer does.
+func (a *App) statusIndex(ctx context.Context, v *vault.Vault) (idx *vault.Index, merge *note, done func(), err error) {
+	done = func() {}
 	merging, err := v.Merging(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, done, err
 	}
 	if !merging {
 		idx, err := v.Index(ctx)
-		return idx, nil, err
+		return idx, nil, done, err
 	}
 	n := note{msg: vault.ErrMerging.Error(), hint: "skl sync --continue"}
 	if paths, err := v.Conflicts(ctx); err == nil && len(paths) > 0 {
@@ -112,15 +115,15 @@ func (a *App) statusIndex(ctx context.Context, v *vault.Vault) (*vault.Index, *n
 	}
 	tmp, err := os.MkdirTemp("", "skl-status-")
 	if err != nil {
-		return nil, nil, fmt.Errorf("status: %w", err)
+		return nil, nil, done, fmt.Errorf("status: %w", err)
 	}
-	defer func() { _ = os.RemoveAll(tmp) }()
+	done = func() { _ = os.RemoveAll(tmp) }
 	dir := filepath.Join(tmp, "vault")
 	if err := v.Snapshot(ctx, "HEAD", dir); err != nil {
-		return nil, nil, err
+		return nil, nil, done, err
 	}
-	idx, err := vault.IndexAt(ctx, dir)
-	return idx, &n, err
+	idx, err = vault.IndexAt(ctx, dir)
+	return idx, &n, done, err
 }
 
 // notPushed is the vault's commits origin doesn't have. A vault with no commit yet

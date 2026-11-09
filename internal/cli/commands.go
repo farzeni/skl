@@ -134,16 +134,17 @@ func (c *cli) commands() []*Command {
 				{Name: "continue", Usage: "Finish a merge you resolved by hand"},
 				{Name: "abort", Usage: "Undo a merge that stopped at a conflict"}},
 			Run: func(ctx context.Context, in Input) error {
-				mode := app.SyncRun
+				mode, flag := app.SyncRun, ""
 				switch {
 				case in.Has("continue") && in.Has("abort"):
 					return errs.Usagef("skl sync --continue", "--continue and --abort don't go together")
-				case in.Has("dry-run") && (in.Has("continue") || in.Has("abort")):
-					return errs.Usagef("skl sync --dry-run", "--dry-run doesn't go with --continue or --abort")
 				case in.Has("continue"):
-					mode = app.SyncContinue
+					mode, flag = app.SyncContinue, "continue"
 				case in.Has("abort"):
-					mode = app.SyncAbort
+					mode, flag = app.SyncAbort, "abort"
+				}
+				if flag != "" && in.Has("dry-run") {
+					return errs.Usagef("skl sync --"+flag, "--dry-run doesn't go with --%s", flag)
 				}
 				a, err := c.app(ctx)
 				if err != nil {

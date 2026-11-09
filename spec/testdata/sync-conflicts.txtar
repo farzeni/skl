@@ -1,0 +1,306 @@
+# docs/guide/sync.md "When both machines changed the same file", "By hand",
+# "Abort"; docs/reference/commands.md "Errors", "Questions", "Dry run";
+# docs/design/architecture.md "Safety"
+#
+# Two machines in one script: this one (HOME=$WORK/home) and the laptop
+# (HOME=$WORK/laptop), against one remote. ptyrun gives skl a terminal, so it
+# asks; exec and exitcode give it none.
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend
+mkdir $WORK/laptop
+env HOME=$WORK/laptop
+exec skl init you/skills
+exec skl use @backend
+
+# The laptop adds a skill to @backend and puts writing/style where
+# writing/changelog was, and pushes.
+cp backend-laptop.toml $HOME/.skl/vault/sets/backend.toml
+exec skl sync
+exec git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main
+cp stdout remote-1.txt
+
+# This machine drops writing/changelog from @backend: the same lines.
+env HOME=$WORK/home
+cp backend-here.toml $HOME/.skl/vault/sets/backend.toml
+
+# commands.md "Questions": "Without a terminal, … skl sync undoes the merge, keeps
+# your local commits, and stops: ✗ conflict in sets/backend.toml needs you · skl
+# sync, in a terminal". sync.md: "skl shows which files clash and what each side
+# did" (with the labels of docs PR #120).
+exitcode 1 skl sync
+cmp stderr no-terminal.txt
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+exec git -C $HOME/.skl/vault log -1 --format=%s
+stdout 'hand edits'
+cmp $HOME/.skl/vault/sets/backend.toml backend-here.toml
+# "Your loaded skills don't change until the merge lands"
+exists $HOME/.claude/skills/changelog
+! exists $HOME/.claude/skills/style
+exec git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main
+cmp stdout remote-1.txt
+exec git -C $HOME/.skl/vault rev-parse HEAD
+cp stdout here-head.txt
+
+# sync.md: "? Resolve   › with Claude   by hand   abort"; "with Claude" shows only
+# when the engine exists, so until v0.3 the answers are by hand and abort.
+# commands.md: "Ctrl-C at a question takes its last answer (… abort)", and exits 130.
+exitcode 130 ptyrun ctrl-c skl sync
+stderr '! conflict   sets/backend.toml\n  this machine   drop writing/changelog\n  other machine  add data/sql-explain\n                 use writing/style\n'
+stderr '\? Resolve   › abort\n'
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+
+# sync.md "Abort": "Choose abort … and the merge is undone. Your hand edits stay
+# committed on this machine, nothing is pushed and your loaded skills don't change."
+exitcode 1 ptyrun right,enter skl sync
+stderr '\? Resolve   › abort\n✗ conflict in sets/backend.toml: merge undone · skl sync\n'
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+exec sh -c 'test "$(git -C $HOME/.skl/vault rev-parse HEAD)" = "$(cat here-head.txt)"'
+exists $HOME/.claude/skills/changelog
+exec git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main
+cmp stdout remote-1.txt
+
+# sync.md "By hand": "skl leaves standard git conflict markers in the files in
+# ~/.skl/vault." commands.md "Exit codes": a sync that stopped at a conflict is 1.
+exitcode 1 ptyrun enter skl sync
+stderr '\? Resolve   › by hand\n✗ conflict in sets/backend.toml · skl sync --continue\n'
+exists $HOME/.skl/vault/.git/MERGE_HEAD
+grep '^<<<<<<<' $HOME/.skl/vault/sets/backend.toml
+grep '^>>>>>>>' $HOME/.skl/vault/sets/backend.toml
+exists $HOME/.claude/skills/changelog
+
+# commands.md "Errors": "✗ a sync is in progress · skl sync --continue". "While a
+# merge you resolve by hand is open, only status, history, open, help and sync
+# --continue or --abort run."
+exitcode 1 skl add data
+cmp stderr in-progress.txt
+exitcode 1 skl sync
+cmp stderr in-progress-sync.txt
+exitcode 1 skl sync --dry-run
+cmp stderr in-progress-sync.txt
+exec skl status
+cmp stdout status-merging.txt
+exec skl history
+stdout 'use @backend'
+exec skl help sync
+stdout 'skl sync --continue'
+
+# commands.md "Dry run": "With sync --continue or --abort, it's a usage error."
+exitcode 2 skl sync --dry-run --continue
+cmp stderr dry-continue.txt
+exitcode 2 skl sync --abort --dry-run
+cmp stderr dry-abort.txt
+exitcode 2 skl sync --continue --abort
+cmp stderr continue-abort.txt
+
+# The markers are still there: --continue stops and the merge stays open.
+exitcode 1 skl sync --continue
+cmp stderr markers-left.txt
+exists $HOME/.skl/vault/.git/MERGE_HEAD
+
+# sync.md "Abort": "You can also run this at any point: skl sync --abort".
+exec skl sync --abort
+cmp stderr aborted.txt
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+exec sh -c 'test "$(git -C $HOME/.skl/vault rev-parse HEAD)" = "$(cat here-head.txt)"'
+exists $HOME/.claude/skills/changelog
+exec git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main
+cmp stdout remote-1.txt
+# Nothing to abort: nothing to change.
+exec skl sync --abort
+cmp stderr nothing.txt
+# Nothing to continue.
+exitcode 1 skl sync --continue
+cmp stderr nothing-to-continue.txt
+
+# sync.md "By hand": "Edit them, then finish with: skl sync --continue". The merge
+# lands, is pushed, and what's loaded reloads.
+exitcode 1 ptyrun enter skl sync
+cp backend-merged.toml $HOME/.skl/vault/sets/backend.toml
+exec skl sync --continue
+cmp stderr continued.txt
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+exec git -C $HOME/.skl/vault log -1 --format=%P
+stdout '^\w+ \w+$'
+cmp $HOME/.skl/vault/sets/backend.toml backend-merged.toml
+exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(git -C $HOME/.skl/vault rev-parse HEAD)"'
+exists $HOME/.claude/skills/style
+exists $HOME/.claude/skills/sql-explain
+! exists $HOME/.claude/skills/changelog
+exec skl history
+stdout '^ *\d+ .*sync$'
+
+# The laptop takes the result.
+env HOME=$WORK/laptop
+exec skl sync
+cmp $HOME/.skl/vault/sets/backend.toml backend-merged.toml
+! exists $HOME/.claude/skills/changelog
+
+# architecture.md "Safety": "A save-back conflict resolved by hand is the same state,
+# so it also finishes with skl sync --continue." docs/guide/skills.md: "When both
+# changed the same lines, it asks you how to resolve them, the same way as a sync
+# conflict." The vault's pr-review changes after it was loaded, and so does the
+# loaded copy, on the same line.
+env HOME=$WORK/home
+exec skl sync
+cp pr-review-vault.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec git -C $HOME/.skl/vault commit -q -am 'pr-review in the vault'
+cp pr-review-loaded.md $HOME/.claude/skills/pr-review/SKILL.md
+
+# Without a terminal the save-back's merge is undone too, and the loaded copy stays
+# as it is.
+exitcode 1 skl add data
+cmp stderr save-no-terminal.txt
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+cmp $HOME/.claude/skills/pr-review/SKILL.md pr-review-loaded.md
+
+# With a terminal: by hand.
+exitcode 1 ptyrun enter skl sync
+stderr '! conflict   review/pr-review/SKILL.md\n  loaded  changed\n  vault   changed\n'
+stderr '✗ conflict in review/pr-review/SKILL.md · skl sync --continue\n'
+exists $HOME/.skl/vault/.git/MERGE_HEAD
+grep '^<<<<<<<' $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl status
+stdout 'a sync is in progress: conflict in review/pr-review/SKILL.md\n  · skl sync --continue'
+! stdout 'frontmatter'
+cp pr-review-merged.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl sync --continue
+cmp stderr save-continued.txt
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+# The merge is pushed, and the loaded copy now holds it, recorded at the vault's
+# commit: it counts as unchanged, so nothing is saved again.
+exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(git -C $HOME/.skl/vault rev-parse HEAD)"'
+cmp $HOME/.claude/skills/pr-review/SKILL.md pr-review-merged.md
+exec sh -c 'grep -q "commit = \"$(git -C $HOME/.skl/vault rev-parse HEAD)\"" $HOME/.claude/skills/pr-review/.skl-copy.toml'
+exec skl status
+! stdout 'pr-review.*changed'
+exec skl sync
+cmp stderr up-to-date.txt
+
+-- backend-here.toml --
+select = [
+  "review/pr-review",
+]
+-- backend-laptop.toml --
+select = [
+  "review/pr-review",
+  "data/sql-explain",
+  "writing/style",
+]
+-- backend-merged.toml --
+select = [
+  "review/pr-review",
+  "data/sql-explain",
+  "writing/style",
+]
+-- pr-review-vault.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, from the vault.
+-- pr-review-loaded.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, as loaded.
+-- pr-review-merged.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, from both.
+-- seed/LICENSE --
+MIT
+-- seed/sets/backend.toml --
+select = [
+  "review/pr-review",
+  "writing/changelog",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
+Review.
+-- seed/data/sql-explain/SKILL.md --
+---
+description: explain SQL
+---
+SQL.
+-- seed/writing/changelog/SKILL.md --
+---
+description: write a changelog
+---
+Log.
+-- seed/writing/style/SKILL.md --
+---
+description: house style
+---
+Style.
+-- no-terminal.txt --
+◇ committed  sets/backend.toml
+◇ generation 3
+! conflict   sets/backend.toml
+  this machine   drop writing/changelog
+  other machine  add data/sql-explain
+                 use writing/style
+✗ conflict in sets/backend.toml needs you · skl sync, in a terminal
+-- in-progress.txt --
+✗ a sync is in progress · skl sync --continue
+-- in-progress-sync.txt --
+✗ a sync is in progress · skl sync --continue
+-- status-merging.txt --
+loaded (user)  @backend
+  pr-review  review/pr-review
+  changelog  writing/changelog
+! a sync is in progress: conflict in sets/backend.toml · skl sync --continue
+skill sets   @backend
+vault        1 change not pushed · skl sync
+-- dry-continue.txt --
+✗ --dry-run doesn't go with --continue · skl sync --continue
+-- dry-abort.txt --
+✗ --dry-run doesn't go with --abort · skl sync --abort
+-- continue-abort.txt --
+✗ --continue and --abort don't go together · skl sync --continue
+-- markers-left.txt --
+✗ sets/backend.toml still has conflict markers · skl sync --continue
+-- aborted.txt --
+✓ merge undone
+-- nothing.txt --
+✓ nothing to change
+-- nothing-to-continue.txt --
+✗ no sync to continue · skl sync
+-- continued.txt --
+◇ pulled     1 commit
+◇ pushed
+  + data/sql-explain   + writing/style   − writing/changelog
+✓ generation 4 · skl rollback to undo
+-- save-no-terminal.txt --
+! conflict   review/pr-review/SKILL.md
+  loaded  changed
+  vault   changed
+✗ conflict in review/pr-review/SKILL.md needs you · skl sync, in a terminal
+-- save-continued.txt --
+◇ saved      pr-review → review/pr-review
+             SKILL.md
+◇ generation 5
+◇ pushed
+  ~ review/pr-review   updated
+✓ generation 6 · skl rollback to undo
+-- up-to-date.txt --
+✓ nothing to change
