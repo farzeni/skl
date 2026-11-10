@@ -16,15 +16,23 @@ import (
 // ErrNeedsAnswer is a question asked without a terminal and without --yes.
 var ErrNeedsAnswer = errors.New("needs an answer")
 
+// ErrNoTerminal is a question only a terminal answers, asked without one.
+var ErrNoTerminal = errors.New("needs a terminal")
+
 // Question is one question and its answers. The first answer is the
 // default: the one --yes and Enter take.
 type Question struct {
 	Prompt  string // "Add it?"
 	Answers []string
+	// Terminal is a question only a terminal answers, such as how to resolve
+	// a sync conflict: --yes doesn't take its first answer, and without a
+	// terminal Ask returns ErrNoTerminal for the caller to stop as it must.
+	Terminal bool
 }
 
 // Ask returns the index of the answer picked (commands.md "Questions").
-//   - With --yes, it returns 0 and prints nothing.
+//   - With --yes, it returns 0 and prints nothing, unless q.Terminal.
+//   - A q.Terminal question without a terminal returns ErrNoTerminal.
 //   - Without a terminal on stdin and stderr, it returns
 //     "✗ <prompt> needs an answer · <command> --yes", before anything changes.
 //   - On a terminal, ← → or Tab move and Enter picks; the line then collapses
@@ -36,10 +44,12 @@ func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 	if len(q.Answers) == 0 {
 		return 0, fmt.Errorf("question %q has no answers", q.Prompt)
 	}
-	if u.yes {
+	switch {
+	case q.Terminal && !u.interactive:
+		return 0, ErrNoTerminal
+	case u.yes && !q.Terminal:
 		return 0, nil
-	}
-	if !u.interactive {
+	case !u.interactive:
 		return 0, u.needsAnswer(q)
 	}
 	u.flush()
@@ -180,6 +190,9 @@ func (u *UI) askLine(ctx context.Context, q Question) (int, error) {
 		if got.err != nil && answer == "" {
 			// Ctrl-D or a closed stdin: no answer is coming.
 			fmt.Fprintln(u.stderr)
+			if q.Terminal {
+				return 0, ErrNoTerminal
+			}
 			return 0, u.needsAnswer(q)
 		}
 		if answer == "" {

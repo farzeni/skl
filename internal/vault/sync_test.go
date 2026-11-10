@@ -82,7 +82,7 @@ func TestFetchMergePush(t *testing.T) {
 
 // A conflict is undone: HEAD and the work tree are as before, and the files that
 // clashed are named.
-func TestMergeConflictUndone(t *testing.T) {
+func TestMergeConflictLeftOpen(t *testing.T) {
 	ctx := context.Background()
 	v, other := twoClones(t)
 	commitFile(t, other, "a.txt", "one\ntheirs\nthree\n")
@@ -101,11 +101,18 @@ func TestMergeConflictUndone(t *testing.T) {
 	if !ok || !slices.Equal(ce.Paths, []string{"a.txt"}) {
 		t.Fatalf("Merge = %v", err)
 	}
+	if merging, err := v.Merging(ctx); err != nil || !merging {
+		t.Errorf("Merging = %v, %v", merging, err)
+	}
+	if paths, err := v.Conflicts(ctx); err != nil || !slices.Equal(paths, []string{"a.txt"}) {
+		t.Errorf("Conflicts = %v, %v", paths, err)
+	}
+	v.Unmerge(ctx, before)
 	if head := run(t, v.dir, "rev-parse", "HEAD"); head != before {
 		t.Errorf("HEAD moved: %s", head)
 	}
 	if merging, err := v.Merging(ctx); err != nil || merging {
-		t.Errorf("Merging = %v, %v", merging, err)
+		t.Errorf("Merging after Unmerge = %v, %v", merging, err)
 	}
 	if st := run(t, v.dir, "status", "--porcelain"); st != "" {
 		t.Errorf("work tree not clean:\n%s", st)

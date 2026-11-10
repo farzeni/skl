@@ -107,13 +107,19 @@ cmp $HOME/.skl/vault/review/pr-review/SKILL.md long-both.md
 cmp $HOME/.claude/skills/pr-review/SKILL.md long-both.md
 
 # "When both changed the same lines, it asks you how to resolve them, the same way
-# as a sync conflict": the merge is left in the vault, and only status, history,
-# open and help run until it's finished (docs/reference/commands.md "Errors").
+# as a sync conflict". Without a terminal, the merge is undone and the command
+# stops (docs/reference/commands.md "Questions").
 cp long-vault2.md $HOME/.skl/vault/review/pr-review/SKILL.md
 exec git -C $HOME/.skl/vault commit -q -am 'again from the laptop'
 cp long-copy2.md $HOME/.claude/skills/pr-review/SKILL.md
 exitcode 1 skl drop data
 cmp stderr conflict.txt
+! exists $HOME/.skl/vault/.git/MERGE_HEAD
+cmp $HOME/.claude/skills/pr-review/SKILL.md long-copy2.md
+# By hand, on a terminal: the merge is left in the vault, and only status, history,
+# open and help run until it's finished (docs/reference/commands.md "Errors").
+exitcode 1 ptyrun enter skl drop data
+stderr '✗ conflict in review/pr-review/SKILL.md · skl sync --continue'
 exists $HOME/.skl/vault/.git/MERGE_HEAD
 grep '^<<<<<<<' $HOME/.skl/vault/review/pr-review/SKILL.md
 cmp $HOME/.claude/skills/pr-review/SKILL.md long-copy2.md
@@ -122,7 +128,7 @@ cmp stderr in-progress.txt
 exitcode 1 skl use data --dry-run
 cmp stderr in-progress-dry.txt
 exec skl status
-exec git -C $HOME/.skl/vault merge --abort
+exec skl sync --abort
 cp long-both.md $HOME/.claude/skills/pr-review/SKILL.md
 
 # docs/design/architecture.md: "With two targets, each copy is saved back on its
@@ -204,7 +210,10 @@ cmp stdout two-commits.txt
 ! 7 changes not pushed · skl sync
 ✓ generation 18 · skl rollback to undo
 -- conflict.txt --
-✗ conflict in review/pr-review/SKILL.md · skl sync --continue
+! conflict   review/pr-review/SKILL.md
+  loaded  changed
+  vault   changed
+✗ conflict in review/pr-review/SKILL.md needs you · skl sync, in a terminal
 -- in-progress.txt --
 ✗ a sync is in progress · skl sync --continue
 -- in-progress-dry.txt --

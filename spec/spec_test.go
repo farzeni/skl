@@ -20,7 +20,8 @@ import (
 
 func TestMain(m *testing.M) {
 	testscript.Main(m, map[string]func(){
-		"skl": runSkl,
+		"skl":    runSkl,
+		"ptyrun": func() { os.Exit(ptyrun()) },
 	})
 }
 
