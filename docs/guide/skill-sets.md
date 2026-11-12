@@ -86,7 +86,16 @@ select = [
 
 Later `add` and `drop` commands change your active skill set, not the file: run `skl save backend` again to keep them. If your active skill set includes `@backend` itself, skl writes the lines of `@backend` in its place, so the file keeps its old lines plus your changes. Because a skill set keeps selectors, not a list of skills, a skill you add to the `review` group later is part of `@backend` too. A skill set can include other skill sets.
 
-If `backend` already exists, skl shows how its selectors change and asks before overwriting it.
+If `backend` already exists, skl shows how its selectors change and asks before overwriting it. If the new skill set is empty, so every line would go, the default answer is no:
+
+```
+→ overwrite sets/backend.toml
+− @base
+− review
+? Overwrite @backend?   › no   yes
+```
+
+Answer yes, or pass `--yes`, to save the empty skill set.
 
 To change a named skill set, edit its file in `~/.skl/vault/sets/`. To delete one, delete the file. `skl status` lists your named skill sets. Run `skl sync` to commit these edits and take them to your other machines: see [Sync](./sync).
 
