@@ -2,7 +2,7 @@
 
 skl is a CLI for agent skills: Claude Code first, and opencode, pi, Codex and the other agents that read the same skill folders. It keeps your skills in one git repo (the vault), loads any mix of them on any machine, can roll back any change, and lets a skill **learn** from another one: copied as is if you don't have it, or through an LLM interview if you do. `learn` is the only way a skill from elsewhere gets in.
 
-**Status: early implementation.** `cli`, `ui` (output vocabulary, questions), `config` and `gitx` have merged (#56, #57, #59, #60); every command beyond `help` and `--version` is still planned behavior in `docs/`. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
+**Status: v0.1 built, going public (user, 2026-11-11).** Merged packages: `cli`, `ui`, `config`, `gitx`, `errs`, `selector`, `resolve`, `state`, `ref` (repo forms only), `vault`, `load`, `app`. Merged commands: `init` with the import offer (#91, #118), `use`/`add`/`drop` in the user scope (#104), `status` and `--json` (#108), `save` (#112), `history` and `--json` (#111), save-back of edits (#113), `rollback [N]` (#116), `import` (#118), `sync` with conflicts by hand, `--continue`, `--abort` (#117, #123), the `claude` and `agents` targets, `help` and `--version`. Not built: `learn` (v0.2, v0.3), `open`, project scope and `completion` (v0.4), the third-party parts. `docs/design/roadmap.md` "What works in v0.1" is the public list; pages keep their "Design preview" warning until everything on them is built. The binary in `demo/bin/skl` is a scripted mock that exists only for the demo recording.
 
 ## How we work
 

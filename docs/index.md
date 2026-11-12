@@ -27,7 +27,7 @@ features:
 <img class="demo" src="/demo.gif" alt="Terminal recording: skl init, skl learn, skl status, a lesson, skl history, skl rollback">
 
 ::: warning Design preview
-skl is not built yet. These docs describe the planned behavior, and the recording above runs a scripted mock.
+Parts of skl aren't built yet; see [What works in v0.1](/design/roadmap#what-works-in-v0-1). The recording above runs a scripted mock.
 :::
 
 ## Why skl

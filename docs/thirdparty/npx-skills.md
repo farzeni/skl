@@ -1,7 +1,7 @@
 # npx skills
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Nothing on this page is built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 [`npx skills`](https://github.com/vercel-labs/skills) is Vercel's installer for agent skills. It works next to skl without any setup.

@@ -1,7 +1,7 @@
 # Rollback
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Undo any change skl made or saved: a load, a lesson, an edit saved from Claude Code, a sync. Each of those is a **generation**, a numbered snapshot of your [active skill set](./skill-sets), meaning which skills are loaded where, plus the vault commit at that moment.

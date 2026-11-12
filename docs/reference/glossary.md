@@ -1,7 +1,7 @@
 # Glossary
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 | Term | Example | What it is |

@@ -1,7 +1,7 @@
 # Your skills
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Keep improving your skills in Claude Code the way you do now. skl saves each change to your vault, so `skl sync` takes it to your other machines and `skl rollback` can undo it.

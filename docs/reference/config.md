@@ -1,7 +1,7 @@
 # Configuration
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Each machine can have its own config file, `~/.skl/config.toml`. Create and edit it by hand when you want to change a default; without it, skl uses the defaults below. It's never synced, so settings that differ between machines go here. Settings that should follow you everywhere, like skill sets, live in your vault.
