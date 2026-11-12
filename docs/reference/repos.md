@@ -64,9 +64,23 @@ Every command that takes a repo (`init`, `learn`, `open`) accepts the same forms
 
 For `owner/repo` and `host/path` forms, skl picks SSH or HTTPS from the [`protocol`](./config) setting.
 
+In the `host/path` form, every part after the host belongs to the repo, so GitLab subgroups work: `gitlab.com/team/sub/skills` is one repo. A path inside it needs `//`, as in [Skills inside a repo](#skills-inside-a-repo). If a repo with three or more parts after the host can't be reached, the error says how to write it as a path instead:
+
+```
+✗ can't reach gitlab.com/team/skills/pdf
+  · if pdf is a folder in the repo: skl learn gitlab.com/team/skills//pdf
+```
+
 ### How a reference is stored
 
-skl records the sources and peers you learn from as full URLs, so they mean the same thing on every machine. `owner/repo` and `host/path` forms are stored as HTTPS, whatever `protocol` you fetch with: `someone/agent-skills/pdf` becomes `https://github.com/someone/agent-skills//skills/pdf`, with the path skl found after `//`. A URL you typed is stored as you typed it. A trailing `.git` is dropped, so two references to the same repo match with or without it. A pin is stored apart, as `ref` in [`.skl-origin.toml`](./files#skl-origin-toml).
+skl records the sources and peers you learn from as full URLs, so they mean the same thing on every machine. `owner/repo` and `host/path` forms are stored as HTTPS, whatever `protocol` you fetch with: `someone/agent-skills/pdf` becomes `https://github.com/someone/agent-skills//skills/pdf`, with the path skl found after `//`. A URL you typed is stored as you typed it. A trailing `.git` is dropped, so two references to the same repo match with or without it. A repo on this machine is stored as its path: with `~` when it's under your home folder (`~/code/skills`), else absolute. A pin is stored apart, as `ref` in [`.skl-origin.toml`](./files#skl-origin-toml).
+
+Such a source exists on one machine only. On another one, where the path doesn't exist, the update check warns and nothing else changes:
+
+```
+! someone/pdf: ~/code/skills isn't on this machine
+  · skl sync on the machine that has it
+```
 
 ## Skills inside a repo
 
@@ -89,6 +103,8 @@ You can also name the skill instead of giving its path. If there's no `SKILL.md`
 skl learn someone/agent-skills/pdf    # the folder is skills/pdf/
 ```
 
+The lookup follows the same rules as a name in your vault: case and [Unicode form](../guide/skill-sets#names-and-clashes) don't matter, an exact folder name wins over one that differs only by case or form, hidden folders and names outside the [grammar](#grammar) are skipped, and it searches at any depth.
+
 If two skills in the repo have that name, skl stops and lists both paths, so you can pick one:
 
 ```
@@ -107,6 +123,8 @@ skl learn someone/agent-skills/@backend
 skl learn gitlab.com/team/sub/skills//@backend
 ```
 
+A path before the `@` is where their vault starts inside the repo: `someone/agent-skills//sub/@backend` reads `sub/sets/backend.toml`, and its selectors name groups under `sub/`.
+
 ## Pinning a version
 
 Add `#` and a tag, branch or commit:
@@ -114,6 +132,12 @@ Add `#` and a tag, branch or commit:
 ```sh
 skl learn someone/agent-skills/pdf#v1.2
 ```
+
+The first `#` after the repo and the path starts the pin, and everything after it is the ref's name, even another `#`: `pdf#v1#rc` pins `v1#rc`.
+
+A [skill set](../guide/learn#copy-a-skill-set) can be pinned too: `someone/agent-skills/@backend#v1.2` copies the set and every skill it names at `v1.2`, and each copy records the same pin.
+
+Your vault can't be pinned: `skl init you/skills#dev` is a [usage error](./commands#exit-codes).
 
 skl copies that version and records the pin with the copy. A tag or a commit stays where it is: the skill never shows an update, and you move it by learning a newer one (`…/pdf#v1.3`). A branch, or no pin at all, follows that branch: [`skl sync`](../guide/sync) finds its new commits and [`skl learn`](../guide/learn#keep-up-with-its-author) takes them.
 

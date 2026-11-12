@@ -74,13 +74,15 @@ A skill set you [copied from someone](../guide/learn#copy-a-skill-set) has a sec
 [source]
 url = "https://github.com/someone/agent-skills//@backend"
 commit = "3f9a1c2"
+ref = "v1.2"            # only if you pinned one with #
+ref_kind = "tag"
 selected = [   # the lines skl last wrote into backend.toml
   "someone/lint",
   "someone/deploy",
 ]
 ```
 
-When you learn the set again, skl replaces the lines listed in `selected` with their new ones and keeps every line you added. skl never reads a file ending in `.origin.toml` as a skill set.
+`ref` and `ref_kind` mean what they mean in [`.skl-origin.toml`](#skl-origin-toml), and every skill copied with the set records the same pin. When you learn the set again, skl replaces the lines listed in `selected` with their new ones and keeps every line you added. skl never reads a file ending in `.origin.toml` as a skill set.
 
 ### `.skl-origin.toml`
 
@@ -107,7 +109,7 @@ declined = ["inline comments"]
 
 `ref_kind` says what you pinned: a branch is followed, a tag or a commit [never updates](./repos#pinning-a-version).
 
-`license` is the license skl found, or `unknown` or `none`. When skl [asked about it](../guide/learn#licenses), `license_answer` holds what you chose: `"keep"` (keep their license and notice) or `"as-is"`.
+`license` is the license skl found, as an SPDX id or expression such as `MIT OR Apache-2.0`, or `unknown` or `none`. When skl [asked about it](../guide/learn#licenses), `license_answer` holds what you chose: `"keep"` (keep their license and notice) or `"as-is"`.
 
 `answers` points to the interview of that lesson, in `lessons/<group>/<skill>/<n>.md`, where `n` counts the skill's lessons from 1.
 
@@ -141,14 +143,14 @@ Never synced.
 ~/.skl/
 ├── config.toml     # this machine's settings, see Configuration
 ├── vault/          # your vault: a git clone you can edit
-├── cache/          # sparse clones for learn, by host and path
+├── cache/          # sparse clones for learn, one per repo
 ├── state.json      # what's loaded where, update check results
 ├── generations/    # one snapshot per change
 ├── staging/        # new copies, before they replace the loaded ones
 └── lock            # held while a command changes something
 ```
 
-`cache/` is safe to delete: skl fetches what it needs again. `generations/` and `state.json` hold your rollback history. `vault/` may hold commits you haven't pushed: run [`skl sync`](../guide/sync) before you delete it.
+`cache/` holds one clone per repo you learn from, at `cache/<host>/<path>` for a remote (`<host>_<port>` with a port, and without a user such as `git@`) and `cache/local/<absolute path>` for a repo on this machine. It's safe to delete: skl fetches what it needs again. `generations/` and `state.json` hold your rollback history. `vault/` may hold commits you haven't pushed: run [`skl sync`](../guide/sync) before you delete it.
 
 If skl can't use `state.json`, it stops instead of overwriting it:
 

@@ -65,8 +65,8 @@ skl runs git and behaves the same on every host.
 
 - A skill folder is fetched with `git clone --depth 1 --filter=blob:none --sparse`, then `git sparse-checkout set <path>`. On a large repo that's a few hundred KB instead of the full history. Servers without filter support send everything: slower, but still correct.
 - Local repos are cloned through `file://`, because git ignores filters for plain paths.
-- Merge bases for a lesson are fetched by commit, only when needed.
-- The cache lives at `~/.skl/cache/<host>/<path>`. Only `learn` and the update check read it; nothing loaded points into it, so deleting it costs one fetch.
+- A lesson's merge base is never fetched. It comes from your vault's own history: the commit that landed the copy or the last lesson holds their folder as it landed, the `tree` in `.skl-origin.toml`. So an author who rewrites their history changes nothing for a lesson.
+- Each new path learned from a repo is added to the sparse checkout of that repo's one clone in the [cache](../reference/files#local-state). Only `learn` and the update check read it; nothing loaded points into it, so deleting it costs one fetch.
 - Git runs with `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential or an unknown host key fails at once instead of waiting for input. Your own `GIT_SSH_COMMAND` or `core.sshCommand` is kept, with `-o BatchMode=yes` added. A program in `GIT_SSH` takes no options, so if neither of those is set it runs as it is.
 - Git works only on the folder skl names. `GIT_DIR`, `GIT_WORK_TREE` and the other variables that point git at a repo are dropped, so running skl inside a git hook can't touch that hook's repo.
 - Ctrl-C or a timeout stops a git that may contact a remote and everything it started, such as ssh.
@@ -87,7 +87,7 @@ skl handles files, git and generations. It copies a skill you don't have, and up
 
 After a lesson, `tree` becomes the author's tree at the new commit, so a lesson that restores the author's version leaves a skill that updates without the engine again.
 
-**License.** skl looks for a `LICENSE*` or `COPYING*` in the skill's folder, then at the repo root, then for the `license` field in `SKILL.md`, and recognizes the text. No license, an unknown one, or one that isn't permissive and isn't the vault's own makes skl ask (copies and updates) or puts the question in the lesson brief. skl applies no other rule.
+**License.** skl looks for a `LICENSE*` or `COPYING*` in the skill's folder, then at the repo root, then for the `license` field in `SKILL.md`, and recognizes the text, as [Licenses](../guide/learn#licenses) details. No license, an unknown one, or one that isn't permissive and isn't the vault's own makes skl ask (copies and updates) or puts the question in the lesson brief. skl applies no other rule.
 
 **Lesson.** For a lesson, the engine, Claude Code by default, does the analysis and the interview. skl prepares a workspace with `mine/`, `peer/` and a brief holding your text, then runs the engine there with a bundled lesson skill. For a new skill built from text, `mine/` is empty. When you learn again from the same peer or a copy's source, it also adds `base/`, the version you copied or last learned from, plus `merged/` and `conflicts.txt`, the result of `git merge-tree` on the three, as a starting point. `license/` holds the peer's license and the vault's. A sync conflict uses the same engine with a bundled merge skill, and `base/`, `mine/` and `theirs/` for each conflicted file. The engine writes the result to `result/`, and skl then shows the diff and lands it.
 
