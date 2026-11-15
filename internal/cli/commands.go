@@ -91,7 +91,7 @@ func (c *cli) commands() []*Command {
 				if err != nil {
 					return err
 				}
-				return a.Save(ctx, in.Args[0], in.Has("dry-run"))
+				return a.Save(ctx, in.Args[0], in.Has("dry-run"), in.Has("yes"))
 			},
 		},
 		{
