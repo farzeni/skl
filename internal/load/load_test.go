@@ -554,3 +554,47 @@ func TestSavedReadsAFolderToImportAsItsCopy(t *testing.T) {
 		t.Errorf("skipped = %+v", p.Skipped)
 	}
 }
+
+// docs/guide/rollback.md "Go back": "skl leaves a plain folder with the imported
+// content and no .skl-copy.toml". A copy in Release that the plan unloads stays
+// where it is without its record; one that isn't is unloaded as usual; Undo puts
+// the record back.
+func TestReleaseLeavesAPlainFolder(t *testing.T) {
+	f := newFixture(t)
+	copies := f.load(t, f.a, f.b)
+	p, err := Compute(context.Background(), Input{
+		Vault: f.vault, Commit: "c0", Result: result(t), Current: copies, Targets: f.targets, HomeRoot: f.home,
+		Release: []state.Copy{{Name: "a", Target: config.Claude, Skill: "g/a"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Released) != 1 || p.Released[0] != copies[0] {
+		t.Errorf("released = %+v, want %+v", p.Released, copies[:1])
+	}
+	want := []Change{{Kind: Unload, Name: "a", Skill: "g/a"}, {Kind: Unload, Name: "b", Skill: "g/b"}}
+	if !slices.Equal(p.Changes, want) {
+		t.Errorf("changes = %+v, want %+v", p.Changes, want)
+	}
+	s, err := NewLoader(f.staging).Apply(context.Background(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.loaded(t); !slices.Equal(got, []string{"a"}) {
+		t.Fatalf("after the swap: %v", got)
+	}
+	if _, err := os.Stat(filepath.Join(f.skills(), "a", manifestFile)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("record left in a: %v", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(f.skills(), "a", "SKILL.md")); err != nil || string(data) != "A\n" {
+		t.Errorf("a/SKILL.md = %q (%v)", data, err)
+	}
+	s.Undo()
+	s.Close()
+	if got := f.loaded(t); !slices.Equal(got, []string{"a", "b"}) {
+		t.Fatalf("after undo: %v", got)
+	}
+	if p := f.plan(t, copies, f.a, f.b); !p.Empty() {
+		t.Errorf("after undo, plan = %+v", p)
+	}
+}
