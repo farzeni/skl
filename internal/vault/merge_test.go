@@ -43,6 +43,13 @@ func TestOpenMergeContinue(t *testing.T) {
 	if left, err := v.Markers(ctx); err != nil || len(left) != 0 {
 		t.Errorf("Markers after the edit = %v, %v", left, err)
 	}
+	// docs/guide/sync.md "By hand": a line that is exactly ======= once the
+	// conflict is resolved is a Markdown heading's underline, not a marker. Nor is
+	// a lone >>>>>>> or <<<<<<<: only the pair is.
+	write(t, v.dir+"/a.txt", "Title\n=======\none\nboth\n>>>>>>> quoted\nthree\n<<<<<<< open\n")
+	if left, err := v.Markers(ctx); err != nil || len(left) != 0 {
+		t.Errorf("Markers with a setext heading = %v, %v", left, err)
+	}
 	if err := v.Continue(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -54,6 +61,20 @@ func TestOpenMergeContinue(t *testing.T) {
 	}
 	if st := run(t, v.dir, "status", "--porcelain"); st != "" {
 		t.Errorf("work tree not clean:\n%s", st)
+	}
+}
+
+// Markers counts only the pair a change brings: a skill that shows git's markers
+// as an example, committed, isn't a conflict when a heading is added above it.
+func TestMarkersOnlyNewPairs(t *testing.T) {
+	ctx := context.Background()
+	v, _ := twoClones(t)
+	example := "<<<<<<< ours\nmine\n=======\ntheirs\n>>>>>>> theirs\n"
+	commitFile(t, v.dir, "doc.md", example)
+	write(t, v.dir+"/doc.md", "Title\n=======\n"+example)
+	write(t, v.dir+"/a.txt", "one\n<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> origin/main\n")
+	if left, err := v.Markers(ctx); err != nil || !slices.Equal(left, []string{"a.txt"}) {
+		t.Errorf("Markers = %v, %v", left, err)
 	}
 }
 

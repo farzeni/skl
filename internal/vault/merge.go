@@ -3,6 +3,8 @@ package vault
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -45,7 +47,10 @@ func (v *Vault) Open(ctx context.Context) (OpenMerge, error) {
 }
 
 // Markers lists the files in the work tree that still hold conflict markers the
-// merge brought, as git diff --check sees them against HEAD.
+// merge brought: a <<<<<<< line with a >>>>>>> line after it, both among the
+// lines git diff --check flags against HEAD. A lone ======= is a Markdown
+// heading's underline, not a marker, and a pair HEAD already had isn't the
+// merge's (docs/guide/sync.md "By hand").
 func (v *Vault) Markers(ctx context.Context) ([]string, error) {
 	out, err := v.git.Run(ctx, v.dir, "diff", "--check", "HEAD")
 	ge, ok := errors.AsType[*gitx.Error](err)
@@ -56,16 +61,63 @@ func (v *Vault) Markers(ctx context.Context) ([]string, error) {
 		out = ge.Stdout // 2 is --check's "problems found": markers or whitespace
 	}
 	var paths []string
+	flagged := map[string][]int{}
 	for line := range strings.SplitSeq(out, "\n") {
-		path, rest, ok := strings.Cut(line, ":")
-		if !ok || !strings.HasSuffix(rest, "leftover conflict marker") {
+		// "<path>:<line>: leftover conflict marker"; a path can hold a colon.
+		rest, ok := strings.CutSuffix(line, ": leftover conflict marker")
+		if !ok {
 			continue // whitespace problems aren't skl's to report
 		}
-		if len(paths) == 0 || paths[len(paths)-1] != path {
+		i := strings.LastIndexByte(rest, ':')
+		if i < 0 {
+			continue
+		}
+		n, err := strconv.Atoi(rest[i+1:])
+		if err != nil {
+			continue
+		}
+		path := rest[:i]
+		if _, seen := flagged[path]; !seen {
 			paths = append(paths, path)
 		}
+		flagged[path] = append(flagged[path], n)
 	}
-	return paths, nil
+	var left []string
+	for _, path := range paths {
+		data, err := os.ReadFile(filepath.Join(v.dir, filepath.FromSlash(path)))
+		// A file skl can't read, such as one git shows with a quoted name, stays
+		// git's call.
+		if err != nil || conflicted(data, flagged[path]) {
+			left = append(left, path)
+		}
+	}
+	return left, nil
+}
+
+// conflicted is whether, among the given lines of data (1-based, ascending), a
+// <<<<<<< line comes before a >>>>>>> line.
+func conflicted(data []byte, lines []int) bool {
+	all := strings.Split(string(data), "\n")
+	opened := false
+	for _, n := range lines {
+		if n < 1 || n > len(all) {
+			continue
+		}
+		switch line := strings.TrimSuffix(all[n-1], "\r"); {
+		case isMarker(line, '<'):
+			opened = true
+		case opened && isMarker(line, '>'):
+			return true
+		}
+	}
+	return false
+}
+
+// isMarker is whether line is git's conflict marker made of c: seven of it, then
+// the end of the line or a space.
+func isMarker(line string, c byte) bool {
+	rest, ok := strings.CutPrefix(line, strings.Repeat(string(c), 7))
+	return ok && (rest == "" || rest[0] == ' ')
 }
 
 // Continue commits the merge in progress with every change in the work tree, as
