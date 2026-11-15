@@ -99,8 +99,8 @@ With `--dry-run`, a command prints its plan, the `→` line and the `+ ~ −` li
 A real run first saves your changes to loaded skills and commits your hand edits in the vault (see [Your skills](../guide/skills)), so the plan starts with that, then shows the command's own plan:
 
 ```
-→ save pr-review → review/pr-review
-→ commit sets/backend.toml
+→ commit     sets/backend.toml
+→ save       pr-review → review/pr-review
 → overwrite sets/backend.toml
 + data
 ```
