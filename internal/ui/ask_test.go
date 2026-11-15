@@ -192,3 +192,46 @@ func TestAskDumbCanceled(t *testing.T) {
 		t.Errorf("Ask = %d, %v; want 3, context.Canceled", i, err)
 	}
 }
+
+// commands.md "Exit codes": "Ctrl-C at a question takes the answer that changes
+// nothing". A question can name it; skl save's empty overwrite names no, its
+// first answer.
+var emptyOverwrite = Question{Prompt: "Overwrite @backend?", Answers: []string{"no", "yes"}, Cancel: "no"}
+
+func TestQuestionCancelAnswer(t *testing.T) {
+	for _, keys := range [][]tea.Msg{{ctrlC}, {right, ctrlC}} {
+		m, quit := press(newQuestion(emptyOverwrite, 80), keys...)
+		if !quit || !m.done || !m.canceled || m.cur != 0 {
+			t.Errorf("%d keys: quit %v done %v canceled %v cur %d, want quit, done, canceled, cur 0",
+				len(keys), quit, m.done, m.canceled, m.cur)
+		}
+		if got := m.View().Content; !strings.Contains(got, "› no") || strings.Contains(got, "yes") {
+			t.Errorf("view after Ctrl-C = %q, want the line collapsed to › no", got)
+		}
+	}
+}
+
+func TestAskDumbCanceledCancelAnswer(t *testing.T) {
+	var stderr strings.Builder
+	pr, pw := io.Pipe()
+	defer func() { _ = pw.Close() }()
+	u := newUI(Options{Stdin: pr, Stdout: io.Discard, Stderr: &stderr}, colorprofile.NoTTY, 80, true)
+	u.dumb = true
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	i, err := u.Ask(ctx, emptyOverwrite)
+	if i != 0 || !errors.Is(err, context.Canceled) {
+		t.Errorf("Ask = %d, %v; want 0, context.Canceled", i, err)
+	}
+	if !strings.HasSuffix(stderr.String(), "no / yes: no\n") {
+		t.Errorf("stderr = %q, want the line to end with the cancel answer", stderr.String())
+	}
+}
+
+func TestAskUnknownCancelAnswer(t *testing.T) {
+	u := newUI(Options{Stdin: strings.NewReader(""), Stdout: io.Discard, Stderr: io.Discard}, colorprofile.NoTTY, 80, true)
+	q := Question{Prompt: "Overwrite @backend?", Answers: []string{"no", "yes"}, Cancel: "maybe"}
+	if _, err := u.Ask(context.Background(), q); err == nil {
+		t.Error("Ask with a cancel answer it doesn't have = nil error, want one")
+	}
+}

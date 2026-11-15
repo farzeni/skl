@@ -74,8 +74,8 @@ type pendingSave struct {
 
 // previewSave works out what saveFirst would do, in the same order: the hand
 // edits, then the copies saved onto them. It changes no ref, file or copy. A
-// conflict the save would meet is a *vault.ConflictError, with the edits still
-// in the returned pendingSave.
+// conflict the save would meet is a *vault.ConflictError, with the edits and the
+// copies saved before it in the returned pendingSave.
 func (a *App) previewSave(ctx context.Context, v *vault.Vault, st *state.State, root string) (*pendingSave, error) {
 	head, err := v.Head(ctx)
 	if err != nil {
@@ -94,11 +94,20 @@ func (a *App) previewSave(ctx context.Context, v *vault.Vault, st *state.State, 
 	at, saves, err := load.Preview(ctx, load.SaveInput{
 		Vault: v, HomeRoot: root, Targets: a.cfg.Targets, Current: st.Scopes[state.User].Copies,
 	}, p.at)
+	p.saves = saves
 	if err != nil {
 		return p, err
 	}
-	p.at, p.saves = at, saves
+	p.at = at
 	return p, nil
+}
+
+// planConflict is the plan of a save that would stop at a conflict: what it would
+// commit and save before it, then the conflict, with the hint the real run gives
+// when it can't ask how to resolve it.
+func (a *App) planConflict(p *pendingSave, ce *vault.ConflictError) {
+	a.planCommit(p.edits, p.saves)
+	a.ui.Warn(ce.Error(), "skl sync, in a terminal")
 }
 
 // any reports whether the real run would save or commit something first.
@@ -115,15 +124,14 @@ func (p *pendingSave) recorded(st *state.State, s *selection) {
 	}
 }
 
-// dryRunSave is the start of command's --dry-run plan: the → lines for what the
+// dryRunSave is the start of a --dry-run plan: the → lines for what the
 // real run would commit and save first (docs/reference/commands.md "Dry run").
 // stop is a conflict that save would meet: it's warned about, and the command's
 // own plan can't follow, since the real run stops there to resolve it.
-func (a *App) dryRunSave(ctx context.Context, v *vault.Vault, st *state.State, root, command string) (p *pendingSave, stop bool, err error) {
+func (a *App) dryRunSave(ctx context.Context, v *vault.Vault, st *state.State, root string) (p *pendingSave, stop bool, err error) {
 	p, err = a.previewSave(ctx, v, st, root)
 	if ce, ok := errors.AsType[*vault.ConflictError](err); ok {
-		a.planCommit(p.edits, nil)
-		a.ui.Warn(ce.Error(), "skl "+command)
+		a.planConflict(p, ce)
 		return p, true, nil
 	}
 	if err != nil {

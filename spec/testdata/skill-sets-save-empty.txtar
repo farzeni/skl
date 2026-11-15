@@ -1,0 +1,111 @@
+# docs/guide/skill-sets.md "Named skill sets", docs/reference/commands.md "Questions":
+# an overwrite that would remove every line of a set defaults to no.
+
+remote you/skills seed
+exec skl init you/skills
+exec skl status
+stdout '^nothing loaded'
+
+# "If backend already exists, skl shows how its selectors change and asks before
+# overwriting it. If the new skill set is empty, so every line would go, the
+# default answer is no"
+# commands.md: "One question puts no first: skl save overwriting a named skill set
+# with one that would remove every line. Enter keeps the file"
+exec ptyrun enter skl save backend
+stderr '→ overwrite sets/backend.toml'
+stderr '− @base'
+stderr '− review'
+stderr '\? Overwrite @backend\?   › no   yes'
+# Enter picked no: the line collapses to it.
+stderr '\? Overwrite @backend\?   › no$'
+stderr '^✓ nothing to change$'
+! stderr 'generation'
+cmp $HOME/.skl/vault/sets/backend.toml seed/sets/backend.toml
+! exists $HOME/.skl/generations/2.json
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+exec git -C $HOME/.skl/vault log -1 --format=%s
+! stdout 'skl save'
+
+# commands.md "Exit codes": "Ctrl-C at a question takes the answer that changes
+# nothing (the last one: no, discard or abort; for skl save's empty overwrite,
+# no), and skl exits with 130."
+exitcode 130 ptyrun ctrl-c skl save backend
+stderr '\? Overwrite @backend\?   › no$'
+! stderr '› yes$'
+cmp $HOME/.skl/vault/sets/backend.toml seed/sets/backend.toml
+! exists $HOME/.skl/generations/2.json
+
+# Without a terminal and without --yes, the question still stops the command.
+exitcode 1 skl save backend
+cmp stderr empty-no-terminal.txt
+cmp $HOME/.skl/vault/sets/backend.toml seed/sets/backend.toml
+
+# "Answer yes, or pass --yes, to save the empty skill set."
+# commands.md: "--yes still overwrites it."
+exec skl save backend --yes
+cmp stderr empty-yes.txt
+cmp $HOME/.skl/vault/sets/backend.toml empty.toml
+exec git -C $HOME/.skl/vault log -1 --format=%s
+stdout '^skl save backend --yes$|^skl save backend$'
+
+# Answering yes at the question saves it too.
+cp seed/sets/backend.toml $HOME/.skl/vault/sets/backend.toml
+exec git -C $HOME/.skl/vault commit -q -am 'put backend back'
+exec ptyrun right,enter skl save backend
+stderr '\? Overwrite @backend\?   › yes$'
+stderr '✓ generation'
+cmp $HOME/.skl/vault/sets/backend.toml empty.toml
+
+# commands.md "Questions": "skl save: overwrite a named skill set? | yes". A save
+# that keeps at least one line still defaults to yes.
+cp seed/sets/backend.toml $HOME/.skl/vault/sets/backend.toml
+exec git -C $HOME/.skl/vault commit -q -am 'put backend back again'
+exec skl use review
+exec ptyrun enter skl save backend
+stderr '− @base'
+stderr '\? Overwrite @backend\?   › yes   no'
+stderr '\? Overwrite @backend\?   › yes$'
+stderr '✓ generation'
+cmp $HOME/.skl/vault/sets/backend.toml review.toml
+
+# Saving an empty set stays valid: a new one, or over an empty one, asks nothing.
+exec skl drop review
+exec skl save empty
+cmp $HOME/.skl/vault/sets/empty.toml empty.toml
+exec skl save empty
+cmp stderr nothing.txt
+
+-- empty-no-terminal.txt --
+→ overwrite sets/backend.toml
+− @base
+− review
+✗ Overwrite @backend? needs an answer · skl save backend --yes
+-- empty-yes.txt --
+→ overwrite sets/backend.toml
+− @base
+− review
+! 1 change not pushed · skl sync
+✓ generation 2 · skl rollback to undo
+-- nothing.txt --
+✓ nothing to change
+-- empty.toml --
+select = []
+-- review.toml --
+select = [
+  "review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: Review a pull request.
+---
+-- seed/sets/base.toml --
+select = [
+  "review",
+]
+-- seed/sets/backend.toml --
+select = [
+  "@base",
+  "review",
+]

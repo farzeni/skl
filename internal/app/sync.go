@@ -238,8 +238,7 @@ func (a *App) syncDryRun(ctx context.Context) error {
 	// that, as git objects only.
 	step1, err := a.previewSave(ctx, v, st, root)
 	if ce, ok := errors.AsType[*vault.ConflictError](err); ok {
-		a.planCommit(step1.edits, nil)
-		a.ui.Warn(ce.Error(), "skl sync")
+		a.planConflict(step1, ce)
 		return nil
 	}
 	if err != nil {

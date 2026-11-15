@@ -251,7 +251,7 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	command := "rollback " + strconv.Itoa(r.to.N)
 	retry := "skl " + command + " --dry-run"
 	// The reverts and the load go on top of what the real run saves first.
-	first, stop, err := a.dryRunSave(ctx, v, st, root, command)
+	first, stop, err := a.dryRunSave(ctx, v, st, root)
 	if err != nil || stop {
 		return err
 	}

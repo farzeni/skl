@@ -84,7 +84,7 @@ func (a *App) loadDryRun(ctx context.Context, s selection, sels []selector.Selec
 	if err != nil {
 		return a.stateError(err)
 	}
-	first, stop, err := a.dryRunSave(ctx, v, st, root, s.command())
+	first, stop, err := a.dryRunSave(ctx, v, st, root)
 	if err != nil || stop {
 		return err
 	}

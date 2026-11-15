@@ -19,7 +19,8 @@ import (
 // sets/<name>.toml (docs/guide/skill-sets.md "Named skill sets"). Overwriting a
 // set shows how its lines change and asks first. The question comes before the
 // frame, so without a terminal it stops before anything is saved back or written.
-func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
+// yes is --yes, which overwrites without asking.
+func (a *App) Save(ctx context.Context, name string, dryRun, yes bool) error {
 	if !selector.ValidName(name) {
 		hint := "skl help save"
 		if bare, ok := strings.CutPrefix(name, "@"); ok && selector.ValidName(bare) {
@@ -41,7 +42,7 @@ func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
 		return a.stateError(err)
 	}
 	if dryRun {
-		return a.saveDryRun(ctx, v, st, name, root, command)
+		return a.saveDryRun(ctx, v, st, name, root)
 	}
 	asked, err := planSave(ctx, v, st, name)
 	if err != nil {
@@ -50,12 +51,12 @@ func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
 	if asked.changed {
 		a.reportSave(asked)
 	}
-	if asked.changed && asked.exists {
-		answer, err := a.ui.Ask(ctx, ui.Question{Prompt: "Overwrite @" + asked.name + "?", Answers: []string{"yes", "no"}})
+	if asked.changed && asked.exists && !yes {
+		overwrite, err := a.askOverwrite(ctx, asked)
 		if err != nil {
 			return err
 		}
-		if answer != 0 {
+		if !overwrite {
 			a.ui.Done("nothing to change")
 			return nil
 		}
@@ -78,11 +79,11 @@ func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
 // saveDryRun prints the plan: what the frame would save first, then the file. The
 // set's lines come from the active skill set and the vault's files, which a save
 // first leaves as they are, so the file is planned on them as they are now.
-func (a *App) saveDryRun(ctx context.Context, v *vault.Vault, st *state.State, name, root, command string) error {
+func (a *App) saveDryRun(ctx context.Context, v *vault.Vault, st *state.State, name, root string) error {
 	if err := a.notMerging(ctx, v); err != nil {
 		return err
 	}
-	first, stop, err := a.dryRunSave(ctx, v, st, root, command)
+	first, stop, err := a.dryRunSave(ctx, v, st, root)
 	if err != nil || stop {
 		return err
 	}
@@ -98,6 +99,22 @@ func (a *App) saveDryRun(ctx context.Context, v *vault.Vault, st *state.State, n
 	return nil
 }
 
+// askOverwrite asks before overwriting a set. The first answer is the default,
+// and it's yes, except when every line of the set would go: then it's no, so
+// Enter can't empty a set, and Ctrl-C still takes no (docs/reference/commands.md
+// "Questions", "Exit codes"). --yes never gets here, so it still overwrites.
+func (a *App) askOverwrite(ctx context.Context, p *savePlan) (bool, error) {
+	q := ui.Question{Prompt: "Overwrite @" + p.name + "?", Answers: []string{"yes", "no"}}
+	if p.empties() {
+		q.Answers, q.Cancel = []string{"no", "yes"}, "no"
+	}
+	answer, err := a.ui.Ask(ctx, q)
+	if err != nil {
+		return false, err
+	}
+	return q.Answers[answer] == "yes", nil
+}
+
 // nameRule is the Grammar's name, for the usage error.
 const nameRule = "a name has letters, digits, - and _, and starts with a letter or a digit"
 
@@ -108,6 +125,11 @@ type savePlan struct {
 	old     []string // its lines, nil if it can't be read
 	lines   []string // the lines to write
 	changed bool
+}
+
+// empties reports whether the plan would remove every line of an existing set.
+func (p *savePlan) empties() bool {
+	return p.exists && len(p.old) > 0 && len(p.lines) == 0
 }
 
 func (p *savePlan) same(o *savePlan) bool {

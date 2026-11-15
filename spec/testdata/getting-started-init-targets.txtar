@@ -1,0 +1,91 @@
+# docs/reference/commands.md "Dry run"; docs/guide/getting-started.md "Make your vault"
+
+# With two targets, init loads what it imports into the other target too, and
+# its --dry-run plan says so.
+env SKL_TARGETS=claude,agents
+mkdir $HOME/.claude/skills/notes $HOME/.claude/skills/pdf $HOME/.agents/skills/tidy
+cp skill/notes.md $HOME/.claude/skills/notes/SKILL.md
+cp skill/pdf.md $HOME/.claude/skills/pdf/SKILL.md
+cp skill/tidy.md $HOME/.agents/skills/tidy/SKILL.md
+remote you/skills
+exec sh -c 'cd $HOME && find .claude .agents | LC_ALL=C sort'
+cp stdout before.txt
+
+# "With --dry-run, a command prints its plan, the → line and the + ~ − lines, then
+# stops with exit code 0. Nothing is written, cloned, created or committed"
+# "init | Whether it would clone or create the repo …, what it would import, and
+# what it would load."
+exec skl init you/skills --dry-run
+cmp stdout dry.txt
+! stderr .
+! exists $HOME/.skl
+exec sh -c 'cd $HOME && find .claude .agents | LC_ALL=C sort'
+cmp stdout before.txt
+exec git ls-remote https://github.com/you/skills
+! stdout .
+
+# The real run prints the same plan: the import, then the same + lines.
+exec skl init you/skills --yes
+cmp stderr real.txt
+exists $HOME/.agents/skills/notes/.skl-copy.toml
+exists $HOME/.agents/skills/pdf/.skl-copy.toml
+exists $HOME/.claude/skills/tidy/.skl-copy.toml
+
+# A skill skl didn't create, with the name of one it imports, sits in the other
+# target: the real run skips it there with a warning, and so does the plan.
+env HOME=$WORK/home2
+env SKL_HOME=
+mkdir $HOME/.claude/skills/notes $HOME/.agents/skills/notes
+cp skill/notes.md $HOME/.claude/skills/notes/SKILL.md
+cp skill/notes.md $HOME/.agents/skills/notes/SKILL.md
+remote you/other
+exec skl init you/other --dry-run
+cmp stdout dry-skip.txt
+cmp stderr skip-warning.txt
+! exists $HOME/.skl
+exec skl init you/other --yes
+cmp stderr real-skip.txt
+
+-- skill/notes.md --
+---
+name: notes
+description: keep notes
+---
+body
+-- skill/pdf.md --
+---
+name: pdf
+description: read PDFs
+---
+body
+-- skill/tidy.md --
+---
+name: tidy
+description: tidy up
+---
+body
+-- dry.txt --
+→ new vault you/skills
+→ import notes, pdf, tidy → you/
++ tidy   + notes   + pdf
+-- real.txt --
+→ new vault you/skills
+◇ imported   notes, pdf, tidy → you/
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
++ tidy   + notes   + pdf
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo
+-- dry-skip.txt --
+→ new vault you/other
+→ import notes → you/
+-- skip-warning.txt --
+! notes   skipped: ~/.agents/skills/notes is not in your vault
+  · skl import notes
+-- real-skip.txt --
+→ new vault you/other
+◇ imported   notes → you/
+◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
+! notes   skipped: ~/.agents/skills/notes is not in your vault
+  · skl import notes
+! 1 change not pushed · skl sync
+✓ generation 1 · skl rollback to undo

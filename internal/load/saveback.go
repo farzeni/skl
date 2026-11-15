@@ -66,26 +66,27 @@ func SaveBack(ctx context.Context, in SaveInput) ([]Saved, error) {
 // commit it would leave, and the copies it would save. It writes only git objects,
 // never a ref, the vault's work tree or a copy's .skl-copy.toml: it is how a
 // --dry-run sees the save a real run makes first. A conflict is a
-// *vault.ConflictError.
+// *vault.ConflictError; the copies SaveBack would save before it are returned
+// with it, as SaveBack returns them.
 func Preview(ctx context.Context, in SaveInput, onto string) (string, []Saved, error) {
 	var saved []Saved
 	for _, t := range allTargets(in.Targets, in.Current) {
 		dir := SkillsDir(in.HomeRoot, t)
 		h, err := scan(dir)
 		if err != nil {
-			return "", nil, err
+			return "", saved, err
 		}
 		for _, c := range h.copies {
 			e, err := editOf(ctx, in, t, dir, c)
 			if err != nil {
-				return "", nil, err
+				return "", saved, err
 			}
 			if e == nil {
 				continue
 			}
 			next, err := in.Vault.SaveOnto(ctx, onto, e.save)
 			if err != nil {
-				return "", nil, err
+				return "", saved, err
 			}
 			onto = next
 			saved = append(saved, e.saved(next))
