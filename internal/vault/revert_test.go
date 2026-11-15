@@ -73,7 +73,7 @@ func TestRevert(t *testing.T) {
 	v, first, second := history(t)
 	ctx := context.Background()
 	units, _ := v.Units(ctx, first, second)
-	would, err := v.Reverts(ctx, first, units)
+	would, err := v.Reverts(ctx, run(t, v.dir, "rev-parse", "HEAD"), first, units)
 	if err != nil || !slices.Equal(would, units) {
 		t.Fatalf("Reverts = %v, %v", would, err)
 	}
@@ -101,7 +101,7 @@ func TestRevert(t *testing.T) {
 	if commit, err := v.Revert(ctx, first, "review/pr-review", "again"); err != nil || commit != "" {
 		t.Errorf("second Revert = %q, %v", commit, err)
 	}
-	if would, _ := v.Reverts(ctx, first, units); len(would) != 0 {
+	if would, _ := v.Reverts(ctx, run(t, v.dir, "rev-parse", "HEAD"), first, units); len(would) != 0 {
 		t.Errorf("Reverts after = %v", would)
 	}
 }
@@ -149,7 +149,7 @@ func TestPreview(t *testing.T) {
 	ctx := context.Background()
 	units := []string{"review/pr-review", "data/sql", "writing/changelog"} // not sets/extra.toml
 	dir := filepath.Join(t.TempDir(), "preview")
-	if err := v.Preview(ctx, first, units, dir); err != nil {
+	if err := v.Preview(ctx, second, first, units, dir); err != nil {
 		t.Fatal(err)
 	}
 	read := func(f string) string {

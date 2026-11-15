@@ -81,13 +81,9 @@ func (v *Vault) Revert(ctx context.Context, commit, unit, message string) (strin
 	return v.Head(ctx)
 }
 
-// Reverts lists the units that HEAD holds differently from commit: the ones Revert
-// would make a commit for.
-func (v *Vault) Reverts(ctx context.Context, commit string, units []string) ([]string, error) {
-	head, err := v.Head(ctx)
-	if err != nil {
-		return nil, err
-	}
+// Reverts lists the units that the commit head holds differently from commit: the
+// ones Revert would make a commit for, were head the vault's HEAD.
+func (v *Vault) Reverts(ctx context.Context, head, commit string, units []string) ([]string, error) {
 	var differ []string
 	for _, u := range units {
 		was, err := v.object(ctx, commit, u)
@@ -129,13 +125,10 @@ func (v *Vault) ResetTo(ctx context.Context, before string) {
 }
 
 // Preview writes into dir, which must not exist yet, the vault as reverting each
-// of units to commit would leave it: HEAD's files, with those units as they were
-// at commit. It changes nothing in the vault, so --dry-run can read it there.
-func (v *Vault) Preview(ctx context.Context, commit string, units []string, dir string) error {
-	head, err := v.Head(ctx)
-	if err != nil {
-		return err
-	}
+// of units to commit on top of the commit head would leave it: head's files, with
+// those units as they were at commit. It changes nothing in the vault, so --dry-run
+// can read it there.
+func (v *Vault) Preview(ctx context.Context, head, commit string, units []string, dir string) error {
 	if err := v.extract(ctx, head, dir); err != nil {
 		return err
 	}

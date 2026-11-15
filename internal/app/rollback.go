@@ -379,7 +379,17 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	if err != nil {
 		return a.stateError(err)
 	}
-	retry := "skl rollback " + strconv.Itoa(r.to.N) + " --dry-run"
+	root, err := a.homeRoot()
+	if err != nil {
+		return err
+	}
+	command := "rollback " + strconv.Itoa(r.to.N)
+	retry := "skl " + command + " --dry-run"
+	// The reverts and the load go on top of what the real run saves first.
+	first, stop, err := a.dryRunSave(ctx, v, st, root)
+	if err != nil || stop {
+		return err
+	}
 	units, err := v.Units(ctx, r.to.VaultCommit, r.from.VaultCommit)
 	if err != nil {
 		return hinted(err, retry)
@@ -390,24 +400,16 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 	dir := filepath.Join(tmp, "vault")
-	if err := v.Preview(ctx, r.to.VaultCommit, units, dir); err != nil {
+	if err := v.Preview(ctx, first.at, r.to.VaultCommit, units, dir); err != nil {
 		return hinted(err, retry)
 	}
 	idx, err := vault.IndexAt(ctx, dir)
 	if err != nil {
 		return hinted(err, retry)
 	}
-	head, err := v.Head(ctx)
-	if err != nil {
-		return err
-	}
-	would, err := v.Reverts(ctx, r.to.VaultCommit, units)
+	would, err := v.Reverts(ctx, first.at, r.to.VaultCommit, units)
 	if err != nil {
 		return hinted(err, retry)
-	}
-	root, err := a.homeRoot()
-	if err != nil {
-		return err
 	}
 	gens, err := a.undone(ctx, r)
 	if err != nil {
@@ -415,18 +417,20 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	}
 	h := handoversOf(gens)
 	// The folders a real run would adopt again are read as if it had.
-	_, copies, err := a.readoptable(ctx, h, r, dir, head, root)
+	_, copies, err := a.readoptable(ctx, h, r, dir, first.at, root)
 	if err != nil {
 		return hinted(err, retry)
 	}
 	s := r.selection(h)
 	s.saved = copies
-	next, err := a.prepareAt(ctx, vaultView{dir: dir, head: head, idx: idx}, st, s, nil, root)
+	// So are the copies the save first would record.
+	first.recorded(st, &s)
+	next, err := a.prepareAt(ctx, vaultView{dir: dir, head: first.at, idx: idx}, st, s, nil, root)
 	if err != nil {
 		return hinted(err, retry)
 	}
 	a.reportRollback(r, next, nil, would)
-	if !next.changed && len(would) == 0 {
+	if !next.changed && len(would) == 0 && !first.any() {
 		a.ui.Done("nothing to change")
 	}
 	return nil

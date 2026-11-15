@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -70,7 +72,9 @@ func (a *App) loading(ctx context.Context, s selection, dryRun bool) error {
 	})
 }
 
-// loadDryRun prints the plan. It takes no lock and writes nothing.
+// loadDryRun prints the plan: what the frame would save first, then the load, as
+// planned on the vault and copies that save would leave. It takes no lock and
+// writes nothing but git objects.
 func (a *App) loadDryRun(ctx context.Context, s selection, sels []selector.Selector, root string) error {
 	v, err := a.openVault()
 	if err != nil {
@@ -83,12 +87,17 @@ func (a *App) loadDryRun(ctx context.Context, s selection, sels []selector.Selec
 	if err != nil {
 		return a.stateError(err)
 	}
-	next, err := a.prepare(ctx, v, st, s, sels, root)
+	first, stop, err := a.dryRunSave(ctx, v, st, root)
+	if err != nil || stop {
+		return err
+	}
+	first.recorded(st, &s)
+	next, err := a.planAt(ctx, v, st, s, sels, root, first.head, first.at)
 	if err != nil {
 		return hinted(err, "skl "+s.command())
 	}
 	a.report(s, next)
-	if !next.changed {
+	if !next.changed && !first.any() {
 		a.ui.Done("nothing to change")
 	}
 	return nil
@@ -455,4 +464,28 @@ func (s selection) withExact(word, exact string) string {
 		return s.replaced("-"+word, "-"+exact)
 	}
 	return ui.CommandLine([]string{"drop", word})
+}
+
+// planAt is prepare against the vault as at, a commit or a tree, would leave it:
+// the vault itself if that's HEAD, else its files written to a temporary folder,
+// as rollback --dry-run does. Nothing in the vault changes. It's how a --dry-run
+// plans on what the real run's earlier steps would commit.
+func (a *App) planAt(ctx context.Context, v *vault.Vault, st *state.State, s selection, sels []selector.Selector, root, head, at string) (*loadNext, error) {
+	if at == head {
+		return a.prepare(ctx, v, st, s, sels, root)
+	}
+	tmp, err := os.MkdirTemp("", "skl-plan-")
+	if err != nil {
+		return nil, fmt.Errorf("plan: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	dir := filepath.Join(tmp, "vault")
+	if err := v.Snapshot(ctx, at, dir); err != nil {
+		return nil, err
+	}
+	idx, err := vault.IndexAt(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	return a.prepareAt(ctx, vaultView{dir: dir, head: at, idx: idx}, st, s, sels, root)
 }

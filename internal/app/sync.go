@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -236,31 +234,17 @@ func (a *App) syncDryRun(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	head, err := v.Head(ctx)
-	if err != nil {
-		return err
-	}
 	// Step 1 as it would go: the hand edits on HEAD, then the copies saved onto
 	// that, as git objects only.
-	edits, err := v.HandEdits(ctx)
-	if err != nil {
-		return err
-	}
-	pending, err := v.Pending(ctx)
-	if err != nil {
-		return err
-	}
-	pending, saves, err := load.Preview(ctx, load.SaveInput{
-		Vault: v, HomeRoot: root, Targets: a.cfg.Targets, Current: st.Scopes[state.User].Copies,
-	}, pending)
+	step1, err := a.previewSave(ctx, v, st, root)
 	if ce, ok := errors.AsType[*vault.ConflictError](err); ok {
-		a.planCommit(edits, nil)
-		a.ui.Warn(ce.Error(), "skl sync")
+		a.planConflict(step1, ce)
 		return nil
 	}
 	if err != nil {
 		return a.planError(err)
 	}
+	head, pending := step1.head, step1.at
 	// Fetching changes only origin's branches in the vault, which every git fetch
 	// may do, so the dry run takes no lock.
 	branch, err := a.fetch(ctx, v)
@@ -276,15 +260,10 @@ func (a *App) syncDryRun(ctx context.Context) error {
 		return err
 	}
 
-	a.planCommit(edits, saves)
+	a.planCommit(step1.edits, step1.saves)
 	// The plan reloads against the copies as step 1 would record them.
-	recordSaved(st, saves)
 	reload := reloading()
-	for _, s := range saves {
-		reload.saved = append(reload.saved, state.Copy{
-			Name: s.Name, Target: s.Target, Skill: s.Skill, Commit: s.Commit, Tree: s.Tree,
-		})
-	}
+	step1.recorded(st, &reload)
 	after := pending
 	if len(incoming) > 0 {
 		a.ui.Plan("%s", planLine("pull", commits(len(incoming))))
@@ -301,7 +280,7 @@ func (a *App) syncDryRun(ctx context.Context) error {
 	if ahead > 0 || pending != head {
 		a.ui.Plan("push")
 	}
-	next, err := a.planReload(ctx, v, st, reload, root, head, after)
+	next, err := a.planAt(ctx, v, st, reload, nil, root, head, after)
 	if err != nil {
 		return hinted(err, "skl sync")
 	}
@@ -310,43 +289,4 @@ func (a *App) syncDryRun(ctx context.Context) error {
 		a.ui.Done("nothing to change")
 	}
 	return nil
-}
-
-// planCommit is the plan's step 1: the hand edits it would commit, then the copies
-// it would save.
-func (a *App) planCommit(edits []string, saves []load.Saved) {
-	if len(edits) > 0 {
-		a.ui.Plan("%s", planLine("commit", strings.Join(edits, ", ")))
-	}
-	for _, s := range savedLines(saves) {
-		a.ui.Plan("%s", planLine("save", s.Name+" → "+s.Skill))
-	}
-}
-
-// planLine is a → line laid out like a ◇ step: the label padded so details line up.
-func planLine(label, detail string) string {
-	return fmt.Sprintf("%-10s %s", label, detail)
-}
-
-// planReload plans step 4 against the vault as at, a commit or a tree, would leave
-// it: the vault itself if that's HEAD, else its files written to a temporary
-// folder, as rollback --dry-run does. Nothing in the vault changes.
-func (a *App) planReload(ctx context.Context, v *vault.Vault, st *state.State, s selection, root, head, at string) (*loadNext, error) {
-	if at == head {
-		return a.prepare(ctx, v, st, s, nil, root)
-	}
-	tmp, err := os.MkdirTemp("", "skl-sync-")
-	if err != nil {
-		return nil, fmt.Errorf("sync: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(tmp) }()
-	dir := filepath.Join(tmp, "vault")
-	if err := v.Snapshot(ctx, at, dir); err != nil {
-		return nil, err
-	}
-	idx, err := vault.IndexAt(ctx, dir)
-	if err != nil {
-		return nil, err
-	}
-	return a.prepareAt(ctx, vaultView{dir: dir, head: at, idx: idx}, st, s, nil, root)
 }
