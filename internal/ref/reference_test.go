@@ -502,3 +502,35 @@ func TestParseRepoTakesNoRefParts(t *testing.T) {
 		}
 	}
 }
+
+// Whatever Parse accepts, its canonical form reads back as the same
+// reference, on a machine with other settings, and stays the same when
+// stored again.
+func FuzzCanonicalRoundTrip(f *testing.F) {
+	for _, seed := range []string{
+		"someone/agent-skills/pdf#v1", "someone/agent-skills//sub/@backend", "someone/pdf-skill//",
+		"gitlab.com/team/sub/skills//review/pr-review", "https://you:pw@Git.Example.com:8443/t/s.git//pdf",
+		"git@git.example.com:team/skills.git/@backend", "~/code/skills//pdf", "./x//y", "file:///srv/s.git//p",
+		// found by fuzzing
+		"%/0", "/:/.//0", "/@/", "/..", "..//", "/@/.", "@0:0://", "/..git", "0:0:.git//",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, word string) {
+		r, err := Parse(word, httpsOpts)
+		if err != nil {
+			return
+		}
+		c := r.Canonical(httpsOpts.Home)
+		back, err := Parse(c, sshOpts)
+		if err != nil {
+			t.Fatalf("%q → %q: %v", word, c, err)
+		}
+		if again := back.Canonical(sshOpts.Home); again != c {
+			t.Fatalf("%q → %q → %q", word, c, again)
+		}
+		if !back.Repo.Same(r.Repo) || back.HasPath != r.HasPath || back.Path != r.Path || back.Set != r.Set || back.Pin != "" {
+			t.Fatalf("%q → %q reads as %+v, want %+v", word, c, back, r)
+		}
+	})
+}

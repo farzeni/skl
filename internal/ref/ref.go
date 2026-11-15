@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 // ErrNotRepo is a word that is none of the forms of a repo.
@@ -92,7 +93,18 @@ func (r *Repo) parsePath(word string, o Options) bool {
 		p = filepath.Join(o.Cwd, p)
 	}
 	p = filepath.Clean(p)
-	r.URL, r.Local, r.Path, r.form = p, true, strings.TrimSuffix(p, ".git"), formLocal
+	r.URL = p
+	return r.setLocal(p)
+}
+
+// setLocal records a repo on this machine, at an absolute, clean path that
+// is a folder below the root, .git left out.
+func (r *Repo) setLocal(p string) bool {
+	p = strings.TrimSuffix(p, ".git")
+	if !filepath.IsAbs(p) || filepath.Clean(p) != p || p == "/" {
+		return false
+	}
+	r.Local, r.Path, r.form = true, p, formLocal
 	return true
 }
 
@@ -109,12 +121,7 @@ func (r *Repo) parseURL(word string) bool {
 	}
 	switch u.Scheme {
 	case "file":
-		p := filepath.Clean(u.Path)
-		if !filepath.IsAbs(p) {
-			return false
-		}
-		r.Local, r.Path, r.form = true, strings.TrimSuffix(p, ".git"), formLocal
-		return true
+		return r.setLocal(filepath.Clean(u.Path))
 	case "https", "http", "ssh", "git":
 		return r.setRemote(u.Hostname(), u.Path)
 	}
@@ -147,7 +154,7 @@ func (r *Repo) parseShort(word string, o Options) bool {
 	case strings.Contains(rest, "/"):
 		return false // three parts: a path inside a repo, for skl learn
 	}
-	if !r.setRemote(host, path) {
+	if !urlSafe(host, "-.") || !urlSafe(path, "-._~/") || !r.setRemote(host, path) {
 		return false
 	}
 	if o.SSH {
@@ -158,10 +165,18 @@ func (r *Repo) parseShort(word string, o Options) bool {
 	return true
 }
 
+// urlSafe reports whether s holds only letters, digits and the runes in
+// extra, so a short form makes a URL that means what was typed.
+func urlSafe(s, extra string) bool {
+	return !strings.ContainsFunc(s, func(c rune) bool {
+		return !unicode.IsLetter(c) && !unicode.IsDigit(c) && !strings.ContainsRune(extra, c)
+	})
+}
+
 // setRemote records a remote repo's identity, if its parts can be one.
 func (r *Repo) setRemote(host, path string) bool {
 	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
-	if host == "" || path == "" || strings.ContainsAny(host+path, " \t\n#@") {
+	if host == "" || path == "" || strings.ContainsAny(host+path, " \t\n#@:") {
 		return false
 	}
 	for part := range strings.SplitSeq(path, "/") {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -47,10 +48,10 @@ func Parse(word string, o Options) (Ref, error) {
 	repoWord, inner, split := cutPath(rest)
 	var hasSet bool
 	if split {
-		inner, r.Set, hasSet = cutSet(strings.TrimSuffix(inner, "/"))
+		inner, r.Set, hasSet = cutSet(strings.TrimSuffix(inner, "/"), true)
 		r.HasPath = true
 	} else {
-		repoWord, r.Set, hasSet = cutSet(repoWord)
+		repoWord, r.Set, hasSet = cutSet(strings.TrimSuffix(repoWord, "/"), false)
 		repoWord, inner = cutShorthand(repoWord)
 		r.HasPath = hasSet || inner != ""
 	}
@@ -69,6 +70,9 @@ func Parse(word string, o Options) (Ref, error) {
 	r.Path = inner
 
 	repo, err := ParseRepo(repoWord, o)
+	if err == nil && strings.HasPrefix(path.Base(repo.Path), "@") {
+		err = ErrNotRepo // a folder named @… reads as a skill set
+	}
 	if err != nil {
 		return Ref{}, fail("use owner/repo/path, host/path//path, a URL or a path")
 	}
@@ -79,7 +83,7 @@ func Parse(word string, o Options) (Ref, error) {
 // cutPath splits word at the // that ends the repo, past a URL's scheme.
 func cutPath(word string) (repo, inner string, found bool) {
 	start := 0
-	if i := strings.Index(word, "://"); i >= 0 {
+	if i := strings.Index(word, "://"); i >= 0 && !isPath(word) {
 		start = i + len("://")
 	}
 	j := strings.Index(word[start:], "//")
@@ -89,12 +93,14 @@ func cutPath(word string) (repo, inner string, found bool) {
 	return word[:start+j], word[start+j+2:], true
 }
 
-// cutSet splits a last part that starts with @ off s. An @ part never
-// belongs to a repo, so no // is needed before it.
-func cutSet(s string) (rest, set string, found bool) {
+// cutSet splits a last part that starts with @ off s, a path inside a repo
+// or, if inRepo is false, a whole reference. An @ part never belongs to a
+// repo, so no // is needed before it; but a whole reference needs a repo
+// before it (git@host:repo is a repo).
+func cutSet(s string, inRepo bool) (rest, set string, found bool) {
 	i := strings.LastIndex(s, "/")
 	last := s[i+1:]
-	if !strings.HasPrefix(last, "@") {
+	if !strings.HasPrefix(last, "@") || (i < 0 && !inRepo) {
 		return s, "", false
 	}
 	return s[:max(i, 0)], last[1:], true
@@ -144,7 +150,7 @@ func validPin(pin string) bool {
 // word is safe to print. The rest stays as typed.
 func hidePassword(word string) string {
 	i := strings.Index(word, "://")
-	if i < 0 {
+	if i < 0 || isPath(word) {
 		return word
 	}
 	authority := word[i+3:]
