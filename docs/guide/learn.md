@@ -224,11 +224,11 @@ The same goes for an unclosed quote or a command that isn't on your `PATH`. The 
 
 *This describes what skl does; it isn't legal advice.*
 
-Your vault has its own license. `skl init` writes a `LICENSE` file when it creates a vault: MIT, unless the [`license`](../reference/config) setting says otherwise. An existing vault's `LICENSE` is never touched.
+Your vault has its own license. `skl init` writes a `LICENSE` file when it creates a vault: MIT, unless the [`license`](../reference/config) setting says otherwise. An existing vault's `LICENSE` is never touched. To know your vault's license, skl reads its `LICENSE` file, the same way it reads an author's, and uses the `license` setting only when there's no file it recognizes.
 
 For MIT and Apache-2.0, skl writes the full text; MIT's copyright line has the year and your git name. For any other SPDX id, it writes one line, `SPDX-License-Identifier: <id>`, and you paste the full text yourself. With `none`, there's no `LICENSE` file, and the new vault still starts with generation 1.
 
-Each skill you learn keeps its author's license. skl looks for it in the skill's folder, then at the root of the author's repo, then in the `license` field of its `SKILL.md`, and prints what it found:
+Each skill you learn keeps its author's license. skl looks for a `LICENSE*` or `COPYING*` file in the skill's folder, then at the root of the author's repo, and prints what it found:
 
 ```
   license    Apache-2.0 · notice kept in someone/pdf/LICENSE
@@ -236,7 +236,15 @@ Each skill you learn keeps its author's license. skl looks for it in the skill's
 
 A license at the root of their repo is copied into the skill's folder, so the notice travels with the copy.
 
-When the license may not fit your vault, skl asks what to do. That's when no license is found, when skl doesn't recognize it, or when it isn't a permissive one (such as MIT, BSD, Apache-2.0 or ISC) and isn't your vault's own:
+If the first place with a license file has several, such as `LICENSE-MIT` and `LICENSE-APACHE`, skl reads them all and records the choice as one SPDX expression, `MIT OR Apache-2.0`. A root license is copied with all its files.
+
+Only when neither place has a license file does skl read the `license` field in `SKILL.md`, and only if it's an SPDX id or expression, such as `MIT`. Any other text, such as `Complete terms in LICENSE.txt`, is ignored: a file it points to is found in the folder first, and without one the license is unknown. A license found only there comes with no file to copy, and skl says so:
+
+```
+  license    MIT (from SKILL.md, no license file)
+```
+
+When the license may not fit your vault, skl asks what to do. That's when no license is found, when skl doesn't recognize it, or when it isn't permissive and isn't your vault's own. These are permissive: MIT, MIT-0, 0BSD, BSD-2-Clause, BSD-3-Clause, Apache-2.0, ISC, Zlib, BSL-1.0, Unlicense and CC0-1.0. With a choice such as `MIT OR GPL-3.0`, skl asks only if no choice is permissive or your vault's own. A vault with no license (`license = none` and no `LICENSE` file) has no license of its own to match, so every license that isn't permissive makes skl ask:
 
 ```
 → copy into someone/report
