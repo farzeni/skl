@@ -1,0 +1,32 @@
+name: Release
+
+# A pushed v* tag builds skl for Linux and macOS and publishes the binaries
+# and checksums as a GitHub release, with .goreleaser.yaml.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # GoReleaser needs the tags and history for the version and changelog.
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26.x
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          # The same GoReleaser as make release-check in CI.
+          version: v2.19.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

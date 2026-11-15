@@ -1,5 +1,5 @@
-# GoReleaser config, checked by make check. The release workflow comes with
-# the first release.
+# GoReleaser config, checked by make check (release-check). A pushed v* tag
+# runs it in .github/workflows/release.yml.
 version: 2
 
 project_name: skl
