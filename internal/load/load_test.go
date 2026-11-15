@@ -449,7 +449,7 @@ func TestWhatIsSomeoneElses(t *testing.T) {
 	}
 	var folders []string
 	for _, s := range p.Skipped {
-		folders = append(folders, s.Foreign)
+		folders = append(folders, filepath.Base(s.Path))
 	}
 	if !slices.Equal(folders, []string{"a", "mine"}) {
 		t.Errorf("skipped = %+v", p.Skipped)
@@ -474,7 +474,7 @@ func TestLoserLoadsWhereTheWinnerIsSkipped(t *testing.T) {
 	if want := []string{"claude:g/b", "agents:g/a"}; !slices.Equal(copies, want) {
 		t.Errorf("copies = %v, want %v", copies, want)
 	}
-	if len(p.Skipped) != 1 || p.Skipped[0].Skill != f.b || p.Skipped[0].Foreign != "b" {
+	if len(p.Skipped) != 1 || p.Skipped[0].Skill != f.b || filepath.Base(p.Skipped[0].Path) != "b" {
 		t.Errorf("skipped = %+v", p.Skipped)
 	}
 }
