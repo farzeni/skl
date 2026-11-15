@@ -52,6 +52,13 @@ skl imports the folder as it is now. A name your vault already has, as a folder 
   · rename it in ~/.claude/skills, then skl import it
 ```
 
+So does a folder without `SKILL.md` that holds skills, since skl imports only [top-level skill folders](./skill-sets#names-and-clashes):
+
+```
+✗ tools isn't a skill: no SKILL.md, and it holds 13 skills
+  · move the ones you want into ~/.claude/skills, then skl import <name>
+```
+
 For what import does with a linked folder or a skill installed by another tool, see [Import](../design/architecture#import).
 
 `skl init` offers the same for every skill it finds that isn't in a vault yet, when it sets up your vault.

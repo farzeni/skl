@@ -74,7 +74,7 @@ skl runs the [engine](./learn#who-does-the-thinking), the `claude` CLI by defaul
 ✓ generation 14 · skl rollback to undo
 ```
 
-This option shows only when the engine's CLI is installed and skl runs in a terminal. With another [engine](./learn#other-agents) it carries the name of its command, such as `with opencode`. Without a terminal, sync undoes the merge and stops: see [Questions](../reference/commands#questions).
+This option shows only when the engine's CLI is installed and skl runs in a terminal. With another [engine](./learn#other-agents) it carries the name of its command, such as `with opencode`. Without a terminal, or with `--yes`, sync undoes the merge and stops: see [Questions](../reference/commands#questions).
 
 ### By hand
 

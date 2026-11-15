@@ -73,7 +73,7 @@ In the `host/path` form, every part after the host belongs to the repo, so GitLa
 
 ### How a reference is stored
 
-skl records the sources and peers you learn from as full URLs, so they mean the same thing on every machine. `owner/repo` and `host/path` forms are stored as HTTPS, whatever `protocol` you fetch with: `someone/agent-skills/pdf` becomes `https://github.com/someone/agent-skills//skills/pdf`, with the path skl found after `//`. A URL you typed is stored as you typed it. A trailing `.git` is dropped, so two references to the same repo match with or without it. A repo on this machine is stored as its path: with `~` when it's under your home folder (`~/code/skills`), else absolute. A pin is stored apart, as `ref` in [`.skl-origin.toml`](./files#skl-origin-toml).
+skl records the sources and peers you learn from as full URLs, so they mean the same thing on every machine. `owner/repo` and `host/path` forms are stored as HTTPS, whatever `protocol` you fetch with: `someone/agent-skills/pdf` becomes `https://github.com/someone/agent-skills//skills/pdf`, with the path skl found after `//`. A URL you typed is stored as you typed it, except a password in it: skl drops the password and keeps the user, so a token never lands in a committed file. A trailing `.git` is dropped, so two references to the same repo match with or without it. A repo on this machine is stored as its path: with `~` when it's under your home folder (`~/code/skills`), else absolute. A pin is stored apart, as `ref` in [`.skl-origin.toml`](./files#skl-origin-toml).
 
 Such a source exists on one machine only. On another one, where the path doesn't exist, the update check warns and nothing else changes:
 
