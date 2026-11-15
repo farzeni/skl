@@ -15,6 +15,7 @@ import (
 	"github.com/farzeni/skl/internal/ref"
 	"github.com/farzeni/skl/internal/resolve"
 	"github.com/farzeni/skl/internal/selector"
+	"github.com/farzeni/skl/internal/state"
 	"github.com/farzeni/skl/internal/ui"
 	"github.com/farzeni/skl/internal/vault"
 )
@@ -286,7 +287,9 @@ func (a *App) adoptAndLoad(ctx context.Context, c *Change, im imports, init *sel
 		undo()
 		return a.shownPaths(err)
 	}
-	for _, ad := range adopted {
+	for i, ad := range adopted {
+		f := im.found[i]
+		c.Adopted = append(c.Adopted, state.Copy{Name: f.Folder, Target: f.Target, Skill: im.group + "/" + f.Folder})
 		if ad.Replaced() {
 			a.ui.Step("replaced", "link "+a.shown(ad.Path())+" with a copy")
 		}

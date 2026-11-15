@@ -76,16 +76,128 @@ func (a *App) rollbackTarget(ctx context.Context, args []string) (target, last s
 	return target, last, nil
 }
 
-// selection is loading the target's active skill set, as skl use would.
-func (r *rollback) selection() selection {
+// selection is loading the target's active skill set, as skl use would. What an
+// import adopted is given back rather than unloaded (h.release).
+func (r *rollback) selection(h handovers) selection {
 	selectors := r.to.Scopes[state.User].Selectors
 	return selection{
-		verb:  "rollback",
-		label: "back to generation",
+		verb:    "rollback",
+		label:   "back to generation",
+		release: h.release,
 		next: func([]string, []selector.Selector, *vault.Index) ([]string, []note, error) {
 			return selectors, nil, nil
 		},
 	}
+}
+
+// undone reads the generations r goes back over, oldest first. One that's missing
+// is skipped.
+func (a *App) undone(ctx context.Context, r *rollback) ([]state.Generation, error) {
+	var gens []state.Generation
+	for n := r.to.N + 1; n <= r.from.N; n++ {
+		g, err := a.store.Generation(ctx, n)
+		if _, ok := errors.AsType[*state.NoGenerationError](err); ok {
+			continue
+		}
+		if err != nil {
+			return nil, hinted(a.generationError(err), "skl history")
+		}
+		gens = append(gens, g)
+	}
+	return gens, nil
+}
+
+// handovers are the folders a rollback hands back over (docs/guide/rollback.md "Go
+// back"): release are copies an import adopted, to leave as plain folders, and
+// adopt are plain folders a rollback gave back, to make copies again.
+type handovers struct{ release, adopt []state.Copy }
+
+// handoversOf works out the handovers of going back over gens. For each folder the
+// oldest generation that handed it over decides, since the rollback restores what
+// was there before it: one that adopted it found a plain folder, one that released
+// it found a copy.
+func handoversOf(gens []state.Generation) handovers {
+	type entry struct {
+		cp      state.Copy
+		release bool
+	}
+	var order []string
+	oldest := map[string]entry{}
+	note := func(cp state.Copy, release bool) {
+		key := string(cp.Target) + "/" + selector.Fold(cp.Name)
+		if _, ok := oldest[key]; !ok {
+			order = append(order, key)
+		}
+		oldest[key] = entry{cp: cp, release: release}
+	}
+	for _, g := range slices.Backward(gens) {
+		for _, cp := range g.Adopted {
+			note(cp, true)
+		}
+		for _, cp := range g.Released {
+			note(cp, false)
+		}
+	}
+	var h handovers
+	for _, key := range order {
+		if e := oldest[key]; e.release {
+			h.release = append(h.release, e.cp)
+		} else {
+			h.adopt = append(h.adopt, e.cp)
+		}
+	}
+	return h
+}
+
+// readoptable are the folders of h.adopt that can be made copies again: a plain
+// folder is where the target generation had the copy, in a target still
+// configured, and the vault at dir holds its skill. Each comes with the copy it
+// becomes, at commit. Any other is left alone, and the load treats it as usual.
+func (a *App) readoptable(ctx context.Context, h handovers, r *rollback, dir, commit, root string) ([]load.Foreign, []state.Copy, error) {
+	if len(h.adopt) == 0 {
+		return nil, nil, nil
+	}
+	foreign, err := load.Foreigners(root, a.cfg.Targets)
+	if err != nil {
+		return nil, nil, a.shownPaths(err)
+	}
+	var found []load.Foreign
+	var copies []state.Copy
+	for _, cp := range h.adopt {
+		had := slices.ContainsFunc(r.to.Scopes[state.User].Copies, func(o state.Copy) bool {
+			return o.Target == cp.Target && o.Name == cp.Name && o.Skill == cp.Skill
+		})
+		i := slices.IndexFunc(foreign, func(f load.Foreign) bool { return f.Target == cp.Target && f.Folder == cp.Name && !f.Link })
+		if !had || i < 0 {
+			continue
+		}
+		skill := filepath.Join(dir, filepath.FromSlash(cp.Skill))
+		if _, err := os.Stat(filepath.Join(skill, "SKILL.md")); err != nil {
+			continue
+		}
+		tree, err := load.SkillTree(ctx, skill)
+		if err != nil {
+			return nil, nil, err
+		}
+		found = append(found, foreign[i])
+		copies = append(copies, state.Copy{Name: cp.Name, Target: cp.Target, Skill: cp.Skill, Commit: commit, Tree: tree})
+	}
+	return found, copies, nil
+}
+
+// readopt makes each folder the copy it was before a rollback gave it back.
+func (a *App) readopt(ctx context.Context, found []load.Foreign, copies []state.Copy) (load.Adoptions, error) {
+	var done load.Adoptions
+	for i, f := range found {
+		cp := copies[i]
+		ad, err := load.Adopt(ctx, f, a.paths.Staging, load.Manifest{Source: cp.Skill, Commit: cp.Commit, Tree: cp.Tree})
+		if err != nil {
+			done.Undo()
+			return nil, a.shownPaths(err)
+		}
+		done = append(done, ad)
+	}
+	return done, nil
 }
 
 // reverted is one revert commit.
@@ -101,10 +213,15 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 		return false, err
 	}
 	undo := func() { v.ResetTo(context.WithoutCancel(ctx), before) }
-	pulled, err := a.pulled(ctx, v, r)
+	gens, err := a.undone(ctx, r)
 	if err != nil {
 		return false, err
 	}
+	pulled, err := a.pulled(ctx, v, r, gens)
+	if err != nil {
+		return false, err
+	}
+	h := handoversOf(gens)
 	units, err := v.Units(ctx, r.to.VaultCommit, r.from.VaultCommit)
 	if err != nil {
 		return false, err
@@ -126,7 +243,24 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 		undo()
 		return false, err
 	}
-	s := r.selection()
+	head, err := v.Head(ctx)
+	if err != nil {
+		undo()
+		return false, err
+	}
+	found, copies, err := a.readoptable(ctx, h, r, v.Dir(), head, root)
+	if err != nil {
+		undo()
+		return false, err
+	}
+	adopted, err := a.readopt(ctx, found, copies)
+	if err != nil {
+		undo()
+		return false, err
+	}
+	undoVault := undo
+	undo = func() { adopted.Undo(); undoVault() }
+	s := r.selection(h)
 	next, err := a.prepare(ctx, v, c.State, s, nil, root)
 	if err != nil {
 		undo()
@@ -134,6 +268,7 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 	}
 	if !next.changed && len(done) == 0 {
 		a.reportRollback(r, next, nil, nil)
+		undo()
 		return false, nil
 	}
 	a.reportRollback(r, next, done, nil)
@@ -146,12 +281,19 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 			return false, err
 		}
 	}
-	undoLoad := c.Undo
+	c.Adopted, c.Released = copies, next.plan.Released
+	undoLoad, closeLoad := c.Undo, c.Cleanup
 	c.Undo = func() {
 		if undoLoad != nil {
 			undoLoad()
 		}
 		undo()
+	}
+	c.Cleanup = func() {
+		if closeLoad != nil {
+			closeLoad()
+		}
+		adopted.Close()
 	}
 	return true, nil
 }
@@ -160,17 +302,10 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 // rollback can warn that it reverts another machine's work (rollback.md "Go
 // back"): for each sync among them, what it brought in since the generation
 // before it.
-func (a *App) pulled(ctx context.Context, v *vault.Vault, r *rollback) (int, error) {
+func (a *App) pulled(ctx context.Context, v *vault.Vault, r *rollback, gens []state.Generation) (int, error) {
 	total := 0
 	prev := r.to
-	for n := r.to.N + 1; n <= r.from.N; n++ {
-		g, err := a.store.Generation(ctx, n)
-		if _, ok := errors.AsType[*state.NoGenerationError](err); ok {
-			continue
-		}
-		if err != nil {
-			return 0, hinted(a.generationError(err), "skl history")
-		}
+	for _, g := range gens {
 		if g.Command == "sync" && prev.VaultCommit != "" && g.VaultCommit != "" {
 			k, err := v.Pulled(ctx, prev.VaultCommit, g.VaultCommit)
 			if err != nil {
@@ -255,8 +390,6 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	if err != nil || stop {
 		return err
 	}
-	s := r.selection()
-	first.recorded(st, &s)
 	units, err := v.Units(ctx, r.to.VaultCommit, r.from.VaultCommit)
 	if err != nil {
 		return hinted(err, retry)
@@ -278,6 +411,20 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	if err != nil {
 		return hinted(err, retry)
 	}
+	gens, err := a.undone(ctx, r)
+	if err != nil {
+		return err
+	}
+	h := handoversOf(gens)
+	// The folders a real run would adopt again are read as if it had.
+	_, copies, err := a.readoptable(ctx, h, r, dir, first.at, root)
+	if err != nil {
+		return hinted(err, retry)
+	}
+	s := r.selection(h)
+	s.saved = copies
+	// So are the copies the save first would record.
+	first.recorded(st, &s)
 	next, err := a.prepareAt(ctx, vaultView{dir: dir, head: first.at, idx: idx}, st, s, nil, root)
 	if err != nil {
 		return hinted(err, retry)

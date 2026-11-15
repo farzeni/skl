@@ -28,6 +28,12 @@ type Generation struct {
 	// Changed lists the scopes the change touched, which are the ones a
 	// rollback restores and the repo skl history shows.
 	Changed []ScopeKey `json:"changed,omitempty"`
+	// Adopted are folders the change made skl's copies, as skl import does, and
+	// Released copies it gave back as plain folders, as a rollback over an import
+	// does. A rollback over the change does the opposite (docs/guide/rollback.md
+	// "Go back").
+	Adopted  []Copy `json:"adopted,omitempty"`
+	Released []Copy `json:"released,omitempty"`
 }
 
 // NoGenerationError is a generation that doesn't exist.
