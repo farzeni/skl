@@ -6,10 +6,14 @@ import "testing"
 // and keeps the user". What skl prints from git follows the same rule.
 func TestHidePasswords(t *testing.T) {
 	for _, tt := range []struct{ in, want string }{
-		{"clone -- https://you:s3cret@git.example.com/you/skills /tmp/v",
-			"clone -- https://you:xxxxx@git.example.com/you/skills /tmp/v"},
-		{"fatal: unable to access 'https://you:s3cret@git.example.com/you/skills/': refused",
-			"fatal: unable to access 'https://you:xxxxx@git.example.com/you/skills/': refused"},
+		{
+			"clone -- https://you:s3cret@git.example.com/you/skills /tmp/v",
+			"clone -- https://you:xxxxx@git.example.com/you/skills /tmp/v",
+		},
+		{
+			"fatal: unable to access 'https://you:s3cret@git.example.com/you/skills/': refused",
+			"fatal: unable to access 'https://you:xxxxx@git.example.com/you/skills/': refused",
+		},
 		{"ssh://git:tok@git.example.com:2222/team/skills", "ssh://git:xxxxx@git.example.com:2222/team/skills"},
 		{"https://you:p@ss@git.example.com/x", "https://you:xxxxx@git.example.com/x"}, // the last @ ends it
 		{"https://you:@git.example.com/x", "https://you:xxxxx@git.example.com/x"},
