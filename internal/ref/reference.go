@@ -222,7 +222,7 @@ func (r Repo) canonical(home string) string {
 			}
 		}
 	}
-	return strings.TrimSuffix(strings.TrimRight(s, "/"), ".git")
+	return trimGit(s)
 }
 
 // tildePath writes an absolute path under home with ~.

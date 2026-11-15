@@ -100,7 +100,7 @@ func (r *Repo) parsePath(word string, o Options) bool {
 // setLocal records a repo on this machine, at an absolute, clean path that
 // is a folder below the root, .git left out.
 func (r *Repo) setLocal(p string) bool {
-	p = strings.TrimSuffix(p, ".git")
+	p = trimGit(p)
 	if !filepath.IsAbs(p) || filepath.Clean(p) != p || p == "/" {
 		return false
 	}
@@ -173,9 +173,21 @@ func urlSafe(s, extra string) bool {
 	})
 }
 
+// trimGit drops every trailing ".git" and "/", so a repo is one repo with or
+// without them, however often they repeat.
+func trimGit(s string) string {
+	for {
+		t := strings.TrimSuffix(strings.TrimRight(s, "/"), ".git")
+		if t == s {
+			return s
+		}
+		s = t
+	}
+}
+
 // setRemote records a remote repo's identity, if its parts can be one.
 func (r *Repo) setRemote(host, path string) bool {
-	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
+	path = strings.TrimLeft(trimGit(path), "/")
 	if host == "" || path == "" || strings.ContainsAny(host+path, " \t\n#@:") {
 		return false
 	}

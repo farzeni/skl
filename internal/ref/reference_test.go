@@ -512,7 +512,7 @@ func FuzzCanonicalRoundTrip(f *testing.F) {
 		"gitlab.com/team/sub/skills//review/pr-review", "https://you:pw@Git.Example.com:8443/t/s.git//pdf",
 		"git@git.example.com:team/skills.git/@backend", "~/code/skills//pdf", "./x//y", "file:///srv/s.git//p",
 		// found by fuzzing
-		"%/0", "/:/.//0", "/@/", "/..", "..//", "/@/.", "@0:0://", "/..git", "0:0:.git//",
+		"%/0", "/:/.//0", "/@/", "/..", "..//", "/@/.", "@0:0://", "/..git", "0:0:.git//", "/.git.git",
 	} {
 		f.Add(seed)
 	}
