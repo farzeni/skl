@@ -1,7 +1,9 @@
-// Package ref reads the references commands take. For now that's the forms
-// of a repo (docs/reference/repos.md "Repos"); the path inside a repo, pins
-// and skill sets come with skl learn. It never touches the disk or the
-// network, so everything it needs comes in through Options.
+// Package ref reads the references commands take, in the forms of
+// docs/reference/repos.md: a repo (ParseRepo, for skl init), and a reference
+// to something in a repo (Parse, for skl learn): a path inside it, a skill
+// set, a pin. It never touches the disk or the network, so everything it
+// needs comes in through Options. A third-party part that rewrites a
+// reference (internal/ext) runs before Parse, on the word as typed.
 package ref
 
 import (
@@ -10,6 +12,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 // ErrNotRepo is a word that is none of the forms of a repo.
@@ -32,7 +35,19 @@ type Repo struct {
 	// The repo's identity, whatever form or protocol reached it. Path has no
 	// leading slash and no .git, unless the repo is local: then it's absolute.
 	Host, Path string
+
+	form form // how it was written: decides how it's stored
 }
+
+// form is how a repo was written.
+type form int
+
+const (
+	formURL   form = iota // a URL or git's scp-like form, used as given
+	formShort             // owner/repo on the default host
+	formHost              // host/path
+	formLocal             // a path or a file:// URL
+)
 
 // ParseRepo reads word as a repo, in any of the forms in repos.md, or returns
 // an error matching ErrNotRepo.
@@ -49,7 +64,7 @@ func ParseRepo(word string, o Options) (Repo, error) {
 	default:
 		if host, path, isSCP := cutSCP(word); isSCP {
 			ok = r.setRemote(host, path)
-			r.URL = word
+			r.URL, r.form = word, formURL
 		} else {
 			ok = r.parseShort(word, o)
 		}
@@ -78,7 +93,18 @@ func (r *Repo) parsePath(word string, o Options) bool {
 		p = filepath.Join(o.Cwd, p)
 	}
 	p = filepath.Clean(p)
-	r.URL, r.Local, r.Path = p, true, strings.TrimSuffix(p, ".git")
+	r.URL = p
+	return r.setLocal(p)
+}
+
+// setLocal records a repo on this machine, at an absolute, clean path that
+// is a folder below the root, .git left out.
+func (r *Repo) setLocal(p string) bool {
+	p = trimGit(p)
+	if !filepath.IsAbs(p) || filepath.Clean(p) != p || p == "/" {
+		return false
+	}
+	r.Local, r.Path, r.form = true, p, formLocal
 	return true
 }
 
@@ -95,12 +121,7 @@ func (r *Repo) parseURL(word string) bool {
 	}
 	switch u.Scheme {
 	case "file":
-		p := filepath.Clean(u.Path)
-		if !filepath.IsAbs(p) {
-			return false
-		}
-		r.Local, r.Path = true, strings.TrimSuffix(p, ".git")
-		return true
+		return r.setLocal(filepath.Clean(u.Path))
 	case "https", "http", "ssh", "git":
 		return r.setRemote(u.Hostname(), u.Path)
 	}
@@ -123,16 +144,17 @@ func cutSCP(word string) (host, path string, ok bool) {
 // parseShort reads owner/repo and host/path.
 func (r *Repo) parseShort(word string, o Options) bool {
 	host, path := o.DefaultHost, strings.TrimSuffix(word, "/")
+	r.form = formShort
 	first, rest, found := strings.Cut(path, "/")
 	switch {
 	case !found:
 		return false
 	case strings.Contains(first, "."):
-		host, path = first, rest
+		host, path, r.form = first, rest, formHost
 	case strings.Contains(rest, "/"):
 		return false // three parts: a path inside a repo, for skl learn
 	}
-	if !r.setRemote(host, path) {
+	if !urlSafe(host, "-.") || !urlSafe(path, "-._~/") || !r.setRemote(host, path) {
 		return false
 	}
 	if o.SSH {
@@ -143,10 +165,30 @@ func (r *Repo) parseShort(word string, o Options) bool {
 	return true
 }
 
+// urlSafe reports whether s holds only letters, digits and the runes in
+// extra, so a short form makes a URL that means what was typed.
+func urlSafe(s, extra string) bool {
+	return !strings.ContainsFunc(s, func(c rune) bool {
+		return !unicode.IsLetter(c) && !unicode.IsDigit(c) && !strings.ContainsRune(extra, c)
+	})
+}
+
+// trimGit drops every trailing ".git" and "/", so a repo is one repo with or
+// without them, however often they repeat.
+func trimGit(s string) string {
+	for {
+		t := strings.TrimSuffix(strings.TrimRight(s, "/"), ".git")
+		if t == s {
+			return s
+		}
+		s = t
+	}
+}
+
 // setRemote records a remote repo's identity, if its parts can be one.
 func (r *Repo) setRemote(host, path string) bool {
-	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
-	if host == "" || path == "" || strings.ContainsAny(host+path, " \t\n#@") {
+	path = strings.TrimLeft(trimGit(path), "/")
+	if host == "" || path == "" || strings.ContainsAny(host+path, " \t\n#@:") {
 		return false
 	}
 	for part := range strings.SplitSeq(path, "/") {
