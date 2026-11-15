@@ -46,7 +46,7 @@ A rollback restores every scope the generations it undoes changed: your user sco
 If the generations you go back over include changes pulled by `skl sync`, the revert takes back the other machine's work too, and your next `skl sync` pushes that. skl warns you when it applies the plan:
 
 ```
-! reverts 3 commits from laptop · skl rollback to undo
+! reverts 3 commits pulled by skl sync · skl rollback to undo
 ```
 
 There's nothing to go back to before generation 1, and `N` must be a generation in `skl history`:
