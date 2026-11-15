@@ -27,6 +27,11 @@ exec git -C $HOME/.skl/vault status --porcelain
 exec git -C $HOME/.skl/vault log -1 --format=%s
 ! stdout 'skl save'
 
+# Ctrl-C at the question keeps the file too, although yes is now its last answer.
+exitcode 130 ptyrun ctrl-c skl save backend
+cmp $HOME/.skl/vault/sets/backend.toml seed/sets/backend.toml
+! exists $HOME/.skl/generations/2.json
+
 # Without a terminal and without --yes, the question still stops the command.
 exitcode 1 skl save backend
 cmp stderr empty-no-terminal.txt
