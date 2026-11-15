@@ -15,6 +15,7 @@ import (
 	"github.com/farzeni/skl/internal/load"
 	"github.com/farzeni/skl/internal/ref"
 	"github.com/farzeni/skl/internal/selector"
+	"github.com/farzeni/skl/internal/state"
 	"github.com/farzeni/skl/internal/ui"
 	"github.com/farzeni/skl/internal/vault"
 )
@@ -143,9 +144,56 @@ func (a *App) initDryRun(ctx context.Context, repo ref.Repo, sel selection, root
 	}
 	if group, err := selector.OwnerGroup(repo.Owner()); err == nil && len(offer) > 0 {
 		a.ui.Plan("import %s → %s/", folderList(offer), group)
+		if err := a.planImportLoad(ctx, sel, group, offer, root); err != nil {
+			return hinted(err, retry)
+		}
 	}
 	if len(sel.words) > 0 {
 		a.ui.Plan("load %s", strings.Join(sel.words, " "))
+	}
+	return nil
+}
+
+// planImportLoad prints what loading the imports would change, as the real run
+// does after "◇ imported": each folder stays where it is as the loaded copy, and
+// with two targets the skill is loaded into the other one too. The plan is made
+// against a vault holding only the imports, written to a temporary folder, with
+// each folder read as the copy it would become.
+func (a *App) planImportLoad(ctx context.Context, sel selection, group string, offer []load.Foreign, root string) error {
+	tmp, err := os.MkdirTemp("", "skl-init-")
+	if err != nil {
+		return fmt.Errorf("init: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	dir := filepath.Join(tmp, "vault")
+	adopted := make([]state.Copy, 0, len(offer))
+	for _, f := range offer {
+		dst := filepath.Join(dir, group, f.Folder)
+		if err := load.CopyIn(ctx, f.Path(), dst); err != nil {
+			return a.shownPaths(err)
+		}
+		tree, err := load.SkillTree(ctx, dst)
+		if err != nil {
+			return err
+		}
+		adopted = append(adopted, state.Copy{Name: f.Folder, Target: f.Target, Skill: group + "/" + f.Folder, Tree: tree})
+	}
+	idx, err := vault.IndexAt(ctx, dir)
+	if err != nil {
+		return err
+	}
+	// The group holds only the imports, so the real run adds the group.
+	sel.saved = adopted
+	sel.next = func([]string, []selector.Selector, *vault.Index) ([]string, []note, error) {
+		return []string{group}, nil, nil
+	}
+	next, err := a.prepareAt(ctx, vaultView{dir: dir, idx: idx}, &state.State{}, sel, nil, root)
+	if err != nil {
+		return err
+	}
+	a.printChanges(next.plan.Changes)
+	for _, n := range next.notes {
+		a.ui.Warn(n.msg, ui.Clean(n.hint))
 	}
 	return nil
 }

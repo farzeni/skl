@@ -526,3 +526,31 @@ func TestTwoTargets(t *testing.T) {
 		t.Errorf("changes = %+v, want %+v", p.Changes, want)
 	}
 }
+
+// commands.md "Dry run": init --dry-run plans as if each folder it would import
+// were already its copy. Only the named folder in its own target is read so;
+// someone else's skill with the same name in the other target is still skipped.
+func TestSavedReadsAFolderToImportAsItsCopy(t *testing.T) {
+	f := newFixture(t)
+	f.targets = []config.Target{config.Claude, config.Agents}
+	write(t, filepath.Join(f.skills(), "a/SKILL.md"), "A\n", 0o644) // the folder the vault's g/a came from
+	write(t, filepath.Join(SkillsDir(f.home, config.Agents), "b/SKILL.md"), "mine", 0o644)
+	tree, err := SkillTree(context.Background(), filepath.Join(f.vault, "g/a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := Compute(context.Background(), Input{
+		Vault: f.vault, Result: result(t, f.a, f.b), Targets: f.targets, HomeRoot: f.home,
+		Saved: []state.Copy{{Name: "a", Target: config.Claude, Skill: "g/a", Tree: tree}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Change{{Kind: Load, Name: "b", Skill: "g/b"}, {Kind: Load, Name: "a", Skill: "g/a"}}
+	if !slices.Equal(p.Changes, want) {
+		t.Errorf("changes = %+v, want %+v", p.Changes, want)
+	}
+	if len(p.Skipped) != 1 || p.Skipped[0].Skill != f.b || p.Skipped[0].Foreign != "b" {
+		t.Errorf("skipped = %+v", p.Skipped)
+	}
+}

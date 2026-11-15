@@ -99,8 +99,9 @@ type Input struct {
 	Current  []state.Copy
 	Targets  []config.Target
 	HomeRoot string // what a target's skills folder is under
-	// Saved are copies a save not yet made would record, for a plan that's only
-	// printed (sync --dry-run): their .skl-copy.toml is read as if it held these.
+	// Saved are copies a save or an import not yet made would record, for a plan
+	// that's only printed (sync --dry-run, init --dry-run): their .skl-copy.toml is
+	// read as if it held these, and a folder an import would adopt as its copy.
 	Saved []state.Copy
 }
 
@@ -345,12 +346,26 @@ func (h held) foreignFor(s resolve.Skill) (string, bool) {
 }
 
 // recorded reads the copies in t's folder as if their .skl-copy.toml held saved.
+// A folder of someone else's that saved names is read as the copy an import would
+// make of it.
 func (h held) recorded(t config.Target, saved []state.Copy) {
 	for _, s := range saved {
+		if s.Target != t {
+			continue
+		}
 		name := selector.Fold(s.Name)
-		if o, ok := h.owned[name]; ok && s.Target == t && o.folder == s.Name && o.manifest.Source == s.Skill {
+		if o, ok := h.owned[name]; ok && o.folder == s.Name && o.manifest.Source == s.Skill {
 			o.manifest.Commit, o.manifest.Tree = s.Commit, s.Tree
 			h.owned[name] = o
+			continue
+		}
+		if f, ok := h.foreign[name]; ok && f == s.Name {
+			h.owned[name] = ownedCopy{folder: f, manifest: Manifest{Source: s.Skill, Commit: s.Commit, Tree: s.Tree}}
+			for n, other := range h.foreign {
+				if other == f {
+					delete(h.foreign, n)
+				}
+			}
 		}
 	}
 }
