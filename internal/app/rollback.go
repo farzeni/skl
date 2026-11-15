@@ -58,7 +58,7 @@ func (a *App) rollbackTarget(ctx context.Context, args []string) (target, last s
 	}
 	n := newest - 1
 	if len(args) > 0 {
-		if n, err = strconv.Atoi(args[0]); err != nil || args[0] != strconv.Itoa(n) {
+		if n, err = strconv.Atoi(args[0]); err != nil || n < 0 || args[0] != strconv.Itoa(n) {
 			return target, last, errs.Usagef("skl history", "%s isn't a generation number", ui.Clean(args[0]))
 		}
 	} else if n < 1 {
@@ -101,6 +101,10 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 		return false, err
 	}
 	undo := func() { v.ResetTo(context.WithoutCancel(ctx), before) }
+	pulled, err := a.pulled(ctx, v, r)
+	if err != nil {
+		return false, err
+	}
 	units, err := v.Units(ctx, r.to.VaultCommit, r.from.VaultCommit)
 	if err != nil {
 		return false, err
@@ -133,6 +137,9 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 		return false, nil
 	}
 	a.reportRollback(r, next, done, nil)
+	if pulled > 0 && len(done) > 0 {
+		a.ui.Warn("reverts "+commits(pulled)+" pulled by skl sync", "skl rollback to undo")
+	}
 	if next.changed {
 		if err := a.apply(ctx, c, next); err != nil {
 			undo()
@@ -147,6 +154,33 @@ func (a *App) rollBack(ctx context.Context, c *Change, r *rollback) (bool, error
 		undo()
 	}
 	return true, nil
+}
+
+// pulled counts the commits skl sync pulled in the generations r undoes, so the
+// rollback can warn that it reverts another machine's work (rollback.md "Go
+// back"): for each sync among them, what it brought in since the generation
+// before it.
+func (a *App) pulled(ctx context.Context, v *vault.Vault, r *rollback) (int, error) {
+	total := 0
+	prev := r.to
+	for n := r.to.N + 1; n <= r.from.N; n++ {
+		g, err := a.store.Generation(ctx, n)
+		if _, ok := errors.AsType[*state.NoGenerationError](err); ok {
+			continue
+		}
+		if err != nil {
+			return 0, hinted(a.generationError(err), "skl history")
+		}
+		if g.Command == "sync" && prev.VaultCommit != "" && g.VaultCommit != "" {
+			k, err := v.Pulled(ctx, prev.VaultCommit, g.VaultCommit)
+			if err != nil {
+				return 0, err
+			}
+			total += k
+		}
+		prev = g
+	}
+	return total, nil
 }
 
 // reportRollback prints the plan: "→ back to generation N", what's loaded and

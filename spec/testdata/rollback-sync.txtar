@@ -1,7 +1,143 @@
 # docs/guide/rollback.md "Go back"
-skip 'pending: docs PR #120'
+#
+# Two machines in one script: this one (HOME=$WORK/home) and the laptop
+# (HOME=$WORK/laptop), against one remote.
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend
+mkdir $WORK/laptop
+env HOME=$WORK/laptop
+exec skl init you/skills
+exec skl use @backend
+
+# The laptop makes three commits, hand edits in its vault, and pushes them.
+cp one.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl use @backend
+cp two.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl use @backend
+cp style.md $HOME/.skl/vault/writing/changelog/SKILL.md
+exec skl use @backend
+exec skl sync
+
+# This machine has nothing of its own, so the sync is a fast-forward.
+env HOME=$WORK/home
+exec skl sync
+stderr '◇ pulled     3 commits'
+stderr '✓ generation 3 '
 
 # "If the generations you go back over include changes pulled by skl sync, the
 # revert takes back the other machine's work too, and your next skl sync pushes
 # that. skl warns you when it applies the plan:"
-# ! reverts 3 commits from laptop · skl rollback to undo
+# "! reverts 3 commits pulled by skl sync · skl rollback to undo"
+exec skl rollback
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-to-2.txt
+cmp $HOME/.skl/vault/review/pr-review/SKILL.md seed/review/pr-review/SKILL.md
+
+# The dry run shows the plan; the warning comes when it's applied.
+exec skl rollback 2 --dry-run
+! stderr 'pulled by skl sync'
+
+# A rollback over only local commits doesn't warn: undoing the rollback reverts
+# the revert commits made here.
+exec skl rollback
+! stderr 'pulled by skl sync'
+cmp $HOME/.skl/vault/review/pr-review/SKILL.md two.md
+
+# A sync that merges: this machine commits a hand edit of its own (generation 6)
+# while the laptop pushes two more commits. The merge commit sync makes here and
+# the local hand edit aren't counted.
+env HOME=$WORK/laptop
+cp three.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl use @backend
+cp four.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl use @backend
+exec skl sync
+env HOME=$WORK/home
+cp backend-here.toml $HOME/.skl/vault/sets/backend.toml
+exec skl sync
+stderr '◇ pulled     2 commits'
+stderr '✓ generation 7 '
+exec git -C $HOME/.skl/vault log -1 --merges --format=%H
+stdout .
+exec skl rollback 5
+stderr '^! reverts 2 commits pulled by skl sync · skl rollback to undo$'
+cmp $HOME/.skl/vault/review/pr-review/SKILL.md two.md
+cmp $HOME/.skl/vault/sets/backend.toml seed/sets/backend.toml
+
+# "1 commit", not "1 commits". This machine pushes its revert first.
+exec skl sync
+env HOME=$WORK/laptop
+exec skl sync
+cp one.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl use @backend
+exec skl sync
+env HOME=$WORK/home
+exec skl sync
+stderr '◇ pulled     1 commit\n'
+exec skl rollback
+stderr '^! reverts 1 commit pulled by skl sync · skl rollback to undo$'
+
+-- shown.sh --
+# out.txt with each revert commit's short sha as SHA.
+sed -E 's/\(revert commit [0-9a-f]{7}\)/(revert commit SHA)/' out.txt
+-- back-to-2.txt --
+→ back to generation 2
+◇ reverted   review/pr-review (revert commit SHA)
+◇ reverted   writing/changelog (revert commit SHA)
+! reverts 3 commits pulled by skl sync · skl rollback to undo
+! 2 changes not pushed · skl sync
+✓ generation 4 · skl rollback to undo
+-- seed/LICENSE --
+MIT
+-- seed/sets/backend.toml --
+select = [
+  "review/pr-review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
+Review.
+-- seed/writing/changelog/SKILL.md --
+---
+description: write a changelog
+---
+Log.
+-- backend-here.toml --
+select = [
+  "review/pr-review",
+  "writing/changelog",
+]
+-- one.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, one.
+-- two.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, two.
+-- three.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, three.
+-- four.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, four.
+-- style.md --
+---
+description: write a changelog
+---
+Log, in house style.

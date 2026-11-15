@@ -95,6 +95,14 @@ stderr '^✗ no generation 0 · skl history$'
 exitcode 2 skl rollback ten
 stderr '^✗ ten isn''t a generation number · skl history$'
 exitcode 2 skl rollback 3 4
+# commands.md "Exit codes": "2  A usage error: … a selector or reference that
+# can't be parsed." A number that isn't written as a generation is one.
+exitcode 2 skl rollback -1
+stderr '^✗ -1 isn''t a generation number · skl history$'
+exitcode 2 skl rollback +2
+stderr '^✗ \+2 isn''t a generation number · skl history$'
+exitcode 2 skl rollback 03
+stderr '^✗ 03 isn''t a generation number · skl history$'
 ! exists $HOME/.skl/generations/11.json
 
 # "Undo any change skl made or saved": a named skill set saved by skl save goes
