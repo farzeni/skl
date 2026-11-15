@@ -70,7 +70,7 @@ func ParseRepo(word string, o Options) (Repo, error) {
 		}
 	}
 	if !ok {
-		return Repo{}, fmt.Errorf("%s %w", word, ErrNotRepo)
+		return Repo{}, fmt.Errorf("%s %w", HidePassword(word), ErrNotRepo)
 	}
 	return r, nil
 }
@@ -113,12 +113,7 @@ func (r *Repo) parseURL(word string) bool {
 	if err != nil || u.Fragment != "" || strings.Contains(u.Path, "//") {
 		return false
 	}
-	r.URL = word
-	if u.User != nil {
-		if _, hasPassword := u.User.Password(); hasPassword {
-			r.Input = u.Redacted()
-		}
-	}
+	r.URL, r.Input = word, HidePassword(word)
 	switch u.Scheme {
 	case "file":
 		return r.setLocal(filepath.Clean(u.Path))

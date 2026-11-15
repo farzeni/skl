@@ -218,13 +218,13 @@ func (a *App) holdsOnly(ctx context.Context, v *vault.Vault, repo ref.Repo) erro
 	}
 	vaultDir := a.shown(a.paths.Vault)
 	if origin == "" {
-		return errs.Hint(fmt.Errorf("%s has no origin", vaultDir), "git -C "+vaultDir+" remote add origin "+repo.URL)
+		return errs.Hint(fmt.Errorf("%s has no origin", vaultDir), "git -C "+vaultDir+" remote add origin "+ref.HidePassword(repo.URL))
 	}
 	held, err := ref.ParseRepo(origin, a.refOptions(a.paths.Vault))
 	if err == nil && held.Same(repo) {
 		return nil
 	}
-	name := origin // an origin skl can't read is shown as it is
+	name := ref.HidePassword(origin) // an origin skl can't read is shown as it is, password aside
 	if err == nil {
 		name = a.shortName(held)
 	}
