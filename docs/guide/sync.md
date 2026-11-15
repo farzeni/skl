@@ -1,7 +1,7 @@
 # Sync
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Keep the same vault, and the same loaded skills, on every machine, with changes made on both merged. Your vault is a plain git clone at `~/.skl/vault`.
@@ -12,17 +12,17 @@ Keep the same vault, and the same loaded skills, on every machine, with changes 
 skl sync
 ```
 
-1. **Commit.** Changes to your loaded skills, in every repo, are saved back, your hand edits become one commit, and skl lists the files.
+1. **Commit.** Your hand edits become one commit, changes to your loaded skills, in every repo, are saved back, and skl lists the files.
 2. **Pull.** skl fetches the vault and merges. It never rebases, so no commit is rewritten.
 3. **Push.**
 4. **Reload.** skl resolves what you have loaded again, for example `@backend writing/changelog`, and applies the difference, in your user scope and the repo you're in. A skill set changed on another machine, or a skill deleted there, takes effect here. Another repo's skills reload when you run `skl sync` there: see [Work in a repo](./skill-sets#work-in-a-repo).
 5. **Check for updates.** skl checks where the skills you learned came from. It changes nothing: `skl status` shows `update available`, and [`skl learn`](./learn#keep-up-with-its-author) takes it.
 
 ```
-◇ saved      pr-review → review/pr-review
 ◇ committed  sets/backend.toml
+◇ saved      pr-review → review/pr-review
 ◇ generation 13
-◇ pulled     3 commits from laptop
+◇ pulled     3 commits
 ◇ pushed
   + data/sql-explain   − someone/pdf
 ◇ checked    2 sources
@@ -48,7 +48,7 @@ If the merge in step 2 conflicts, skl shows which files clash and what each side
 ```
 ! conflict   sets/backend.toml
   this machine   drop someone/pdf
-  laptop         add data/sql-explain
+  other machine  add data/sql-explain
                  use someone/pdf-tools
 ? Resolve   › with Claude   by hand   abort
 ```
@@ -63,9 +63,9 @@ skl runs the [engine](./learn#who-does-the-thinking), the `claude` CLI by defaul
 4. **Land.** skl checks the result (skill sets must hold valid selectors, `SKILL.md` frontmatter must parse), commits the merge with your answers in its message, and carries on with the push.
 
 ```
-◇ merged     data/sql-explain added (laptop only)
+◇ merged     data/sql-explain added (other machine only)
 ? pdf: drop it (this machine)
-  or use someone/pdf-tools (laptop)?
+  or use someone/pdf-tools (other machine)?
   › use someone/pdf-tools
 ◇ sets/backend.toml
     + data/sql-explain   + someone/pdf-tools
@@ -83,6 +83,8 @@ skl leaves standard git conflict markers in the files in `~/.skl/vault`. Edit th
 ```sh
 skl sync --continue
 ```
+
+Any other edits you make in `~/.skl/vault` before `--continue` go into the merge commit, not into a generation of their own.
 
 ### Abort
 

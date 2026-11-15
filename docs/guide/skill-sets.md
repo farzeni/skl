@@ -1,7 +1,7 @@
 # Skill sets
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Load only the skills a task needs, and switch to a saved mix with one word on any machine.
@@ -54,7 +54,8 @@ loaded (user)  @backend writing/changelog
   changelog     writing/changelog
   pdf           someone/pdf         update available · skl learn someone/pdf
 ! review/old-name   matches no skill (in @backend) · edit sets/backend.toml
-! lint   skipped: ~/.claude/skills/lint is not in your vault · skl import lint
+! lint   skipped: ~/.claude/skills/lint is not in your vault
+  · move ~/.claude/skills/lint aside, then skl sync
 loaded (project ~/code/prj1)  @frontend
   ui-review     frontend/ui-review  vault changed · skl sync
 not in your vault
@@ -86,7 +87,16 @@ select = [
 
 Later `add` and `drop` commands change your active skill set, not the file: run `skl save backend` again to keep them. If your active skill set includes `@backend` itself, skl writes the lines of `@backend` in its place, so the file keeps its old lines plus your changes. Because a skill set keeps selectors, not a list of skills, a skill you add to the `review` group later is part of `@backend` too. A skill set can include other skill sets.
 
-If `backend` already exists, skl shows how its selectors change and asks before overwriting it.
+If `backend` already exists, skl shows how its selectors change and asks before overwriting it. If the new skill set is empty, so every line would go, the default answer is no:
+
+```
+→ overwrite sets/backend.toml
+− @base
+− review
+? Overwrite @backend?   › no   yes
+```
+
+Answer yes, or pass `--yes`, to save the empty skill set.
 
 To change a named skill set, edit its file in `~/.skl/vault/sets/`. To delete one, delete the file. `skl status` lists your named skill sets. Run `skl sync` to commit these edits and take them to your other machines: see [Sync](./sync).
 
@@ -286,10 +296,10 @@ If a hand-made skill already has a name that a loaded skill needs, skl skips its
 
 ```
 ! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
-  · skl import pr-review
+  · move ~/.claude/skills/pr-review aside, then skl sync
 ```
 
-`skl status` keeps listing it as skipped until the name is free.
+`skl status` keeps listing it as skipped until the name is free. Your vault already has the name, so [`skl import`](./skills#add-a-skill-you-made) refuses the hand-made folder. Move it out of `~/.claude/skills`, and the next load puts your vault's skill there: `skl sync` reloads what's loaded.
 
 opencode reads `~/.agents/skills` before `~/.claude/skills`. So even without the `agents` target, `skl status` warns when a skill there that skl didn't create hides one you loaded:
 

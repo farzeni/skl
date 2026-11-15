@@ -1,7 +1,7 @@
 # Rollback
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Undo any change skl made or saved: a load, a lesson, an edit saved from Claude Code, a sync. Each of those is a **generation**, a numbered snapshot of your [active skill set](./skill-sets), meaning which skills are loaded where, plus the vault commit at that moment.
@@ -41,12 +41,14 @@ skl rollback 10    # to generation 10
 
 A rollback restores what was loaded. If skill content changed in the meantime, for example a lesson replaced your skill, skl also adds a revert commit to your vault. It never rewrites git history. Add `--dry-run` to see the plan without applying it.
 
+Going back over an `skl import` gives you your folder back. In each [target](./skill-sets#which-agents-read-them)'s folder where the skill was before the import, skl leaves a plain folder with the imported content and no `.skl-copy.toml`, as it was before. skl no longer manages it, so `skl status` lists it again under [not in your vault](./skills#add-a-skill-you-made).
+
 A rollback restores every scope the generations it undoes changed: your user scope, and the [project scope](./skill-sets#for-one-repo-only) of any repo they ran in, wherever you run it. `skl history` shows that repo after the command, as in `use @frontend · ~/code/prj1`. A repo that no longer exists is skipped.
 
 If the generations you go back over include changes pulled by `skl sync`, the revert takes back the other machine's work too, and your next `skl sync` pushes that. skl warns you when it applies the plan:
 
 ```
-! reverts 3 commits from laptop · skl rollback to undo
+! reverts 3 commits pulled by skl sync · skl rollback to undo
 ```
 
 There's nothing to go back to before generation 1, and `N` must be a generation in `skl history`:

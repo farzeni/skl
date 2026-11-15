@@ -1,7 +1,7 @@
 # Selectors and references
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Parts of this page aren't built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Every command that loads skills takes the same selectors, and every command that takes a repo accepts the same reference forms. Selectors name things in your vault; references name things in any git remote.

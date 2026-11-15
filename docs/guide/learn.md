@@ -1,7 +1,7 @@
 # Learn
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Nothing on this page is built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 Get a skill from any git repo, or teach a skill you have what another one does better, and keep up with its author. It's all one command, `skl learn`, and skl picks what to do.
