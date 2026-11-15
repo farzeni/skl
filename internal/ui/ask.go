@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -28,6 +29,17 @@ type Question struct {
 	// a sync conflict: --yes doesn't take its first answer, and without a
 	// terminal Ask returns ErrNoTerminal for the caller to stop as it must.
 	Terminal bool
+	// Cancel is the answer Ctrl-C takes: the one that changes nothing. Empty,
+	// it's the last answer.
+	Cancel string
+}
+
+// cancel is the index of the answer Ctrl-C takes, or -1 if q.Cancel names none.
+func (q Question) cancel() int {
+	if q.Cancel == "" {
+		return len(q.Answers) - 1
+	}
+	return slices.Index(q.Answers, q.Cancel)
 }
 
 // Ask returns the index of the answer picked (commands.md "Questions").
@@ -37,12 +49,16 @@ type Question struct {
 //     "✗ <prompt> needs an answer · <command> --yes", before anything changes.
 //   - On a terminal, ← → or Tab move and Enter picks; the line then collapses
 //     to "? <prompt>   › <answer>". Ctrl-C, or a cancelled ctx, picks the
-//     last answer and returns context.Canceled with it.
+//     cancel answer (q.Cancel, else the last) and returns context.Canceled
+//     with it.
 //   - With TERM=dumb, which can't redraw a line, it asks on a plain line
 //     instead: see askLine.
 func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 	if len(q.Answers) == 0 {
 		return 0, fmt.Errorf("question %q has no answers", q.Prompt)
+	}
+	if q.cancel() < 0 {
+		return 0, fmt.Errorf("question %q has no answer %q to cancel with", q.Prompt, q.Cancel)
 	}
 	switch {
 	case q.Terminal && !u.interactive:
@@ -68,19 +84,19 @@ func (u *UI) Ask(ctx context.Context, q Question) (int, error) {
 		tea.WithoutSignalHandler(), // cli owns signals; in raw mode Ctrl-C is a key
 	)
 	final, err := p.Run()
-	last := len(q.Answers) - 1
+	cancel := q.cancel()
 	switch {
 	case errors.Is(err, tea.ErrProgramKilled) || ctx.Err() != nil:
 		// The program stopped before its final view: print the collapsed line.
-		m.cur, m.done = last, true
+		m.cur, m.done = cancel, true
 		fmt.Fprint(u.stderr, m.View().Content)
-		return last, context.Canceled
+		return cancel, context.Canceled
 	case err != nil:
 		return 0, errs.Hint(fmt.Errorf("ask %q: %w", q.Prompt, err), u.command+" --yes")
 	}
 	m = final.(question)
 	if m.canceled {
-		return last, context.Canceled
+		return cancel, context.Canceled
 	}
 	return m.cur, nil
 }
@@ -114,7 +130,7 @@ func (m question) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.done = true
 			return m, tea.Quit
 		case "ctrl+c":
-			m.cur, m.done, m.canceled = len(m.Answers)-1, true, true
+			m.cur, m.done, m.canceled = m.cancel(), true, true
 			return m, tea.Quit
 		}
 	}
@@ -161,7 +177,7 @@ func (m question) View() tea.View {
 // askLine asks on one plain line, "? Add it?  yes / no: ", and reads the
 // answer from stdin: an empty line takes the first answer, and an answer
 // that isn't one of them asks again. Ctrl-C (SIGINT in cooked mode cancels
-// ctx) takes the last answer and returns context.Canceled.
+// ctx) takes the cancel answer and returns context.Canceled.
 func (u *UI) askLine(ctx context.Context, q Question) (int, error) {
 	type read struct {
 		line string
@@ -175,15 +191,15 @@ func (u *UI) askLine(ctx context.Context, q Question) (int, error) {
 			lines <- read{s, err}
 		}()
 	}
-	last := len(q.Answers) - 1
+	cancel := q.cancel()
 	for {
 		fmt.Fprintf(u.stderr, "%s %s  %s: ", markAsk, q.Prompt, strings.Join(q.Answers, " / "))
 		next()
 		var got read
 		select {
 		case <-ctx.Done():
-			fmt.Fprintln(u.stderr, q.Answers[last])
-			return last, context.Canceled
+			fmt.Fprintln(u.stderr, q.Answers[cancel])
+			return cancel, context.Canceled
 		case got = <-lines:
 		}
 		answer := strings.TrimSpace(got.line)

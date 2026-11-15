@@ -27,8 +27,12 @@ exec git -C $HOME/.skl/vault status --porcelain
 exec git -C $HOME/.skl/vault log -1 --format=%s
 ! stdout 'skl save'
 
-# Ctrl-C at the question keeps the file too, although yes is now its last answer.
+# commands.md "Exit codes": "Ctrl-C at a question takes the answer that changes
+# nothing (the last one: no, discard or abort; for skl save's empty overwrite,
+# no), and skl exits with 130."
 exitcode 130 ptyrun ctrl-c skl save backend
+stderr '\? Overwrite @backend\?   › no$'
+! stderr '› yes$'
 cmp $HOME/.skl/vault/sets/backend.toml seed/sets/backend.toml
 ! exists $HOME/.skl/generations/2.json
 

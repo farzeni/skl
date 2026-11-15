@@ -80,18 +80,18 @@ func (a *App) Save(ctx context.Context, name string, dryRun, yes bool) error {
 
 // askOverwrite asks before overwriting a set. The first answer is the default,
 // and it's yes, except when every line of the set would go: then it's no, so
-// Enter can't empty a set (docs/reference/commands.md "Questions"). --yes never
-// gets here, so it still overwrites.
+// Enter can't empty a set, and Ctrl-C still takes no (docs/reference/commands.md
+// "Questions", "Exit codes"). --yes never gets here, so it still overwrites.
 func (a *App) askOverwrite(ctx context.Context, p *savePlan) (bool, error) {
-	answers := []string{"yes", "no"}
+	q := ui.Question{Prompt: "Overwrite @" + p.name + "?", Answers: []string{"yes", "no"}}
 	if p.empties() {
-		answers = []string{"no", "yes"}
+		q.Answers, q.Cancel = []string{"no", "yes"}, "no"
 	}
-	answer, err := a.ui.Ask(ctx, ui.Question{Prompt: "Overwrite @" + p.name + "?", Answers: answers})
+	answer, err := a.ui.Ask(ctx, q)
 	if err != nil {
 		return false, err
 	}
-	return answers[answer] == "yes", nil
+	return q.Answers[answer] == "yes", nil
 }
 
 // nameRule is the Grammar's name, for the usage error.
