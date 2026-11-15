@@ -1,7 +1,7 @@
 # skills.sh
 
 ::: warning Design preview
-skl is not built yet. This page describes the planned behavior.
+Nothing on this page is built yet. See [What works in v0.1](/design/roadmap#what-works-in-v0-1).
 :::
 
 [skills.sh](https://skills.sh) is a public directory of agent skills, run by Vercel. It lists skills from public GitHub repos and ranks them by how often people install them with [`npx skills`](./npx-skills).
