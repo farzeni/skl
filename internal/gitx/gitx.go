@@ -104,10 +104,11 @@ func (g *Git) run(ctx context.Context, dir, input string, args, extra []string) 
 
 // exec runs git with env as its whole environment.
 func (g *Git) exec(ctx context.Context, dir, input string, args, env []string) (string, error) {
+	line := "git " + HidePasswords(strings.Join(args, " "))
 	if dir == "" {
-		g.log.DebugContext(ctx, "git "+strings.Join(args, " "))
+		g.log.DebugContext(ctx, line)
 	} else {
-		g.log.DebugContext(ctx, "git "+strings.Join(args, " "), "dir", dir)
+		g.log.DebugContext(ctx, line, "dir", dir)
 	}
 
 	runCtx, timeout := ctx, time.Duration(0)
@@ -172,7 +173,9 @@ func (g *Git) exec(ctx context.Context, dir, input string, args, env []string) (
 		g.log.DebugContext(ctx, "git "+subcommand(args)+" exited 0, but something it started still holds its output")
 		return stdout.String(), nil
 	}
-	e := &Error{Args: args, Stdout: stdout.String(), Stderr: stderr.String(), Code: -1, err: err}
+	// git's message reaches the user, so no password in a URL survives in it,
+	// whatever git's version prints.
+	e := &Error{Args: args, Stdout: stdout.String(), Stderr: HidePasswords(stderr.String()), Code: -1, err: err}
 	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 		e.Code = exit.ExitCode()
 	}

@@ -205,3 +205,25 @@ func TestParseRepoHidesPassword(t *testing.T) {
 		t.Errorf("URL = %q, want %q", r.URL, want)
 	}
 }
+
+// What skl prints follows what it stores (docs/reference/repos.md "How a
+// reference is stored": "skl drops the password and keeps the user"): a word
+// ParseRepo rejects is named in its error without its password.
+func TestParseRepoErrorHidesPassword(t *testing.T) {
+	for _, tt := range []struct{ word, shown string }{
+		{"https://you:s3cret@git.example.com/you/skills#dev", "https://you:xxxxx@git.example.com/you/skills#dev"},
+		{"https://you:s3cret@git.example.com/team//skills", "https://you:xxxxx@git.example.com/team//skills"},
+		{"ftp://you:s3cret@git.example.com/you/skills", "ftp://you:xxxxx@git.example.com/you/skills"},
+		{"https://you:@git.example.com/you/skills#dev", "https://you:xxxxx@git.example.com/you/skills#dev"}, // an empty password too
+		{"https://you@git.example.com/you/skills#dev", "https://you@git.example.com/you/skills#dev"},        // a user alone stays
+		{"you/skills#dev", "you/skills#dev"},
+	} {
+		_, err := ParseRepo(tt.word, httpsOpts)
+		if !errors.Is(err, ErrNotRepo) {
+			t.Fatalf("ParseRepo(%q) = %v, want ErrNotRepo", tt.word, err)
+		}
+		if got, want := err.Error(), tt.shown+" "+ErrNotRepo.Error(); got != want {
+			t.Errorf("ParseRepo(%q) error = %q, want %q", tt.word, got, want)
+		}
+	}
+}

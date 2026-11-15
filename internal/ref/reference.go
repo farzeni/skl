@@ -36,7 +36,7 @@ type Ref struct {
 // word is a repo on the default host: whether it names a vault skill instead
 // is the caller's call.
 func Parse(word string, o Options) (Ref, error) {
-	r := Ref{Input: hidePassword(word)}
+	r := Ref{Input: HidePassword(word)}
 	fail := func(why string) error {
 		return fmt.Errorf("%s %w: %s", r.Input, ErrNotRef, why)
 	}
@@ -146,9 +146,10 @@ func validPin(pin string) bool {
 	})
 }
 
-// hidePassword replaces the password in a URL's user info, if any, so the
-// word is safe to print. The rest stays as typed.
-func hidePassword(word string) string {
+// HidePassword replaces the password in a URL's user info with xxxxx, so the
+// word is safe to print; the user stays. The rest, and any word that isn't a
+// URL, stays as typed.
+func HidePassword(word string) string {
 	i := strings.Index(word, "://")
 	if i < 0 || isPath(word) {
 		return word

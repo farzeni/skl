@@ -196,7 +196,7 @@ func (a *App) reachError(err error, origin string) error {
 	if !errors.Is(err, gitx.ErrUnreachable) {
 		return err
 	}
-	where := a.shown(origin)
+	where := a.shown(ref.HidePassword(origin))
 	if r, perr := ref.ParseRepo(origin, a.refOptions("")); perr == nil && r.Host != "" {
 		where = r.Host
 	}
