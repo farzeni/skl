@@ -54,7 +54,8 @@ loaded (user)  @backend writing/changelog
   changelog     writing/changelog
   pdf           someone/pdf         update available · skl learn someone/pdf
 ! review/old-name   matches no skill (in @backend) · edit sets/backend.toml
-! lint   skipped: ~/.claude/skills/lint is not in your vault · skl import lint
+! lint   skipped: ~/.claude/skills/lint is not in your vault
+  · move ~/.claude/skills/lint aside, then skl sync
 loaded (project ~/code/prj1)  @frontend
   ui-review     frontend/ui-review  vault changed · skl sync
 not in your vault
@@ -286,10 +287,10 @@ If a hand-made skill already has a name that a loaded skill needs, skl skips its
 
 ```
 ! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
-  · skl import pr-review
+  · move ~/.claude/skills/pr-review aside, then skl sync
 ```
 
-`skl status` keeps listing it as skipped until the name is free.
+`skl status` keeps listing it as skipped until the name is free. Your vault already has the name, so [`skl import`](./skills#add-a-skill-you-made) refuses the hand-made folder. Move it out of `~/.claude/skills`, and the next load puts your vault's skill there: `skl sync` reloads what's loaded.
 
 opencode reads `~/.agents/skills` before `~/.claude/skills`. So even without the `agents` target, `skl status` warns when a skill there that skl didn't create hides one you loaded:
 
