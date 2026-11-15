@@ -24,3 +24,24 @@ func TestLineDiff(t *testing.T) {
 		}
 	}
 }
+
+// docs/reference/commands.md "Questions": "One question puts no first: skl save
+// overwriting a named skill set with one that would remove every line."
+func TestSavePlanEmpties(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		p    savePlan
+		want bool
+	}{
+		{"every line goes", savePlan{exists: true, old: []string{"@base", "review"}}, true},
+		{"one line stays", savePlan{exists: true, old: []string{"@base", "review"}, lines: []string{"review"}}, false},
+		{"every line replaced", savePlan{exists: true, old: []string{"@base"}, lines: []string{"data"}}, false},
+		{"over an empty set", savePlan{exists: true, old: []string{}}, false},
+		{"a new set", savePlan{}, false},
+		{"an unreadable set", savePlan{exists: true}, false},
+	} {
+		if got := tc.p.empties(); got != tc.want {
+			t.Errorf("%s: empties() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

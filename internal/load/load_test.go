@@ -550,7 +550,7 @@ func TestSavedReadsAFolderToImportAsItsCopy(t *testing.T) {
 	if !slices.Equal(p.Changes, want) {
 		t.Errorf("changes = %+v, want %+v", p.Changes, want)
 	}
-	if len(p.Skipped) != 1 || p.Skipped[0].Skill != f.b || p.Skipped[0].Foreign != "b" {
+	if len(p.Skipped) != 1 || p.Skipped[0].Skill != f.b || p.Skipped[0].Path != filepath.Join(SkillsDir(f.home, config.Agents), "b") {
 		t.Errorf("skipped = %+v", p.Skipped)
 	}
 }
