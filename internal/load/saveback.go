@@ -64,8 +64,9 @@ func SaveBack(ctx context.Context, in SaveInput) ([]Saved, error) {
 
 // Preview is what SaveBack would do, made onto the commit onto instead of HEAD: the
 // commit it would leave, and the copies it would save. It writes only git objects,
-// never a ref, the vault's work tree or a copy's .skl-copy.toml: it is how
-// sync --dry-run sees step 1. A conflict is a *vault.ConflictError.
+// never a ref, the vault's work tree or a copy's .skl-copy.toml: it is how a
+// --dry-run sees the save a real run makes first. A conflict is a
+// *vault.ConflictError.
 func Preview(ctx context.Context, in SaveInput, onto string) (string, []Saved, error) {
 	var saved []Saved
 	for _, t := range allTargets(in.Targets, in.Current) {
@@ -75,36 +76,19 @@ func Preview(ctx context.Context, in SaveInput, onto string) (string, []Saved, e
 			return "", nil, err
 		}
 		for _, c := range h.copies {
-			m := recordOf(c, t, in.Current)
-			if m.Commit == "" || m.Tree == "" || !vaultSkill(m.Source) {
-				continue
-			}
-			snap, err := snapshotOf(ctx, filepath.Join(dir, c.folder))
+			e, err := editOf(ctx, in, t, dir, c)
 			if err != nil {
 				return "", nil, err
 			}
-			if snap.tree == m.Tree || snap.tree == "" {
+			if e == nil {
 				continue
 			}
-			if err := writeSnapshot(ctx, in.Vault, snap); err != nil {
-				return "", nil, err
-			}
-			before, err := in.Vault.Files(ctx, m.Commit, m.Source)
-			if err != nil {
-				return "", nil, err
-			}
-			next, err := in.Vault.SaveOnto(ctx, onto, vault.Save{
-				Path: m.Source, Base: m.Commit, Tree: snap.tree,
-				Message: "skl: save " + c.folder + " → " + m.Source, Copy: string(t) + " " + c.folder,
-			})
+			next, err := in.Vault.SaveOnto(ctx, onto, e.save)
 			if err != nil {
 				return "", nil, err
 			}
 			onto = next
-			saved = append(saved, Saved{
-				Target: t, Name: c.folder, Skill: m.Source,
-				Files: changedFiles(before, snap.files), Commit: next, Tree: snap.tree,
-			})
+			saved = append(saved, e.saved(next))
 		}
 	}
 	return onto, saved, nil
@@ -112,45 +96,68 @@ func Preview(ctx context.Context, in SaveInput, onto string) (string, []Saved, e
 
 // saveCopy saves one copy if it changed.
 func saveCopy(ctx context.Context, in SaveInput, t config.Target, dir string, c ownedCopy) (Saved, bool, error) {
-	m := recordOf(c, t, in.Current)
-	if m.Commit == "" || m.Tree == "" || !vaultSkill(m.Source) {
-		return Saved{}, false, nil // nothing says what it was copied from: the next load replaces it
-	}
-	folder := filepath.Join(dir, c.folder)
-	snap, err := snapshotOf(ctx, folder)
-	if err != nil {
+	e, err := editOf(ctx, in, t, dir, c)
+	if err != nil || e == nil {
 		return Saved{}, false, err
 	}
-	if snap.tree == m.Tree || snap.tree == "" {
-		return Saved{}, false, nil
-	}
-	if err := writeSnapshot(ctx, in.Vault, snap); err != nil {
-		return Saved{}, false, err
-	}
-	before, err := in.Vault.Files(ctx, m.Commit, m.Source)
-	if err != nil {
-		return Saved{}, false, err
-	}
-	head, err := in.Vault.SaveSkill(ctx, vault.Save{
-		Path:    m.Source,
-		Base:    m.Commit,
-		Tree:    snap.tree,
-		Message: "skl: save " + c.folder + " → " + m.Source,
-		Copy:    string(t) + " " + c.folder,
-	})
+	head, err := in.Vault.SaveSkill(ctx, e.save)
 	if err != nil {
 		return Saved{}, false, err
 	}
 	// The copy now holds what the vault got from it. If the vault had changes of
 	// its own, the next load sees a tree that differs and copies the merge in.
-	m = Manifest{Source: m.Source, Commit: head, Tree: snap.tree}
-	if err := replaceManifest(folder, m); err != nil {
+	m := Manifest{Source: e.save.Path, Commit: head, Tree: e.save.Tree}
+	if err := replaceManifest(e.folder, m); err != nil {
 		return Saved{}, false, err
 	}
-	return Saved{
-		Target: t, Name: c.folder, Skill: m.Source,
-		Files: changedFiles(before, snap.files), Commit: head, Tree: snap.tree,
-	}, true, nil
+	return e.saved(head), true, nil
+}
+
+// edit is a loaded copy that changed, ready to be saved. SaveBack and Preview
+// share it, so what they save can't drift apart; they differ only in where the
+// save lands.
+type edit struct {
+	target config.Target
+	name   string // the copy's folder name
+	folder string // its path
+	files  []string
+	save   vault.Save
+}
+
+// saved is the edit once saved as commit.
+func (e *edit) saved(commit string) Saved {
+	return Saved{Target: e.target, Name: e.name, Skill: e.save.Path, Files: e.files, Commit: commit, Tree: e.save.Tree}
+}
+
+// editOf is copy c as an edit to save, or nil if there's nothing to save. Its
+// files are in the vault's object store once it returns.
+func editOf(ctx context.Context, in SaveInput, t config.Target, dir string, c ownedCopy) (*edit, error) {
+	m := recordOf(c, t, in.Current)
+	if m.Commit == "" || m.Tree == "" || !vaultSkill(m.Source) {
+		return nil, nil // nothing says what it was copied from: the next load replaces it
+	}
+	folder := filepath.Join(dir, c.folder)
+	snap, err := snapshotOf(ctx, folder)
+	if err != nil {
+		return nil, err
+	}
+	if snap.tree == m.Tree || snap.tree == "" {
+		return nil, nil
+	}
+	if err := writeSnapshot(ctx, in.Vault, snap); err != nil {
+		return nil, err
+	}
+	before, err := in.Vault.Files(ctx, m.Commit, m.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &edit{
+		target: t, name: c.folder, folder: folder, files: changedFiles(before, snap.files),
+		save: vault.Save{
+			Path: m.Source, Base: m.Commit, Tree: snap.tree,
+			Message: "skl: save " + c.folder + " → " + m.Source, Copy: string(t) + " " + c.folder,
+		},
+	}, nil
 }
 
 // recordOf is what a copy was made from: its .skl-copy.toml, else what state.json

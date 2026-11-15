@@ -1,0 +1,136 @@
+# docs/reference/commands.md "Dry run"; docs/guide/skill-sets.md
+#
+# use, add, drop and save with an edited loaded skill and a hand edit in the
+# vault: the plan starts with what a real run saves and commits first, and
+# nothing on disk changes (vault HEAD and work tree, generations, state.json,
+# loaded folders).
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend
+cp edited.md $HOME/.claude/skills/pr-review/SKILL.md
+cp backend-edited.toml $HOME/.skl/vault/sets/backend.toml
+exec sh disk.sh
+cp stdout disk-before.txt
+
+# "A real run first saves your changes to loaded skills and commits your hand
+# edits in the vault, so the plan starts with that, then shows the command's own
+# plan"
+exec skl use @backend --dry-run
+cmp stdout use-plan.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+
+exec skl add review/test-gaps --dry-run
+cmp stdout add-plan.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+
+exec skl drop review/pr-review --dry-run
+cmp stdout drop-plan.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+
+exec skl save frontend --dry-run
+cmp stdout save-plan.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+
+# A command with nothing of its own to change still plans the save, and doesn't
+# end "nothing to change": the real run makes the save's generation.
+exec skl save backend --dry-run
+cmp stdout save-same-plan.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+
+# The real run does what the plan said, in that order.
+exec skl use @backend
+cmp stderr use-real.txt
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+
+# Nothing edited: the plan is the command's own, as before.
+exec skl add review/test-gaps --dry-run
+cmp stdout add-clean-plan.txt
+
+-- disk.sh --
+git -C "$HOME/.skl/vault" rev-parse HEAD
+git -C "$HOME/.skl/vault" status --porcelain
+ls "$HOME/.skl/generations"
+cat "$HOME/.skl/state.json"
+cd "$HOME/.claude/skills" && find . -type f | LC_ALL=C sort | while read -r f; do echo "== $f"; cat "$f"; done
+-- seed/LICENSE --
+MIT
+-- seed/sets/backend.toml --
+select = [
+  "review/pr-review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
+Review.
+-- seed/review/test-gaps/SKILL.md --
+---
+name: test-gaps
+description: find untested code
+---
+Gaps.
+-- seed/data/sql/SKILL.md --
+---
+name: sql
+description: write SQL
+---
+SQL.
+-- edited.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, and check the tests.
+-- backend-edited.toml --
+select = [
+  "review/pr-review",
+  "data/sql",
+]
+-- use-plan.txt --
+→ commit     sets/backend.toml
+→ save       pr-review → review/pr-review
+→ load @backend
++ sql
+-- add-plan.txt --
+→ commit     sets/backend.toml
+→ save       pr-review → review/pr-review
+→ add review/test-gaps
++ sql   + test-gaps
+-- drop-plan.txt --
+→ commit     sets/backend.toml
+→ save       pr-review → review/pr-review
+→ drop review/pr-review
++ sql
+− pr-review
+-- save-plan.txt --
+→ commit     sets/backend.toml
+→ save       pr-review → review/pr-review
+→ save @frontend as sets/frontend.toml
+-- save-same-plan.txt --
+→ commit     sets/backend.toml
+→ save       pr-review → review/pr-review
+-- use-real.txt --
+◇ committed  sets/backend.toml
+◇ saved      pr-review → review/pr-review
+             SKILL.md
+◇ generation 3
+→ load @backend
++ sql
+! 2 changes not pushed · skl sync
+✓ generation 4 · skl rollback to undo
+-- add-clean-plan.txt --
+→ add review/test-gaps
++ test-gaps

@@ -1,0 +1,101 @@
+# docs/reference/commands.md "Dry run"; docs/guide/rollback.md "Go back"
+#
+# rollback with an edited loaded skill: the plan starts with the save a real run
+# makes first, and the reverts and the load are planned on top of it. Nothing on
+# disk changes (vault HEAD and work tree, generations, state.json, loaded
+# folders).
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use @backend
+# Generation 3 commits a hand edit to review/pr-review, 4 adds data/sql.
+cp hand.md $HOME/.skl/vault/review/pr-review/SKILL.md
+exec skl add data/sql
+stderr '^✓ generation 4 · skl rollback to undo$'
+
+# Back to generation 3: the save, then the load; the save's own commit is kept.
+cp edited.md $HOME/.claude/skills/pr-review/SKILL.md
+exec sh disk.sh
+cp stdout disk-before.txt
+# "A real run first saves your changes to loaded skills and commits your hand
+# edits in the vault, so the plan starts with that, then shows the command's own
+# plan"
+exec skl rollback --dry-run
+cmp stdout back-3-plan.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+
+# Back to generation 2: review/pr-review changed since, so it's reverted on top
+# of the save, and the edit goes with it.
+exec skl rollback 2 --dry-run
+cmp stdout back-2-plan.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+
+# The real run does what the plan said.
+exec skl rollback 2
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-2-real.txt
+cmp $HOME/.claude/skills/pr-review/SKILL.md seed/review/pr-review/SKILL.md
+
+-- shown.sh --
+# out.txt with the newest vault commit's short sha as SHA: the ◇ line names it.
+sha=$(git -C "$HOME/.skl/vault" rev-parse HEAD | cut -c1-7)
+sed "s/(revert commit $sha)/(revert commit SHA)/" out.txt
+-- disk.sh --
+git -C "$HOME/.skl/vault" rev-parse HEAD
+git -C "$HOME/.skl/vault" status --porcelain
+ls "$HOME/.skl/generations"
+cat "$HOME/.skl/state.json"
+cd "$HOME/.claude/skills" && find . -type f | LC_ALL=C sort | while read -r f; do echo "== $f"; cat "$f"; done
+-- seed/LICENSE --
+MIT
+-- seed/sets/backend.toml --
+select = [
+  "review/pr-review",
+]
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
+Review.
+-- seed/data/sql/SKILL.md --
+---
+name: sql
+description: write SQL
+---
+SQL.
+-- hand.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, by hand.
+-- edited.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, by hand, and check the tests.
+-- back-3-plan.txt --
+→ save       pr-review → review/pr-review
+→ back to generation 3
+  − data/sql
+-- back-2-plan.txt --
+→ save       pr-review → review/pr-review
+→ back to generation 2
+  − data/sql
+→ revert review/pr-review
+-- back-2-real.txt --
+◇ saved      pr-review → review/pr-review
+             SKILL.md
+◇ generation 5
+→ back to generation 2
+  − data/sql
+◇ reverted   review/pr-review (revert commit SHA)
+! 3 changes not pushed · skl sync
+✓ generation 6 · skl rollback to undo

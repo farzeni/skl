@@ -244,7 +244,19 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	if err != nil {
 		return a.stateError(err)
 	}
-	retry := "skl rollback " + strconv.Itoa(r.to.N) + " --dry-run"
+	root, err := a.homeRoot()
+	if err != nil {
+		return err
+	}
+	command := "rollback " + strconv.Itoa(r.to.N)
+	retry := "skl " + command + " --dry-run"
+	// The reverts and the load go on top of what the real run saves first.
+	first, stop, err := a.dryRunSave(ctx, v, st, root, command)
+	if err != nil || stop {
+		return err
+	}
+	s := r.selection()
+	first.recorded(st, &s)
 	units, err := v.Units(ctx, r.to.VaultCommit, r.from.VaultCommit)
 	if err != nil {
 		return hinted(err, retry)
@@ -255,31 +267,23 @@ func (a *App) rollbackDryRun(ctx context.Context, r *rollback) error {
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 	dir := filepath.Join(tmp, "vault")
-	if err := v.Preview(ctx, r.to.VaultCommit, units, dir); err != nil {
+	if err := v.Preview(ctx, first.at, r.to.VaultCommit, units, dir); err != nil {
 		return hinted(err, retry)
 	}
 	idx, err := vault.IndexAt(ctx, dir)
 	if err != nil {
 		return hinted(err, retry)
 	}
-	head, err := v.Head(ctx)
-	if err != nil {
-		return err
-	}
-	would, err := v.Reverts(ctx, r.to.VaultCommit, units)
+	would, err := v.Reverts(ctx, first.at, r.to.VaultCommit, units)
 	if err != nil {
 		return hinted(err, retry)
 	}
-	root, err := a.homeRoot()
-	if err != nil {
-		return err
-	}
-	next, err := a.prepareAt(ctx, vaultView{dir: dir, head: head, idx: idx}, st, r.selection(), nil, root)
+	next, err := a.prepareAt(ctx, vaultView{dir: dir, head: first.at, idx: idx}, st, s, nil, root)
 	if err != nil {
 		return hinted(err, retry)
 	}
 	a.reportRollback(r, next, nil, would)
-	if !next.changed && len(would) == 0 {
+	if !next.changed && len(would) == 0 && !first.any() {
 		a.ui.Done("nothing to change")
 	}
 	return nil

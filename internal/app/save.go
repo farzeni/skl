@@ -27,7 +27,8 @@ func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
 		}
 		return errs.Usagef(hint, "%s is not a valid skill set name: %s", name, nameRule)
 	}
-	if _, err := a.userRoot(); err != nil {
+	root, err := a.userRoot()
+	if err != nil {
 		return err
 	}
 	command := strings.TrimPrefix(ui.CommandLine([]string{"save", name}), "skl ")
@@ -39,18 +40,15 @@ func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
 	if err != nil {
 		return a.stateError(err)
 	}
+	if dryRun {
+		return a.saveDryRun(ctx, v, st, name, root, command)
+	}
 	asked, err := planSave(ctx, v, st, name)
 	if err != nil {
 		return err
 	}
 	if asked.changed {
 		a.reportSave(asked)
-	}
-	if dryRun {
-		if !asked.changed {
-			a.ui.Done("nothing to change")
-		}
-		return nil
 	}
 	if asked.changed && asked.exists {
 		answer, err := a.ui.Ask(ctx, ui.Question{Prompt: "Overwrite @" + asked.name + "?", Answers: []string{"yes", "no"}})
@@ -75,6 +73,29 @@ func (a *App) Save(ctx context.Context, name string, dryRun bool) error {
 		}
 		return true, a.writeSet(ctx, c, p, "skl "+command)
 	})
+}
+
+// saveDryRun prints the plan: what the frame would save first, then the file. The
+// set's lines come from the active skill set and the vault's files, which a save
+// first leaves as they are, so the file is planned on them as they are now.
+func (a *App) saveDryRun(ctx context.Context, v *vault.Vault, st *state.State, name, root, command string) error {
+	if err := a.notMerging(ctx, v); err != nil {
+		return err
+	}
+	first, stop, err := a.dryRunSave(ctx, v, st, root, command)
+	if err != nil || stop {
+		return err
+	}
+	p, err := planSave(ctx, v, st, name)
+	if err != nil {
+		return err
+	}
+	if p.changed {
+		a.reportSave(p)
+	} else if !first.any() {
+		a.ui.Done("nothing to change")
+	}
+	return nil
 }
 
 // nameRule is the Grammar's name, for the usage error.

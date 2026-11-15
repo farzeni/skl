@@ -17,6 +17,21 @@ cp style.md $HOME/.skl/vault/writing/style/SKILL.md
 exec skl sync
 cmp stderr laptop-sync.txt
 
+# commands.md "Dry run": "A real run first saves your changes to loaded skills
+# and commits your hand edits in the vault, so the plan starts with that, then
+# shows the command's own plan". Nothing on disk changes; the edit is then
+# undone by hand, for the blocks below.
+env HOME=$WORK/home
+cp edited.md $HOME/.claude/skills/pr-review/SKILL.md
+exec sh disk.sh
+cp stdout disk-before.txt
+exec skl sync --dry-run
+cmp stdout edited-dry.txt
+! stderr .
+exec sh disk.sh
+cmp stdout disk-before.txt
+cp seed/review/pr-review/SKILL.md $HOME/.claude/skills/pr-review/SKILL.md
+
 # commands.md "Dry run": "What it would commit, pull, push and reload." A skill
 # set emptied by hand here, with a commit to pull: the plan reloads what the
 # commit and the pull would leave, so review/pr-review goes.
@@ -68,6 +83,22 @@ case " $* " in
 	exit 128
 esac
 exec git "$@"
+-- disk.sh --
+git -C "$HOME/.skl/vault" rev-parse HEAD
+git -C "$HOME/.skl/vault" status --porcelain
+ls "$HOME/.skl/generations"
+cat "$HOME/.skl/state.json"
+cd "$HOME/.claude/skills" && find . -type f | LC_ALL=C sort | while read -r f; do echo "== $f"; cat "$f"; done
+-- edited.md --
+---
+name: pr-review
+description: review a PR
+---
+Review, and check the tests.
+-- edited-dry.txt --
+→ save       pr-review → review/pr-review
+→ pull       1 commit
+→ push
 -- seed/LICENSE --
 MIT
 -- seed/sets/backend.toml --
