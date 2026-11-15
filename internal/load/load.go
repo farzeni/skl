@@ -74,9 +74,11 @@ type Plan struct {
 	Changes []Change
 	Skipped []Skip
 	Copies  []state.Copy // what's loaded afterward, in every target
-	vault   string
-	commit  string
-	steps   []step
+	// Released are the copies it gives back in place, out of Input.Release.
+	Released []state.Copy
+	vault    string
+	commit   string
+	steps    []step
 }
 
 // step is one folder's change. dir/old leaves, and the skill arrives as dir/name.
@@ -86,6 +88,8 @@ type step struct {
 	old    string // a folder to move out, if any
 	skill  *resolve.Skill
 	tree   string
+	// release leaves old where it is and moves only its .skl-copy.toml out.
+	release bool
 }
 
 // Empty reports whether no folder would change.
@@ -103,6 +107,10 @@ type Input struct {
 	// that's only printed (sync --dry-run, init --dry-run): their .skl-copy.toml is
 	// read as if it held these, and a folder an import would adopt as its copy.
 	Saved []state.Copy
+	// Release are copies to give back instead of unloading them: if the plan
+	// unloads one, it stays where it is as a plain folder, without .skl-copy.toml,
+	// as before skl import adopted it (docs/guide/rollback.md "Go back").
+	Release []state.Copy
 }
 
 // Compute diffs the selected skills against what's loaded. It only reads.
@@ -197,7 +205,13 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 		if !there {
 			continue // gone, or no longer ours: there is nothing to unload
 		}
-		p.steps = append(p.steps, step{target: t, dir: dir, old: onDisk.folder})
+		release := slices.ContainsFunc(in.Release, func(r state.Copy) bool {
+			return r.Target == t && selector.Fold(r.Name) == name && r.Skill == cp.Skill
+		})
+		p.steps = append(p.steps, step{target: t, dir: dir, old: onDisk.folder, release: release})
+		if release {
+			p.Released = append(p.Released, cp)
+		}
 		c.unloaded(cp, dir)
 	}
 	return nil
@@ -558,6 +572,9 @@ func (s *Swap) claim(root string) error {
 }
 
 func (s *Swap) swap(st step, staged stagedStep) error {
+	if st.release {
+		return s.move(filepath.Join(st.dir, st.old, manifestFile), staged.old)
+	}
 	if st.old != "" {
 		if err := s.move(filepath.Join(st.dir, st.old), staged.old); err != nil {
 			return err
