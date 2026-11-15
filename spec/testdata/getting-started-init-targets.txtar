@@ -80,12 +80,12 @@ body
 → import notes → you/
 -- skip-warning.txt --
 ! notes   skipped: ~/.agents/skills/notes is not in your vault
-  · skl import notes
+  · move ~/.agents/skills/notes aside, then skl sync
 -- real-skip.txt --
 → new vault you/other
 ◇ imported   notes → you/
 ◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
 ! notes   skipped: ~/.agents/skills/notes is not in your vault
-  · skl import notes
+  · move ~/.agents/skills/notes aside, then skl sync
 ! 1 change not pushed · skl sync
 ✓ generation 1 · skl rollback to undo
