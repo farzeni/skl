@@ -450,7 +450,7 @@ name: dup
 ◇ imported   dup-a → you/
 ◇ LICENSE    MIT, for the skills you write · edit LICENSE to change it
 ! dup-a   skipped: ~/.claude/skills/dup-b is not in your vault
-  · skl import dup-b
+  · move ~/.claude/skills/dup-b aside, then skl sync
 ! 1 change not pushed · skl sync
 ✓ generation 1 · skl rollback to undo
 -- mine/draft.md --
@@ -482,7 +482,7 @@ you/sql-explain/SKILL.md
 ◇ imported   draft → you/
 + test-gaps
 ! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
-  · skl import pr-review
+  · move ~/.claude/skills/pr-review aside, then skl sync
 ! 1 change not pushed · skl sync
 ✓ generation 1 · skl rollback to undo
 -- again-selectors.txt --

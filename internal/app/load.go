@@ -387,13 +387,16 @@ func (a *App) indexNotes(idx *vault.Index, plan *load.Plan) []note {
 	return notes
 }
 
-// skipNotes are the skills a plan dropped because someone else's skill has the name.
+// skipNotes are the skills a plan dropped because someone else's skill has the
+// name. Your vault has the name, so skl import would refuse that folder: the hint
+// frees the name instead (docs/guide/skill-sets.md "Skills skl didn't create").
 func (a *App) skipNotes(p *load.Plan) []note {
 	notes := make([]note, 0, len(p.Skipped))
 	for _, sk := range p.Skipped {
+		shown := a.shown(sk.Path)
 		n := note{
-			msg:  fmt.Sprintf("%s   skipped: %s is not in your vault", sk.Skill.Folder, a.shown(sk.Path)),
-			hint: ui.CommandLine([]string{"import", ui.Clean(sk.Foreign)}),
+			msg:  fmt.Sprintf("%s   skipped: %s is not in your vault", sk.Skill.Folder, shown),
+			hint: "move " + shown + " aside, then skl sync",
 		}
 		if !slices.Contains(notes, n) { // two skills with one folder name say the same
 			notes = append(notes, n)

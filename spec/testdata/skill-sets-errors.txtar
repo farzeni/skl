@@ -111,13 +111,13 @@ exec skl use review/a
 mkdir $HOME/.claude/skills/hand
 cp hostile.md $HOME/.claude/skills/hand/SKILL.md
 exec skl add collide
-stderr '^! x   skipped: ~/.claude/skills/hand is not in your vault · skl import hand$'
+stderr '^! x   skipped: ~/.claude/skills/hand is not in your vault\n  · move ~/.claude/skills/hand aside, then skl sync$'
 
 # A folder that holds a link, and a file named like a skill, are someone else's.
 exec skl use review/a
 symlink $HOME/.claude/skills/b -> $WORK/elsewhere
 exec skl add other/b
-stderr '^! b   skipped: ~/.claude/skills/b is not in your vault · skl import b$'
+stderr '^! b   skipped: ~/.claude/skills/b is not in your vault\n  · move ~/.claude/skills/b aside, then skl sync$'
 exists $WORK/elsewhere/SKILL.md
 ! exists $WORK/elsewhere/.skl-copy.toml
 
@@ -217,7 +217,8 @@ stderr '^✗ can''t read '
 -- ahead.txt --
 → add review/c
 + c
-! b   skipped: ~/.claude/skills/b is not in your vault · skl import b
+! b   skipped: ~/.claude/skills/b is not in your vault
+  · move ~/.claude/skills/b aside, then skl sync
 ! 2 changes not pushed · skl sync
 ✓ generation 14 · skl rollback to undo
 -- evil.txt --

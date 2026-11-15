@@ -195,6 +195,7 @@ cmp stderr drop-line.txt
 
 # "If a hand-made skill already has a name that a loaded skill needs, skl skips
 # its own skill, loads the rest, and warns you. The command still succeeds"
+# The hint: "· move ~/.claude/skills/pr-review aside, then skl sync"
 exec skl use data
 mkdir $HOME/.claude/skills/pr-review
 cp own.md $HOME/.claude/skills/pr-review/SKILL.md
@@ -353,16 +354,16 @@ stdout '^  drop '
 -- foreign.txt --
 → load review/pr-review data
 ! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
-  · skl import pr-review
+  · move ~/.claude/skills/pr-review aside, then skl sync
 ✓ generation 27 · skl rollback to undo
 -- foreign-again.txt --
 ! pr-review   skipped: ~/.claude/skills/pr-review is not in your vault
-  · skl import pr-review
+  · move ~/.claude/skills/pr-review aside, then skl sync
 ✓ nothing to change
 -- foreign-named.txt --
 → add review/test-gaps
 ! test-gaps   skipped: ~/.claude/skills/mine is not in your vault
-  · skl import mine
+  · move ~/.claude/skills/mine aside, then skl sync
 ✓ generation 29 · skl rollback to undo
 -- two-targets.txt --
 → load review/pr-review
@@ -373,7 +374,7 @@ stdout '^  drop '
 → add data
 + sql-explain
 ! sql-explain   skipped: ~/.agents/skills/sql-explain is not in your vault
-  · skl import sql-explain
+  · move ~/.agents/skills/sql-explain aside, then skl sync
 ✓ generation 32 · skl rollback to undo
 -- target-gone.txt --
 → load review/pr-review
