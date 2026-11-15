@@ -221,7 +221,7 @@ To see the git and engine commands skl runs, set `SKL_DEBUG=1`: each one is prin
 | `2` | A usage error: an unknown command or flag, a missing argument, or a selector or reference that can't be parsed. Nothing changed. |
 | `130` | Interrupted with Ctrl-C. |
 
-Ctrl-C at a question takes its last answer (no, discard or abort). Ctrl-C while skl is changing things lets it finish or undo the step it's in, so your loaded skills and your vault are never left half changed. A second Ctrl-C stops at once.
+Ctrl-C at a question takes its last answer (no, discard or abort), and skl exits with `130`. Ctrl-C while skl is changing things lets it finish or undo the step it's in, so your loaded skills and your vault are never left half changed. A second Ctrl-C stops at once.
 
 ## Errors
 
