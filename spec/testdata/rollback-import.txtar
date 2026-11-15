@@ -1,0 +1,144 @@
+# docs/guide/rollback.md "Go back"; docs/guide/skills.md "Add a skill you made"
+
+remote you/skills seed
+exec skl init you/skills
+exec skl use review
+mkdir $HOME/.claude/skills/my-new-skill/scripts
+cp new.md $HOME/.claude/skills/my-new-skill/SKILL.md
+cp run.sh $HOME/.claude/skills/my-new-skill/scripts/run.sh
+chmod 0755 $HOME/.claude/skills/my-new-skill/scripts/run.sh
+exec skl import my-new-skill
+stderr '^✓ generation 3 · skl rollback to undo$'
+
+# A dry run changes nothing, the folder included.
+exec skl rollback --dry-run
+cmp stdout dry-run.txt
+exists $HOME/.claude/skills/my-new-skill/.skl-copy.toml
+exists $HOME/.skl/vault/you/my-new-skill/SKILL.md
+
+# "Going back over an skl import gives you your folder back. In each target's folder
+# where the skill was before the import, skl leaves a plain folder with the imported
+# content and no .skl-copy.toml, as it was before."
+exec skl rollback
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-to-2.txt
+cmp $HOME/.claude/skills/my-new-skill/SKILL.md new.md
+cmp $HOME/.claude/skills/my-new-skill/scripts/run.sh run.sh
+exec test -x $HOME/.claude/skills/my-new-skill/scripts/run.sh
+! exists $HOME/.claude/skills/my-new-skill/.skl-copy.toml
+! exists $HOME/.skl/vault/you/my-new-skill
+exec git -C $HOME/.skl/vault status --porcelain
+! stdout .
+# "skl no longer manages it, so skl status lists it again under not in your vault."
+exec skl status
+stdout '^loaded \(user\)  review$'
+stdout '^not in your vault$'
+stdout '^  my-new-skill +· skl import my-new-skill$'
+# Nothing of skl's is left in it: the next command leaves it alone.
+exec skl add review
+cmp stderr nothing.txt
+! exists $HOME/.claude/skills/my-new-skill/.skl-copy.toml
+
+# "A rollback is itself a new generation, so you can undo it with another skl
+# rollback": undoing the rollback imports the folder again.
+exec skl rollback
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-to-3.txt
+cmp $HOME/.claude/skills/my-new-skill/SKILL.md new.md
+grep '^source = "you/my-new-skill"$' $HOME/.claude/skills/my-new-skill/.skl-copy.toml
+cmp $HOME/.skl/vault/you/my-new-skill/SKILL.md new.md
+exec skl status
+stdout '^loaded \(user\)  review you/my-new-skill$'
+stdout '^  my-new-skill +you/my-new-skill$'
+! stdout 'not in your vault'
+# It's the loaded skill again: an edit is saved back.
+cp edited.md $HOME/.claude/skills/my-new-skill/SKILL.md
+exec skl add review
+stderr '^◇ saved      my-new-skill → you/my-new-skill$'
+cmp $HOME/.skl/vault/you/my-new-skill/SKILL.md edited.md
+
+# Going back over the import and the save together gives the folder back as it is
+# now, edit included.
+exec skl rollback 2
+cmp $HOME/.claude/skills/my-new-skill/SKILL.md edited.md
+! exists $HOME/.claude/skills/my-new-skill/.skl-copy.toml
+! exists $HOME/.skl/vault/you/my-new-skill
+rm $HOME/.claude/skills/my-new-skill
+
+# "In each target's folder where the skill was before the import": with two targets,
+# the import found the folder in ~/.agents/skills and loaded it into
+# ~/.claude/skills. Only the folder that was there before stays.
+env SKL_TARGETS=claude,agents
+exec skl add review
+mkdir $HOME/.agents/skills/sql-explain
+cp sql.md $HOME/.agents/skills/sql-explain/SKILL.md
+exec skl import sql-explain
+exists $HOME/.claude/skills/sql-explain/.skl-copy.toml
+exists $HOME/.agents/skills/sql-explain/.skl-copy.toml
+exec skl rollback
+cp stderr out.txt
+exec sh shown.sh
+cmp stdout back-two-targets.txt
+cmp $HOME/.agents/skills/sql-explain/SKILL.md sql.md
+! exists $HOME/.agents/skills/sql-explain/.skl-copy.toml
+! exists $HOME/.claude/skills/sql-explain
+exec skl status
+stdout '^  sql-explain +· skl import sql-explain$'
+# And back again: the folder is imported again, and loaded into the other target.
+exec skl rollback
+exists $HOME/.agents/skills/sql-explain/.skl-copy.toml
+exists $HOME/.claude/skills/sql-explain/.skl-copy.toml
+cmp $HOME/.claude/skills/sql-explain/SKILL.md sql.md
+
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: Review a pull request.
+---
+-- new.md --
+---
+name: my-new-skill
+description: A skill made in Claude Code.
+---
+-- edited.md --
+---
+name: my-new-skill
+description: A skill made in Claude Code, edited.
+---
+-- run.sh --
+#!/bin/sh
+echo run
+-- sql.md --
+---
+name: sql-explain
+description: Explain a SQL query.
+---
+-- dry-run.txt --
+→ back to generation 2
+  − you/my-new-skill
+→ revert you/my-new-skill
+-- back-to-2.txt --
+→ back to generation 2
+  − you/my-new-skill
+◇ reverted   you/my-new-skill (revert commit SHA)
+! 2 changes not pushed · skl sync
+✓ generation 4 · skl rollback to undo
+-- back-to-3.txt --
+→ back to generation 3
+◇ reverted   you/my-new-skill (revert commit SHA)
+! 3 changes not pushed · skl sync
+✓ generation 5 · skl rollback to undo
+-- back-two-targets.txt --
+→ back to generation 8
+  − you/sql-explain
+◇ reverted   you/sql-explain (revert commit SHA)
+! 7 changes not pushed · skl sync
+✓ generation 10 · skl rollback to undo
+-- shown.sh --
+# out.txt with the newest vault commit's short sha as SHA: the ◇ line names it.
+sha=$(git -C "$HOME/.skl/vault" rev-parse HEAD | cut -c1-7)
+sed "s/(revert commit $sha)/(revert commit SHA)/" out.txt
+-- nothing.txt --
+✓ nothing to change

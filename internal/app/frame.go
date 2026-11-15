@@ -28,6 +28,9 @@ type Change struct {
 	// Unchanged, if the body sets it, replaces "nothing to change" as the last line
 	// of a run that made no generation: sync's "up to date" after a push.
 	Unchanged string
+	// Adopted and Released are the folders the body handed over, for the
+	// generation (state.Generation).
+	Adopted, Released []state.Copy
 	// saved is the generation the frame made for edits it saved first, or 0.
 	saved int
 	// pulled is the commits a merge finished by skl sync --continue brought in.
@@ -190,6 +193,8 @@ func (a *App) addGeneration(ctx context.Context, command string, c *Change) (sta
 		VaultCommit: head,
 		Scopes:      snapshot(c.State, c.Scopes),
 		Changed:     c.Scopes,
+		Adopted:     c.Adopted,
+		Released:    c.Released,
 	})
 }
 

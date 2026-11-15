@@ -30,6 +30,9 @@ type selection struct {
 	// saved are copies a save not yet made would record: a dry run plans as if it
 	// had (load.Input.Saved).
 	saved []state.Copy
+	// release are copies to give back in place instead of unloading them
+	// (load.Input.Release).
+	release []state.Copy
 }
 
 // note is a warning, built for the command being run.
@@ -184,7 +187,7 @@ func (a *App) prepareAt(ctx context.Context, view vaultView, st *state.State, s 
 	}
 	plan, err := load.Compute(ctx, load.Input{
 		Vault: view.dir, Commit: view.head, Result: res, Current: current.Copies, Targets: a.cfg.Targets, HomeRoot: root,
-		Saved: s.saved,
+		Saved: s.saved, Release: s.release,
 	})
 	if err != nil {
 		return nil, a.planError(err)
