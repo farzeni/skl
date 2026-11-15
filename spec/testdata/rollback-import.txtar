@@ -19,6 +19,8 @@ exists $HOME/.skl/vault/you/my-new-skill/SKILL.md
 # "Going back over an skl import gives you your folder back. In each target's folder
 # where the skill was before the import, skl leaves a plain folder with the imported
 # content and no .skl-copy.toml, as it was before."
+# docs/guide/skills.md "Add a skill you made": "A rollback over the import gives you
+# the folder back as it was."
 exec skl rollback
 cp stderr out.txt
 exec sh shown.sh
