@@ -73,7 +73,7 @@ func Inspect(ctx context.Context, in Input) (*Inspection, error) {
 			})
 			for _, s := range skipped {
 				f, _ := h.foreignFor(s)
-				out.Skipped = append(out.Skipped, Skip{Skill: s, Path: filepath.Join(dir, f), Foreign: f})
+				out.Skipped = append(out.Skipped, Skip{Skill: s, Path: filepath.Join(dir, f)})
 				skippedFolders = append(skippedFolders, f)
 			}
 			for _, s := range res.Skills {

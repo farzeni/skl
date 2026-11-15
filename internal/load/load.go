@@ -64,9 +64,8 @@ type Change struct {
 // Skip is a skill dropped from one target because someone else's skill holds a
 // name it needs.
 type Skip struct {
-	Skill   resolve.Skill
-	Path    string // the other skill's folder
-	Foreign string // that folder's name
+	Skill resolve.Skill
+	Path  string // the other skill's folder
 }
 
 // Plan is what loading a list of skills would do. Compute makes it and changes
@@ -147,7 +146,7 @@ func (p *Plan) planTarget(ctx context.Context, in Input, t config.Target, treeOf
 		})
 		for _, s := range skipped {
 			f, _ := held.foreignFor(s)
-			p.Skipped = append(p.Skipped, Skip{Skill: s, Path: filepath.Join(dir, f), Foreign: f})
+			p.Skipped = append(p.Skipped, Skip{Skill: s, Path: filepath.Join(dir, f)})
 		}
 		wanted = res.Skills
 		c.settled(res)

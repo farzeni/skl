@@ -322,7 +322,8 @@ loaded (user)  @backend writing/changelog
   sql-explain   data/sql-explain
   changelog     writing/changelog
 ! review/old-name   matches no skill (in @backend) · edit sets/backend.toml
-! lint   skipped: ~/.claude/skills/lint is not in your vault · skl import lint
+! lint   skipped: ~/.claude/skills/lint is not in your vault
+  · move ~/.claude/skills/lint aside, then skl sync
 not in your vault
   my-new-skill  · skl import my-new-skill
 skill sets      @backend  @base
@@ -374,7 +375,7 @@ vault           2 changes not pushed · skl sync
     {
       "name": "lint",
       "state": "skipped: ~/.claude/skills/lint is not in your vault",
-      "command": "skl import lint"
+      "command": "move ~/.claude/skills/lint aside, then skl sync"
     },
     {
       "name": "my-new-skill",
@@ -406,7 +407,8 @@ loaded (user)  @backend writing/changelog
   changelog     writing/changelog  changed · skl sync
   lint          writing/lint
 ! review/old-name   matches no skill (in @backend) · edit sets/backend.toml
-! lint   skipped: ~/.claude/skills/lint is not in your vault · skl import lint
+! lint   skipped: ~/.claude/skills/lint is not in your vault
+  · move ~/.claude/skills/lint aside, then skl sync
 not in your vault
   agent-only    · skl import agent-only
   my-new-skill  · skl import my-new-skill

@@ -56,13 +56,16 @@ exists $HOME/.claude/skills/changelog
 ! exists $HOME/.claude/skills/sql-explain
 exec sh -c 'test "$(git ls-remote $REMOTES/github.com/you/skills.git refs/heads/main | cut -f1)" = "$(cat laptop-head.txt)"'
 
-# "1. Commit. Changes to your loaded skills … are saved back, your hand edits
-# become one commit, and skl lists the files. 2. Pull. skl fetches the vault and
+# "1. Commit. Your hand edits become one commit, changes to your loaded skills, in
+# every repo, are saved back, and skl lists the files. 2. Pull. skl fetches the vault and
 # merges. 3. Push. 4. Reload. … A skill set changed on another machine, or a skill
 # deleted there, takes effect here." The output: "◇ pulled     3 commits", with no
 # machine name (the user, 2026-11-09; docs PR skl/docs/no-machine-name).
 exec skl sync
 cmp stderr sync.txt
+# The order: "◇ committed  sets/backend.toml" comes before "◇ saved      pr-review →
+# review/pr-review", and both before the save's generation.
+stderr '\A◇ committed  sets/frontend\.toml\n◇ saved      pr-review → review/pr-review\n.*\n◇ generation 3\n'
 exists $HOME/.claude/skills/sql-explain
 ! exists $HOME/.claude/skills/changelog
 exists $HOME/.claude/skills/style

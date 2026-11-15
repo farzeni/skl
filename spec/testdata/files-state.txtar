@@ -22,6 +22,73 @@ mv $HOME/.skl/state.json $HOME/.skl/state.json.bak
 exec skl init you/skills
 stderr '^✓ generation 1 · skl rollback to undo$'
 
+# "staging/ # new copies, before they replace the loaded ones", "lock # held while
+# a command changes something": a failed init leaves both files, and the next init
+# succeeds, so it's neither in the way nor held (#131). Each case gets a fresh
+# SKL_HOME.
+# The repo can't be reached yet.
+env SKL_HOME=$HOME/.skl-reach
+exitcode 1 skl init you/later
+stderr '^✗ can''t reach you/later'
+! exists $HOME/.skl-reach/vault
+remote you/later
+exec skl init you/later
+stderr '^✓ generation 1 · skl rollback to undo$'
+exists $HOME/.skl-reach/vault/.git
+
+# Loading fails: ~/.claude/skills can't be written.
+remote you/seeded seed
+env SKL_HOME=$HOME/.skl-load
+mkdir $HOME/.claude/skills
+chmod 500 $HOME/.claude/skills
+exitcode 1 skl init you/seeded review/pr-review
+chmod 700 $HOME/.claude/skills
+! exists $HOME/.skl-load/vault
+exists $HOME/.skl-load/lock
+exists $HOME/.skl-load/staging
+exec skl init you/seeded review/pr-review
+cmp stderr retried.txt
+exists $HOME/.claude/skills/pr-review/.skl-copy.toml
+rm $HOME/.claude/skills/pr-review
+
+# The generation can't be written: the loaded skill is taken back too.
+env SKL_HOME=$HOME/.skl-gen
+mkdir $HOME/.skl-gen/generations
+chmod 500 $HOME/.skl-gen/generations
+exitcode 1 skl init you/seeded review/pr-review
+chmod 700 $HOME/.skl-gen/generations
+! exists $HOME/.skl-gen/vault
+! exists $HOME/.claude/skills/pr-review
+exec skl init you/seeded review/pr-review
+cmp stderr retried.txt
+rm $HOME/.claude/skills/pr-review
+
+# A question with no terminal to ask it on.
+env SKL_HOME=$HOME/.skl-ask
+mkdir $HOME/.claude/skills/mine
+cp mine.md $HOME/.claude/skills/mine/SKILL.md
+exitcode 1 skl init you/seeded
+stderr 'needs an answer'
+! exists $HOME/.skl-ask/vault
+exec skl init you/seeded --yes
+stderr '^◇ imported   mine → you/$'
+stderr '^✓ generation 1 · skl rollback to undo$'
+
+-- retried.txt --
+→ clone you/seeded
+◇ cloned     1 group · 1 skill
++ pr-review
+✓ generation 1 · skl rollback to undo
+-- mine.md --
+---
+name: mine
+description: my own
+---
+-- seed/review/pr-review/SKILL.md --
+---
+name: pr-review
+description: review a PR
+---
 -- bad.json --
 {not json
 -- newer.json --

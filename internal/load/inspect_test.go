@@ -92,7 +92,7 @@ func TestInspectForeign(t *testing.T) {
 	if !slices.Equal(got.Foreign, []string{"linked", "mine"}) {
 		t.Errorf("Foreign = %q", got.Foreign)
 	}
-	if len(got.Skipped) != 1 || got.Skipped[0].Foreign != "a" {
+	if len(got.Skipped) != 1 || filepath.Base(got.Skipped[0].Path) != "a" {
 		t.Errorf("Skipped = %+v", got.Skipped)
 	}
 	if !slices.Equal(got.Dirs, []string{skills}) {

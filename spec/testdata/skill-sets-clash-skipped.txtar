@@ -43,19 +43,34 @@ exists $HOME/.claude/skills/log/.skl-copy.toml
 exists $HOME/.agents/skills/changelog/.skl-copy.toml
 cmp $HOME/.agents/skills/log/SKILL.md own.md
 
+# "· move ~/.claude/skills/pr-review aside, then skl sync": "Move it out of
+# ~/.claude/skills, and the next load puts your vault's skill there: skl sync
+# reloads what's loaded." The hint names the folder that's in the way, here in
+# ~/.agents/skills.
+mkdir $WORK/aside
+exec mv $HOME/.agents/skills/log $WORK/aside/log
+exec skl sync
+! stderr 'skipped'
+exists $HOME/.agents/skills/log/.skl-copy.toml
+! exists $HOME/.agents/skills/changelog
+cmp $WORK/aside/log/SKILL.md own.md
+
 -- first.txt --
 → load writing/changelog other/log
 + changelog
-! log   skipped: ~/.claude/skills/log is not in your vault · skl import log
+! log   skipped: ~/.claude/skills/log is not in your vault
+  · move ~/.claude/skills/log aside, then skl sync
 ✓ generation 2 · skl rollback to undo
 -- add.txt --
 → add other/log
-! log   skipped: ~/.claude/skills/log is not in your vault · skl import log
+! log   skipped: ~/.claude/skills/log is not in your vault
+  · move ~/.claude/skills/log aside, then skl sync
 ✓ generation 4 · skl rollback to undo
 -- drop.txt --
 → drop writing/changelog
 − changelog
-! log   skipped: ~/.claude/skills/log is not in your vault · skl import log
+! log   skipped: ~/.claude/skills/log is not in your vault
+  · move ~/.claude/skills/log aside, then skl sync
 ✓ generation 5 · skl rollback to undo
 -- free.txt --
 → load writing/changelog other/log
@@ -65,7 +80,8 @@ cmp $HOME/.agents/skills/log/SKILL.md own.md
 → load writing/changelog other/log
 ~ log   other/log replaces writing/changelog
 + changelog
-! log   skipped: ~/.agents/skills/log is not in your vault · skl import log
+! log   skipped: ~/.agents/skills/log is not in your vault
+  · move ~/.agents/skills/log aside, then skl sync
 ✓ generation 8 · skl rollback to undo
 -- own.md --
 ---
