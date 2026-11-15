@@ -12,15 +12,15 @@ Keep the same vault, and the same loaded skills, on every machine, with changes 
 skl sync
 ```
 
-1. **Commit.** Changes to your loaded skills, in every repo, are saved back, your hand edits become one commit, and skl lists the files.
+1. **Commit.** Your hand edits become one commit, changes to your loaded skills, in every repo, are saved back, and skl lists the files.
 2. **Pull.** skl fetches the vault and merges. It never rebases, so no commit is rewritten.
 3. **Push.**
 4. **Reload.** skl resolves what you have loaded again, for example `@backend writing/changelog`, and applies the difference, in your user scope and the repo you're in. A skill set changed on another machine, or a skill deleted there, takes effect here. Another repo's skills reload when you run `skl sync` there: see [Work in a repo](./skill-sets#work-in-a-repo).
 5. **Check for updates.** skl checks where the skills you learned came from. It changes nothing: `skl status` shows `update available`, and [`skl learn`](./learn#keep-up-with-its-author) takes it.
 
 ```
-◇ saved      pr-review → review/pr-review
 ◇ committed  sets/backend.toml
+◇ saved      pr-review → review/pr-review
 ◇ generation 13
 ◇ pulled     3 commits from laptop
 ◇ pushed
