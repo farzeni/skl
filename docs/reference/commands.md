@@ -96,6 +96,15 @@ The one exception is `-h`, which always means `--help`. So a group can't be name
 
 With `--dry-run`, a command prints its plan, the `→` line and the `+ ~ −` lines, then stops with exit code 0. Nothing is written, cloned, created or committed, and no question is asked.
 
+A real run first saves your changes to loaded skills and commits your hand edits in the vault (see [Your skills](../guide/skills)), so the plan starts with that, then shows the command's own plan:
+
+```
+→ save pr-review → review/pr-review
+→ commit sets/backend.toml
+→ overwrite sets/backend.toml
++ data
+```
+
 | Command | What `--dry-run` shows |
 |---|---|
 | `init` | Whether it would clone or create the repo (`→ clone you/skills` or `→ new vault you/skills`), what it would import, and what it would load. |
@@ -120,6 +129,8 @@ A question shows its answers; the first one is the default, taken with Enter. sk
 | `skl learn`: a license that may not fit your vault | yes, keep their license and notice |
 | `skl save`: overwrite a named skill set? | yes |
 | `skl learn`: land the lesson? | replace |
+
+One question puts `no` first: `skl save` overwriting a named skill set with one that would remove every line. Enter keeps the file; `--yes` still overwrites it. See [Named skill sets](../guide/skill-sets#named-skill-sets).
 
 Without a terminal and without `--yes`, a question stops the command before it changes anything:
 

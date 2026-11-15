@@ -84,6 +84,8 @@ skl leaves standard git conflict markers in the files in `~/.skl/vault`. Edit th
 skl sync --continue
 ```
 
+Any other edits you make in `~/.skl/vault` before `--continue` go into the merge commit, not into a generation of their own.
+
 ### Abort
 
 Choose abort, or quit Claude at any point, and the merge is undone. Your hand edits stay committed on this machine, nothing is pushed and your loaded skills don't change. You can also run this at any point:
