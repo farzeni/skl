@@ -141,6 +141,25 @@ func (v *Vault) Snapshot(ctx context.Context, tree, dir string) error {
 	return v.extract(ctx, tree, dir)
 }
 
+// Pulled counts the commits a sync brought in, going from before to after: the
+// vault commits of the generation before the sync and of the sync. That's every
+// commit after has that before doesn't, less the merge commit the sync made here,
+// a merge whose first parent is before. A fast-forward made none.
+func (v *Vault) Pulled(ctx context.Context, before, after string) (int, error) {
+	out, err := v.git.Run(ctx, v.dir, "rev-list", "--parents", after, "--not", before)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for line := range strings.Lines(out) {
+		if fields := strings.Fields(line); len(fields) > 2 && fields[1] == before {
+			continue
+		}
+		n++
+	}
+	return n, nil
+}
+
 // Resolve is the commit ref names.
 func (v *Vault) Resolve(ctx context.Context, ref string) (string, error) {
 	out, err := v.git.Run(ctx, v.dir, "rev-parse", "--verify", ref+"^{commit}")

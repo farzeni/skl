@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -237,5 +238,75 @@ func TestPending(t *testing.T) {
 	}
 	if now := run(t, v.dir, "rev-parse", "HEAD"); now != head {
 		t.Errorf("HEAD moved to %s", now)
+	}
+}
+
+// rollback.md "Go back": "! reverts 3 commits pulled by skl sync". Pulled counts
+// what a sync brought in: every commit after a fast-forward, and every commit but
+// the merge after a merge made here. A merge the other machine made counts.
+func TestPulled(t *testing.T) {
+	ctx := context.Background()
+	mine, other := twoClones(t)
+	pull := func() (before, after string) {
+		t.Helper()
+		before = run(t, mine.dir, "rev-parse", "HEAD")
+		if err := mine.Fetch(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := mine.Merge(ctx, "refs/remotes/origin/main"); err != nil {
+			t.Fatal(err)
+		}
+		return before, run(t, mine.dir, "rev-parse", "HEAD")
+	}
+	count := func(before, after string) int {
+		t.Helper()
+		n, err := mine.Pulled(ctx, before, after)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	push := func() { run(t, other, "push", "--quiet", "origin", "HEAD:refs/heads/main") }
+
+	// A fast-forward over three commits.
+	for _, text := range []string{"1\n", "2\n", "3\n"} {
+		commitFile(t, other, "b.txt", text)
+	}
+	push()
+	if n := count(pull()); n != 3 {
+		t.Errorf("fast-forward: pulled %d, want 3", n)
+	}
+
+	// A merge made here over two commits: the merge isn't counted, nor the
+	// commit made here.
+	commitFile(t, mine.dir, "c.txt", "mine\n")
+	commitFile(t, other, "b.txt", "4\n")
+	commitFile(t, other, "b.txt", "5\n")
+	push()
+	before, after := pull()
+	if parents := strings.Fields(run(t, mine.dir, "rev-list", "--parents", "-1", after)); len(parents) != 3 {
+		t.Fatalf("want a merge here, got %v", parents)
+	}
+	if n := count(before, after); n != 2 {
+		t.Errorf("merge here: pulled %d, want 2", n)
+	}
+
+	// A fast-forward onto a merge the other machine made: the merge counts, and
+	// both its sides. The other machine already has this machine's merge.
+	run(t, other, "pull", "--quiet", "--no-rebase", "origin", "main")
+	run(t, mine.dir, "push", "--quiet", "origin", "HEAD:refs/heads/main")
+	run(t, other, "pull", "--quiet", "--no-rebase", "origin", "main")
+	commitFile(t, other, "b.txt", "6\n")
+	side := run(t, other, "rev-parse", "HEAD")
+	run(t, other, "reset", "--quiet", "--hard", "HEAD~1")
+	commitFile(t, other, "d.txt", "other\n")
+	run(t, other, "merge", "--quiet", "--no-edit", side)
+	push()
+	if n := count(pull()); n != 3 {
+		t.Errorf("fast-forward onto their merge: pulled %d, want 3", n)
+	}
+
+	if n := count(after, after); n != 0 {
+		t.Errorf("nothing pulled: %d, want 0", n)
 	}
 }
